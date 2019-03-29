@@ -17,11 +17,6 @@
 // the concurrent implementation we are looking at is : A Sparse, Distributed, and Highly Concurrent
 //Merkle Tree
 
-// the functions defined are : insert_leaf(index, data)
-// get_signed_root()
-// generate_proof(index)
-// verify_proof(proof, data, root)
-
 // Package trie implements Merkle Patricia Tries.
 package trie
 
@@ -183,6 +178,23 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 	}
 }
 
+
+//	Batch Update is a function described in as a way to introduce fine grained locking to support concurrency
+//	https://people.eecs.berkeley.edu/~kubitron/courses/cs262a-F18/projects/reports/project1_report_ver3.pdf
+//	the basic algorithm they use is :
+//	batch_update_tree(Transactions T)
+//		Tree.conflicts = find_conflicts(sort(T))
+//		for t in list(T) do
+//			Tree.update(t)
+func (t *Trie) BatchUpdate(key, value [][]byte) {
+	// TODO: find conflicts
+
+	// This is where it gets interesting,
+	for i := 1; i < len(key); i++ {
+		t.Update(key[i], value[i])
+	}
+}
+
 // Update associates key with value in the trie. Subsequent calls to
 // Get will return value. If value has length zero, any existing value
 // is deleted from the trie and calls to Get will return nil.
@@ -221,10 +233,6 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
-/* 
- *
- *
- */
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
 	if len(key) == 0 {
 		if v, ok := n.(valueNode); ok {
