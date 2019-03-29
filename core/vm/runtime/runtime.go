@@ -93,6 +93,7 @@ func setDefaults(cfg *Config) {
 // Executes sets up a in memory, temporarily, environment for the execution of
 // the given code. It makes sure that it's restored to it's original state afterwards.
 func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
+	// perhaps make it so this function can be ran in parallel with its self
 	if cfg == nil {
 		cfg = new(Config)
 	}
