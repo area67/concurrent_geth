@@ -152,6 +152,7 @@ func enableWhisper(ctx *cli.Context) bool {
 	return false
 }
 
+// Called in ./main.go geth()
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.ConstantinopleOverrideFlag.Name) {

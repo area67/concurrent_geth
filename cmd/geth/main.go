@@ -280,9 +280,9 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
-	node := makeFullNode(ctx)
+	node := makeFullNode(ctx) // Defined in ./config.go
 	defer node.Close()
-	startNode(ctx, node)
+	startNode(ctx, node)	// Defined below
 	node.Wait()
 	return nil
 }
