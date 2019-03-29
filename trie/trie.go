@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
+// the concurrent implementation we are looking at is : A Sparse, Distributed, and Highly Concurrent
+//Merkle Tree
+
+// the functions defined are : insert_leaf(index, data)
+// get_signed_root()
+// generate_proof(index)
+// verify_proof(proof, data, root)
+
 // Package trie implements Merkle Patricia Tries.
 package trie
 
@@ -190,7 +198,7 @@ func (t *Trie) Update(key, value []byte) {
 // TryUpdate associates key with value in the trie. Subsequent calls to
 // Get will return value. If value has length zero, any existing value
 // is deleted from the trie and calls to Get will return nil.
-//
+//x
 // The value bytes must not be modified by the caller while they are
 // stored in the trie.
 //
@@ -213,6 +221,10 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
+/* 
+ *
+ *
+ */
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
 	if len(key) == 0 {
 		if v, ok := n.(valueNode); ok {
