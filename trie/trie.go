@@ -187,13 +187,26 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 //		for t in list(T) do
 //			Tree.update(t)
 func (t *Trie) BatchUpdate(key, value [][]byte) {
-	// TODO: find conflicts
+	conflictKeys := t.FindConflicts(t.SortConflicts(key))
+	// TODO: Create set of conflict nodes as part of the trie
 
-	// This is where it gets interesting,
 	for i := 1; i < len(key); i++ {
 		t.Update(key[i], value[i])
 	}
 }
+
+func (t *Trie) FindConflicts(key [][]byte) (conflicts [][]byte) {
+
+
+	return
+}
+
+func (t *Trie) SortConflicts(key [][]byte) (sortedKeys [][]byte) {
+	return SortByteArrays(key)
+}
+
+
+
 
 // Update associates key with value in the trie. Subsequent calls to
 // Get will return value. If value has length zero, any existing value
