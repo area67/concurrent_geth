@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"gopkg.in/urfave/cli.v1"
 )
 
 type dummyStatedb struct {
@@ -21,4 +22,8 @@ func main(){
 
 	fmt.Println(evm1.BlockNumber)
 	fmt.Println(evm2.BlockNumber)
+
+	//runCmd(&cli.Context{})
+
+	runCommand.Run(&cli.Context{})
 }
