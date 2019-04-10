@@ -44,13 +44,13 @@ var (
 )
 
 var (
-	numChans = 4
-	updateChans = []chan error{
+	updateChannels = []chan error{
 		make(chan error, 1),
 		make(chan error, 1),
 		make(chan error, 1),
 		make(chan error, 1),
 	}
+	invKeyChannel = make(chan error, 1)
 )
 
 // CacheMisses retrieves a global counter measuring the number of cache misses
@@ -189,15 +189,26 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 }
 
 func (t *Trie) Update(key, value []byte) {
-	c := updateChans[int(key[0])]
-	go t.update(key, value, c)
+	if len(key) == 0 {
+		go t.update(key, value, invKeyChannel)
+		<- invKeyChannel
+	} else {
+		c := updateChannels[int(key[0])%len(updateChannels)]
+		go t.update(key, value, c)
+		<-c
+	}
 }
 
 
 func (t *Trie) TryUpdate(key, value []byte) error {
-	c := updateChans[int(key[0])]
-	go t.tryUpdate(key, value, c)
-	return <- c
+	if len(key) == 0 {
+		go t.update(key, value, invKeyChannel)
+		return <- invKeyChannel
+	} else {
+		c := updateChannels[int(key[0]) % len(updateChannels)]
+		go t.tryUpdate(key, value, c)
+		return <- c
+	}
 }
 
 
