@@ -43,6 +43,16 @@ var (
 	cacheUnloadCounter = metrics.NewRegisteredCounter("trie/cacheunload", nil)
 )
 
+var (
+	numChans = 4
+	updateChans = []chan error{
+		make(chan error, 1),
+		make(chan error, 1),
+		make(chan error, 1),
+		make(chan error, 1),
+	}
+)
+
 // CacheMisses retrieves a global counter measuring the number of cache misses
 // the trie had since process startup. This isn't useful for anything apart from
 // trie debugging purposes.
@@ -178,34 +188,17 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 	}
 }
 
-
-//	Batch Update is a function described in as a way to introduce fine grained locking to support concurrency
-//	https://people.eecs.berkeley.edu/~kubitron/courses/cs262a-F18/projects/reports/project1_report_ver3.pdf
-//	the basic algorithm they use is :
-//	batch_update_tree(Transactions T)
-//		Tree.conflicts = find_conflicts(sort(T))
-//		for t in list(T) do
-//			Tree.update(t)
-func (t *Trie) BatchUpdate(key, value [][]byte) {
-	conflictKeys := t.FindConflicts(t.SortConflicts(key))
-	// TODO: Create set of conflict nodes as part of the trie
-
-	for i := 1; i < len(key); i++ {
-		t.Update(key[i], value[i])
-	}
-}
-
-func (t *Trie) FindConflicts(key [][]byte) (conflicts [][]byte) {
-
-
-	return
-}
-
-func (t *Trie) SortConflicts(key [][]byte) (sortedKeys [][]byte) {
-	return SortByteArrays(key)
+func (t *Trie) Update(key, value []byte) {
+	c := updateChans[int(key[0])]
+	go t.update(key, value, c)
 }
 
 
+func (t *Trie) TryUpdate(key, value []byte) error {
+	c := updateChans[int(key[0])]
+	go t.tryUpdate(key, value, c)
+	return <- c
+}
 
 
 // Update associates key with value in the trie. Subsequent calls to
@@ -214,8 +207,8 @@ func (t *Trie) SortConflicts(key [][]byte) (sortedKeys [][]byte) {
 //
 // The value bytes must not be modified by the caller while they are
 // stored in the trie.
-func (t *Trie) Update(key, value []byte) {
-	if err := t.TryUpdate(key, value); err != nil {
+func (t *Trie) update(key, value []byte, c chan error) {
+	if err := t.tryUpdate(key, value, c); err != nil {
 		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
 }
@@ -228,21 +221,24 @@ func (t *Trie) Update(key, value []byte) {
 // stored in the trie.
 //
 // If a node was not found in the database, a MissingNodeError is returned.
-func (t *Trie) TryUpdate(key, value []byte) error {
+func (t *Trie) tryUpdate(key, value []byte, c chan error) error {
 	k := keybytesToHex(key)
 	if len(value) != 0 {
 		_, n, err := t.insert(t.root, nil, k, valueNode(value))
 		if err != nil {
+			c <- err
 			return err
 		}
 		t.root = n
 	} else {
 		_, n, err := t.delete(t.root, nil, k)
 		if err != nil {
+			c <- err
 			return err
 		}
 		t.root = n
 	}
+	c <- nil
 	return nil
 }
 
