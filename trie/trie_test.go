@@ -151,12 +151,74 @@ func testMissingNode(t *testing.T, memonly bool) {
 	}
 }
 
+func TestConcurrentInsert(t *testing.T) {
+	trie := newEmpty()
+	done := make(chan bool)
+
+	go func() {
+		trie.Update([]byte("doe"), []byte("reindeer"))
+		done <- true
+	}()
+
+	go func() {
+		trie.Update([]byte("dog"), []byte("puppy"))
+		done <- true
+	}()
+
+	go func() {
+		trie.Update([]byte("dogglesworth"), []byte("cat"))
+		done <- true
+	}()
+
+	for i := 0; i < 3; i++ {
+		<-done
+	}
+
+	res := getString(trie, "dog")
+	if !bytes.Equal(res, []byte("puppy")) {
+		t.Errorf("expected puppy got %x", res)
+	}
+
+	res = getString(trie, "doe")
+	if !bytes.Equal(res, []byte("reindeer")) {
+		t.Errorf("expected reindeer got %x", res)
+	}
+
+	res = getString(trie, "dogglesworth")
+	if !bytes.Equal(res, []byte("cat")) {
+		t.Errorf("expected cat got %x", res)
+	}
+
+
+
+	exp := common.HexToHash("8aad789dff2f538bca5d8ea56e8abe10f4c7ba3a5dea95fea4cd6e7c3a1168d3")
+	root := trie.Hash()
+	if root != exp {
+		t.Errorf("exp %x got %x", exp, root)
+	}
+
+	trie = newEmpty()
+	updateString(trie, "A", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+	exp = common.HexToHash("d23786fb4a010da3ce639d66d5e904a11dbc02746d1ce25029e53290cabf28ab")
+	root, err := trie.Commit(nil)
+	if err != nil {
+		t.Fatalf("commit error: %v", err)
+	}
+	if root != exp {
+		t.Errorf("exp %x got %x", exp, root)
+	}
+}
+
+
 func TestInsert(t *testing.T) {
 	trie := newEmpty()
 
 	updateString(trie, "doe", "reindeer")
 	updateString(trie, "dog", "puppy")
 	updateString(trie, "dogglesworth", "cat")
+
+
 
 	exp := common.HexToHash("8aad789dff2f538bca5d8ea56e8abe10f4c7ba3a5dea95fea4cd6e7c3a1168d3")
 	root := trie.Hash()

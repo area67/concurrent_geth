@@ -23,7 +23,6 @@ package trie
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -190,22 +189,31 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 
 func (t *Trie) Update(key, value []byte) {
 	if len(key) == 0 {
-		go t.update(key, value, invKeyChannel)
-		<- invKeyChannel
+		go t.tryUpdate(key, value, invKeyChannel)
+		if err := <- invKeyChannel; err != nil {
+			log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
+		}
+		return
 	} else {
-		c := updateChannels[int(key[0])%len(updateChannels)]
-		go t.update(key, value, c)
-		<-c
+		k := keybytesToHex(key)
+		c := updateChannels[int(k[0]) % len(updateChannels)]
+		go t.tryUpdate(key, value, c)
+
+		if err := <-c; err != nil {
+			log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
+		}
+		return
 	}
 }
 
 
 func (t *Trie) TryUpdate(key, value []byte) error {
 	if len(key) == 0 {
-		go t.update(key, value, invKeyChannel)
+		go t.tryUpdate(key, value, invKeyChannel)
 		return <- invKeyChannel
 	} else {
-		c := updateChannels[int(key[0]) % len(updateChannels)]
+		k := keybytesToHex(key)
+		c := updateChannels[int(k[0]) % len(updateChannels)]
 		go t.tryUpdate(key, value, c)
 		return <- c
 	}
@@ -218,11 +226,13 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 //
 // The value bytes must not be modified by the caller while they are
 // stored in the trie.
+/*
 func (t *Trie) update(key, value []byte, c chan error) {
 	if err := t.tryUpdate(key, value, c); err != nil {
 		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
-}
+}*/
+
 
 // TryUpdate associates key with value in the trie. Subsequent calls to
 // Get will return value. If value has length zero, any existing value
@@ -232,25 +242,25 @@ func (t *Trie) update(key, value []byte, c chan error) {
 // stored in the trie.
 //
 // If a node was not found in the database, a MissingNodeError is returned.
-func (t *Trie) tryUpdate(key, value []byte, c chan error) error {
+func (t *Trie) tryUpdate(key, value []byte, c chan error) {
 	k := keybytesToHex(key)
 	if len(value) != 0 {
 		_, n, err := t.insert(t.root, nil, k, valueNode(value))
 		if err != nil {
 			c <- err
-			return err
+			return
 		}
-		t.root = n
+		t.root = n // TODO: This is a data race
 	} else {
 		_, n, err := t.delete(t.root, nil, k)
 		if err != nil {
 			c <- err
-			return err
+			return
 		}
-		t.root = n
+		t.root = n // TODO: This is a data race
 	}
 	c <- nil
-	return nil
+	return
 }
 
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
