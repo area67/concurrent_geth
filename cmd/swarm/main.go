@@ -452,6 +452,7 @@ func addDefaultHelpSubcommands(commands []cli.Command) {
 			addDefaultHelpSubcommands(cmd.Subcommands)
 		}
 	}
+
 }
 
 func setSwarmBootstrapNodes(ctx *cli.Context, cfg *node.Config) {
