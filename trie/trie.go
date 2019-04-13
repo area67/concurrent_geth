@@ -253,47 +253,34 @@ func (t *Trie) update(key, value []byte, c chan error) {
 func (t *Trie) tryUpdate(key, value []byte, c chan error) {
 	var rootCpy node
 	var oldRoot *node
+	var n node
+	var err error
 
 	k := keybytesToHex(key)
-	if len(value) != 0 {
-		for {
-			oldRoot = t.root
-			if oldRoot != nil {
-				rootCpy = *oldRoot
-			} else {
-				rootCpy = nil
-			}
-			_, n, err := t.insert(rootCpy, nil, k, valueNode(value))
+	for {
+		oldRoot = t.root
+		if oldRoot != nil {
+			rootCpy = *oldRoot
+		} else {
+			rootCpy = nil
+		}
+		if len(value) != 0 {
+			_, n, err = t.insert(rootCpy, nil, k, valueNode(value))
 			if err != nil {
 				c <- err
 				return
 			}
-			if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
-																  unsafe.Pointer(oldRoot),
-																  unsafe.Pointer(&n))  {
-				break
+		} else {
+			_, n, err = t.delete(rootCpy, nil, k)
+			if err != nil {
+				c <- err
+				return
 			}
 		}
-
-	} else {
-		for {
-			oldRoot = t.root
-			if oldRoot != nil {
-				rootCpy = *oldRoot
-			} else {
-				rootCpy = nil
-			}
-
-			_, n, err := t.delete(rootCpy, nil, k)
-			if err != nil {
-				c <- err
-				return
-			}
-			if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
-																unsafe.Pointer(oldRoot),
-																unsafe.Pointer(&n))  {
-				break
-			}
+		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
+			unsafe.Pointer(oldRoot),
+			unsafe.Pointer(&n))  {
+			break
 		}
 	}
 	c <- nil
