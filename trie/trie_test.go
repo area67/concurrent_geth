@@ -519,7 +519,12 @@ func runRandTest(rt randTest) bool {
 				rt[i].err = fmt.Errorf("hash mismatch in opItercheckhash")
 			}
 		case opCheckCacheInvariant:
-			rt[i].err = checkCacheInvariant(tr.root, nil, tr.cachegen, false, 0)
+			if tr.root != nil {
+				rt[i].err = checkCacheInvariant(*tr.root, nil, tr.cachegen, false, 0)
+			} else {
+				rt[i].err = checkCacheInvariant(nil, nil, tr.cachegen, false, 0)
+			}
+
 		}
 		// Abort the test on error.
 		if rt[i].err != nil {

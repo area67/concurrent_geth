@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"sync/atomic"
+	"unsafe"
 )
 
 var (
@@ -78,8 +80,7 @@ type LeafCallback func(leaf []byte, parent common.Hash) error
 // Trie is not safe for concurrent use.
 type Trie struct {
 	db   *Database
-	root node
-
+	root *node
 	// Cache generation values.
 	// cachegen increases by one with each commit operation.
 	// new nodes are tagged with the current generation and unloaded
@@ -116,7 +117,7 @@ func New(root common.Hash, db *Database) (*Trie, error) {
 		if err != nil {
 			return nil, err
 		}
-		trie.root = rootnode
+		trie.root = &rootnode
 	}
 	return trie, nil
 }
@@ -141,10 +142,17 @@ func (t *Trie) Get(key []byte) []byte {
 // The value bytes must not be modified by the caller.
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) TryGet(key []byte) ([]byte, error) {
+	var tmpnode node
 	key = keybytesToHex(key)
-	value, newroot, didResolve, err := t.tryGet(t.root, key, 0)
+	if t.root != nil {
+		tmpnode = *t.root
+	} else {
+		tmpnode = nil
+	}
+
+	value, newroot, didResolve, err := t.tryGet(tmpnode, key, 0)
 	if err == nil && didResolve {
-		t.root = newroot
+		t.root = &newroot
 	}
 	return value, err
 }
@@ -243,21 +251,50 @@ func (t *Trie) update(key, value []byte, c chan error) {
 //
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) tryUpdate(key, value []byte, c chan error) {
+	var rootCpy node
+	var oldRoot *node
+
 	k := keybytesToHex(key)
 	if len(value) != 0 {
-		_, n, err := t.insert(t.root, nil, k, valueNode(value))
-		if err != nil {
-			c <- err
-			return
+		for {
+			oldRoot = t.root
+			if oldRoot != nil {
+				rootCpy = *oldRoot
+			} else {
+				rootCpy = nil
+			}
+			_, n, err := t.insert(rootCpy, nil, k, valueNode(value))
+			if err != nil {
+				c <- err
+				return
+			}
+			if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
+																  unsafe.Pointer(oldRoot),
+																  unsafe.Pointer(&n))  {
+				break
+			}
 		}
-		t.root = n // TODO: This is a data race
+
 	} else {
-		_, n, err := t.delete(t.root, nil, k)
-		if err != nil {
-			c <- err
-			return
+		for {
+			oldRoot = t.root
+			if oldRoot != nil {
+				rootCpy = *oldRoot
+			} else {
+				rootCpy = nil
+			}
+
+			_, n, err := t.delete(rootCpy, nil, k)
+			if err != nil {
+				c <- err
+				return
+			}
+			if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
+																unsafe.Pointer(oldRoot),
+																unsafe.Pointer(&n))  {
+				break
+			}
 		}
-		t.root = n // TODO: This is a data race
 	}
 	c <- nil
 	return
@@ -343,11 +380,17 @@ func (t *Trie) Delete(key []byte) {
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) TryDelete(key []byte) error {
 	k := keybytesToHex(key)
-	_, n, err := t.delete(t.root, nil, k)
+	var rootCpy node
+	if t.root != nil {
+		rootCpy = *t.root
+	} else {
+		rootCpy = nil
+	}
+	_, n, err := t.delete(rootCpy, nil, k)
 	if err != nil {
 		return err
 	}
-	t.root = n
+	t.root = &n
 	return nil
 }
 
@@ -495,7 +538,8 @@ func (t *Trie) Root() []byte { return t.Hash().Bytes() }
 // database and can be used even if the trie doesn't have one.
 func (t *Trie) Hash() common.Hash {
 	hash, cached, _ := t.hashRoot(nil, nil)
-	t.root = cached
+	if cached == nil {}
+	t.root = &cached
 	return common.BytesToHash(hash.(hashNode))
 }
 
@@ -509,7 +553,7 @@ func (t *Trie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
 	if err != nil {
 		return common.Hash{}, err
 	}
-	t.root = cached
+	t.root = &cached
 	t.cachegen++
 	return common.BytesToHash(hash.(hashNode)), nil
 }
@@ -518,7 +562,10 @@ func (t *Trie) hashRoot(db *Database, onleaf LeafCallback) (node, node, error) {
 	if t.root == nil {
 		return hashNode(emptyRoot.Bytes()), nil, nil
 	}
+	if *(t.root) == nil {
+		return hashNode(emptyRoot.Bytes()), nil, nil
+	}
 	h := newHasher(t.cachegen, t.cachelimit, onleaf)
 	defer returnHasherToPool(h)
-	return h.hash(t.root, db, true)
+	return h.hash(*t.root, db, true)
 }
