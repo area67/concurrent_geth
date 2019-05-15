@@ -19,6 +19,7 @@ package trie
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -28,6 +29,7 @@ import (
 	"reflect"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,6 +37,15 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+type TestValues struct {
+	TestValues []TestValue `json:"items"`
+}
+
+type TestValue struct {
+	Key   string `json:"key"`
+	Value   string `json:"value"`
+}
 
 func init() {
 	spew.Config.Indent = "    "
@@ -210,6 +221,89 @@ func TestConcurrentInsert(t *testing.T) {
 	}
 }
 
+func TestConcurrentLargeInsert(t *testing.T) {
+	trie := newEmpty()
+	done := []chan bool {
+		make(chan bool, 1),
+		make(chan bool, 1),
+		make(chan bool, 1),
+		make(chan bool, 1),
+	}
+
+	jsonFile, err := os.Open("../tests/testdata/TrieTests/large_insert_test.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	var items TestValues
+	json.Unmarshal(byteValue, &items)
+
+	start := time.Now()
+	go func(d chan bool) {
+		for i := 0; i < len(items.TestValues);  i = i + 2 {
+			trie.Update([]byte(items.TestValues[i].Key), []byte(items.TestValues[i].Value))
+		}
+		d <- true
+	}(done[0])
+
+	go func(d chan bool) {
+		for i := 1; i < len(items.TestValues);  i = i + 2 {
+			trie.Update([]byte(items.TestValues[i].Key), []byte(items.TestValues[i].Value))
+		}
+		d <- true
+	}(done[1])
+
+
+	go func(d chan bool) {
+		for i := 2; i < len(items.TestValues);  i = i + 4 {
+			trie.Update([]byte(items.TestValues[i].Key), []byte(items.TestValues[i].Value))
+		}
+		d <- true
+	}(done[2])
+
+	go func(d chan bool) {
+		for i := 3; i < len(items.TestValues);  i = i + 4 {
+			trie.Update([]byte(items.TestValues[i].Key), []byte(items.TestValues[i].Value))
+		}
+		d <- true
+	}(done[3])
+
+
+	for i := 0; i < len(done); i++{
+		<-done[i]
+	}
+	elapsed := time.Since(start)
+
+	exp := common.HexToHash("60f181d14cec508b4a40a250841b2a7a0362105abfb23eb1d96d053463d9127b")
+	root := trie.Hash()
+	if root != exp {
+		t.Errorf("exp %x got %x", exp, root)
+	}
+	fmt.Println("-Insertion Time: ", elapsed.Seconds() , " seconds.")
+}
+
+func TestLargeInsert(t *testing.T) {
+	trie := newEmpty()
+	jsonFile, err := os.Open("../tests/testdata/TrieTests/large_insert_test.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	var items TestValues
+	json.Unmarshal(byteValue, &items)
+
+	start := time.Now()
+	for i := 0; i < len(items.TestValues); i++ {
+		updateString(trie, items.TestValues[i].Key, items.TestValues[i].Value)
+	}
+	elapsed := time.Since(start)
+	exp := common.HexToHash("60f181d14cec508b4a40a250841b2a7a0362105abfb23eb1d96d053463d9127b")
+	root := trie.Hash()
+	if root != exp {
+		t.Errorf("exp %x got %x", exp, root)
+	}
+	fmt.Println("-Insertion Time: ", elapsed.Seconds() , " seconds.")
+}
 
 func TestInsert(t *testing.T) {
 	trie := newEmpty()

@@ -278,8 +278,8 @@ func (t *Trie) tryUpdate(key, value []byte, c chan error) {
 			}
 		}
 		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&(t.root))),
-			unsafe.Pointer(oldRoot),
-			unsafe.Pointer(&n))  {
+											unsafe.Pointer(oldRoot),
+											unsafe.Pointer(&n))  {
 			break
 		}
 	}
