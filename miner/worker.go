@@ -20,13 +20,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/cmd/utils"
+
 	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
+	//"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -721,7 +722,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// run number of goroutines equal to number of threads mining on
 
 	// use num threads as semaphore
-	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
+	numCommitThreads := 5//utils.MinerLegacyThreadsFlag.Value
 	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", numCommitThreads))
 
 	// semaphore to limit number of thresa running at a time
