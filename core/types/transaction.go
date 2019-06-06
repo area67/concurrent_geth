@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"math/big"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -70,6 +71,8 @@ type txdataMarshaling struct {
 	R            *hexutil.Big
 	S            *hexutil.Big
 }
+
+var mutex = &sync.Mutex{}
 
 func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
 	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
@@ -366,10 +369,14 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 func (t *TransactionsByPriceAndNonce) Shift() {
 	acc, _ := Sender(t.signer, t.heads[0])
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
+		mutex.Lock()
 		t.heads[0], t.txs[acc] = txs[0], txs[1:]
 		heap.Fix(&t.heads, 0)
+		mutex.Unlock()
 	} else {
+		mutex.Lock()
 		heap.Pop(&t.heads)
+		mutex.Unlock()
 	}
 }
 
@@ -377,7 +384,9 @@ func (t *TransactionsByPriceAndNonce) Shift() {
 // the same account. This should be used when a transaction cannot be executed
 // and hence all subsequent ones should be discarded from the same account.
 func (t *TransactionsByPriceAndNonce) Pop() {
+	mutex.Lock()
 	heap.Pop(&t.heads)
+	mutex.Unlock()
 }
 
 // Message is a fully derived transaction and implements core.Message
