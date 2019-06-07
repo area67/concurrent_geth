@@ -161,7 +161,8 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 	// as we always want to have the built-in EVM as the failover option.
 	evm.interpreters = append(evm.interpreters, NewEVMInterpreter(evm, vmConfig))
 	evm.interpreter = evm.interpreters[0]
-
+	
+	log.Debug("New EVM made")
 	return evm
 }
 
@@ -183,15 +184,18 @@ func (evm *EVM) Interpreter() Interpreter {
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	log.Debug("Running smart contract code")
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
+		log.Debug("Unsuccessful contract execution in Call, evm.vmConfig.NoRecursion && evm.depth > 0")
 		return nil, gas, nil
 	}
 
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		log.Debug("Unsuccessful contract execution in Call, attempted execution above call depth limit")
 		return nil, gas, ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		log.Debug("Unsuccessful contract execution in Call, insufficent balance")
 		return nil, gas, ErrInsufficientBalance
 	}
 
@@ -217,6 +221,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
+	log.Debug("Contract initialised")
 	contract := NewContract(caller, to, value, gas)
 	contract.SetCallCode(&addr, evm.StateDB.GetCodeHash(addr), evm.StateDB.GetCode(addr))
 
@@ -241,7 +246,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
+		log.Debug("Unsuccessful contract execution in Call, EVM error or code storage gas error")
 	}
+	log.Debug("Contract call successfully excecuted")
 	return ret, contract.Gas, err
 }
 
@@ -254,15 +261,18 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 // code with the caller as context.
 func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
+		log.Debug("Unsuccessful contract execution in CallCode, evm.vmConfig.NoRecursion && evm.depth > 0")
 		return nil, gas, nil
 	}
 
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		log.Debug("Unsuccessful contract execution in CallCode, attempted execution above call depth limit")
 		return nil, gas, ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+		log.Debug("Unsuccessful contract execution in CallCode, insufficent balance")
 		return nil, gas, ErrInsufficientBalance
 	}
 
@@ -281,7 +291,9 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
+		log.Debug("Unsuccessful contract execution in CallCode, EVM error or code storage gas error")
 	}
+	log.Debug("Contract call successfully excecuted")
 	return ret, contract.Gas, err
 }
 
