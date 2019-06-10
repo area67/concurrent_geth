@@ -304,10 +304,12 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 // code with the caller as context and the caller is set to the caller of the caller.
 func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
+		log.Debug("Unsuccessful contract execution in DelegateCall, evm.vmConfig.NoRecursion && evm.depth > 0")
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		log.Debug("Unsuccessful contract execution in DelegateCall, attempted execution above call depth limit")
 		return nil, gas, ErrDepth
 	}
 
@@ -326,7 +328,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
+		log.Debug("Unsuccessful contract execution in DelegateCall, EVM error or code storage gas error")
 	}
+	log.Debug("Contract call successfully excecuted")
 	return ret, contract.Gas, err
 }
 
@@ -336,10 +340,12 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // instead of performing the modifications.
 func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
+		log.Debug("Unsuccessful contract execution in StaticCall, evm.vmConfig.NoRecursion && evm.depth > 0")
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		log.Debug("Unsuccessful contract execution in StaticCall, attempted execution above call depth limit")
 		return nil, gas, ErrDepth
 	}
 
@@ -367,6 +373,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
+		log.Debug("Unsuccessful contract execution in StaticCall, EVM error or code storage gas error")
 	}
 	return ret, contract.Gas, err
 }
@@ -388,9 +395,11 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
+		log.Debug("Unsuccessful contract creation, failed depth check.")
 		return nil, common.Address{}, gas, ErrDepth
 	}
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+		log.Debug("Unsuccessful contract creation, insufficient balance or problem transferring").
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
@@ -399,6 +408,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != emptyCodeHash) {
+		log.Debug("Unsuccessful contract creation, existing contract at designated address.")
 		return nil, common.Address{}, 0, ErrContractAddressCollision
 	}
 	// Create a new account on the state
@@ -415,6 +425,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	contract.SetCodeOptionalHash(&address, codeAndHash)
 
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
+		log.Debug("Unsuccessful contract creation, vm.vmConfig.NoRecursion && evm.depth > 0")
 		return nil, address, gas, nil
 	}
 
@@ -448,9 +459,11 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
+		log.Debug("Unsuccessful contract creation, EVM error or code storage gas error")
 	}
 	// Assign err if contract code size exceeds the max while the err is still empty.
 	if maxCodeSizeExceeded && err == nil {
+		log.Debug("Unsuccessful contract creation, contract code size exceeds the max")
 		err = errMaxCodeSizeExceeded
 	}
 	if evm.vmConfig.Debug && evm.depth == 0 {
