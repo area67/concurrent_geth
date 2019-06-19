@@ -398,7 +398,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		return nil, common.Address{}, gas, ErrDepth
 	}
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
-		log.Debug("Unsuccessful contract creation, insufficient balance or problem transferring").
+		log.Debug("Unsuccessful contract creation, insufficient balance or problem transferring.")
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
