@@ -142,6 +142,7 @@ func (st *StateTransition) to() common.Address {
 
 func (st *StateTransition) useGas(amount uint64) error {
 	if st.gas < amount {
+		log.Debug("Function useGas in state_transition failed, out of gas")
 		return vm.ErrOutOfGas
 	}
 	st.gas -= amount
@@ -152,6 +153,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
+		log.Debug("Function buyGas in state_transition failed, insufficient balance")
 		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -169,8 +171,10 @@ func (st *StateTransition) preCheck() error {
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
+			log.Debug("Function preCheck in state_transition failed, nonce too high")
 			return ErrNonceTooHigh
 		} else if nonce > st.msg.Nonce() {
+			log.Debug("Function Precheck in state_transition failed, nonce too low")
 			return ErrNonceTooLow
 		}
 	}
