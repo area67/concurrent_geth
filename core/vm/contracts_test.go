@@ -433,6 +433,27 @@ func TestPrecompiledModExp(t *testing.T) {
 	}
 }
 
+func TestConcurrentPrecompiledModExp(t *testing.T) {
+	var i int
+	i = 0
+	done := []chan bool {
+		make(chan bool, 1),
+		make(chan bool, 1),
+		make(chan bool, 1),
+		make(chan bool, 1),
+	}
+	for _, test := range modexpTests {
+		go func(d chan bool) {
+			testPrecompiled("05", test, t)
+			d <- true
+		}(done[i % 4])
+		i++
+	}
+	for i:= 0; i < 4; i++ {
+		<-done[i]
+	}
+}
+
 // Benchmarks the sample inputs from the ModExp EIP 198.
 func BenchmarkPrecompiledModExp(bench *testing.B) {
 	for _, test := range modexpTests {
@@ -481,3 +502,5 @@ func BenchmarkPrecompiledBn256Pairing(bench *testing.B) {
 		benchmarkPrecompiled("08", test, bench)
 	}
 }
+
+
