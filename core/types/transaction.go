@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
 	"sync"
@@ -366,9 +367,12 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
 	for i := 0; ; i = (i+1) % (numCommitThreads + 1) {
 
-		//var accntAddress := //account address string? possibly t.signer.Sender()
 		var sender, err = t.signer.Sender(t.heads[i])
 		// check err
+		if err != nil{
+			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
+			return nil
+		}
 		if len(t.heads) == i {
 			return nil
 		}
@@ -378,8 +382,8 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
-			// TODO: lock account here
-			// TODO: defer unlock of account lock here
+			// lock account here
+			// defer unlock of account to unlock when done reading data
 			nonceMutex.Lock()
 			defer nonceMutex.Unlock()
 			return t.heads[i]
