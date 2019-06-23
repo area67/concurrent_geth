@@ -19,8 +19,9 @@ package types
 import (
 	"container/heap"
 	"errors"
-	"github.com/ethereum/go-ethereum-geth/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
+	"github.com/ethereum/go-ethereum/cmd/utils"
 	"io"
 	"math/big"
 	"sync"
@@ -362,8 +363,8 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	for i := 0; ; i++ {
-		// TODO: figure out how to get sender of transaction
+	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
+	for i := 0; ; i = (i+1) % (numCommitThreads + 1) {
 
 		//var accntAddress := //account address string? possibly t.signer.Sender()
 		var sender, err = t.signer.Sender(t.heads[i])
