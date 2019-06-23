@@ -375,6 +375,7 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 
 		// Get sender at current index in t.heads
 		var sender, err = t.signer.Sender(t.heads[i])
+		sender.String()
 
 		// check err
 		if err != nil{
