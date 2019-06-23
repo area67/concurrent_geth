@@ -364,34 +364,36 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
-	for i := 0; ; i = (i+1) % (numCommitThreads + 1) {
+	// Loop through the first several nodes of t.heads, either the number of cores
+	// available or the length of t.heads, whichever is smaller.
+	for i := 0; ; i = (i + 1) % min((numCommitThreads + 1), len(t.heads)) {
 
 		//var accntAddress := //account address string? possibly t.signer.Sender()
 		var sender, err = t.signer.Sender(t.heads[i])
 		// check err
-		if len(t.heads) == i {
+		if len(t.heads) == 0 {
 			return nil
-		}
+		} 
+		// Unlock structure after iteration
+		// nonceMutex.Unlock();
 
+		// Check if sender account is locked
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
+			// Look for next account if account is locked
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
-			// TODO: lock account here
-			// TODO: defer unlock of account lock here
+			// lock structure to ensure correct read
 			nonceMutex.Lock()
+			// defer unlock of structure
 			defer nonceMutex.Unlock()
 			return t.heads[i]
 		}
-
-		// sender, er:= Signer().Sender(t.heads[0])
-		// from, _ := types.Sender(t.signer, t.heads[0])
+		// Lock structure before iteration
 		// nonceMutex.Lock()
-		// defer nounceMutex.Unlock()
-		// return t.heads[0]
 	}
-
+	
 }
 
 // Shift replaces the current best head with the next one from the same account.
