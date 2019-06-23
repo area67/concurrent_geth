@@ -19,6 +19,7 @@ package types
 import (
 	"container/heap"
 	"errors"
+	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"io"
 	"math/big"
 	"sync"
@@ -28,8 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/cornelk/hashmap"
-
 )
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
@@ -37,6 +36,7 @@ import (
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
 	nounceMutex   = &sync.Mutex{}
+	accountLock = &hashmap.HashMap{}
 
 )
 
