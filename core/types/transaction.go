@@ -367,7 +367,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
-	for i := 0; ; i = (i + 1) % Min((numCommitThreads + 1), float64(len(t.heads))) {
+	for i := 0; ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
 
 		if len(t.heads) <= 0 {
 			return nil
