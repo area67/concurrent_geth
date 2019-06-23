@@ -725,7 +725,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	numCommitThreads := 5//utils.MinerLegacyThreadsFlag.Value
 	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", numCommitThreads))
 
-	// semaphore to limit number of thresa running at a time
+	// semaphore to limit number of threads running at a time
 	var sem= make(chan bool, numCommitThreads)
 	// load the semaphore
 	for i := 0; i < numCommitThreads; i++ {
@@ -733,18 +733,21 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	// 0 = OK, 1 = Break, 2 = Return
-	var status int32= 0
-	var value bool
+	const OK int32 = 0
+	const BREAK int32 = 1
+	const RETURN int32 = 2
+	var loopStatus int32 = OK
+	var returnValue bool
 
 	for {
 		<-sem
 		// check if need to return or break before beginning new thread
-		switch status{
-			case 1:
+		switch loopStatus {
+			case BREAK:
 				break
 
-			case 2:
-				return value
+			case RETURN:
+				return returnValue
 
 
 		}
@@ -753,7 +756,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		go func() {
 
 			defer func() { sem <- true }()
-			var res bool
+			var casResult bool
 			// In the following three cases, we will interrupt the execution of the transaction.
 			// (1) new head block event arrival, the interrupt signal is 1
 			// (2) worker start or restart, the interrupt signal is 1
@@ -772,13 +775,13 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 						inc:   true,
 					}
 				}
-				// set status to indicate ready to return
-				res = atomic.CompareAndSwapInt32(&status,0,2)
-				if !res{
-					res = atomic.CompareAndSwapInt32(&status,1,2)
+				// set loopStatus to indicate ready to return
+				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,RETURN)
+				if !casResult {
+					casResult = atomic.CompareAndSwapInt32(&loopStatus,BREAK,RETURN)
 				}
-				if res{
-					value =  atomic.LoadInt32(interrupt) == commitInterruptNewHead
+				if casResult {
+					returnValue =  atomic.LoadInt32(interrupt) == commitInterruptNewHead
 					return
 				}
 				// else aready a thread waiting to return
@@ -788,14 +791,15 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if w.current.gasPool.Gas() < params.TxGas {
 				log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 				// set signal to break
-				res = atomic.CompareAndSwapInt32(&status,0,1)
+				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
 				return
 				// break
 			}
 			// Retrieve the next transaction and abort if all done
 			tx := txs.Peek()
 			if tx == nil {
-				res = atomic.CompareAndSwapInt32(&status,0,1)
+				// no more transactions still need to wait until pending commits are finished or out of gas.
+				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
 				return
 				//break
 			}

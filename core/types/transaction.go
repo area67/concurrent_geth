@@ -19,6 +19,8 @@ package types
 import (
 	"container/heap"
 	"errors"
+	"github.com/ethereum/go-ethereum-geth/core/types"
+	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"io"
 	"math/big"
 	"sync"
@@ -34,7 +36,8 @@ import (
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
-	nounceMutex   = &sync.Mutex{}
+	nonceMutex   = &sync.Mutex{}
+	accountLock = &hashmap.HashMap{}
 
 )
 
@@ -359,19 +362,37 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	if len(t.heads) == 0 {
-		return nil
+	for i := 0; ; i++ {
+		var accntAddress := //account address string? possibly t.signer.Sender()
+		if len(t.heads) == i {
+			return nil
+		}
+
+		if accountLock.GetStringKey(accntAddress) != nil {
+			continue
+		} else {
+			// add account to hash table, value irrelevant?
+			accountLock.Insert(accntAddress, true)
+			// TODO: lock account here
+			// TODO: defer unlock of account lock here
+			nonceMutex.Lock()
+			defer nonceMutex.Unlock()
+			return t.heads[i]
+		}
 	}
-	nounceMutex.Lock()
+	//sender, er:= Signer().Sender(t.heads[0])
+	from, _ := types.Sender(t.signer, t.heads[0])
+	nonceMutex.Lock()
 	defer nounceMutex.Unlock()
 	return t.heads[0]
+
 }
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift() {
 	acc, _ := Sender(t.signer, t.heads[0])
-	nounceMutex.Lock()
-	defer nounceMutex.Unlock()
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
 		t.heads[0], t.txs[acc] = txs[0], txs[1:]
 		heap.Fix(&t.heads, 0)
@@ -384,9 +405,16 @@ func (t *TransactionsByPriceAndNonce) Shift() {
 // the same account. This should be used when a transaction cannot be executed
 // and hence all subsequent ones should be discarded from the same account.
 func (t *TransactionsByPriceAndNonce) Pop() {
-	nounceMutex.Lock()
+	nonceMutex.Lock()
 	heap.Pop(&t.heads)
-	nounceMutex.Unlock()
+	nonceMutex.Unlock()
+}
+
+
+// Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
+// this is like a pop that can "pop"
+func (t *TransactionsByPriceAndNonce) Remove(index int32){
+
 }
 
 // Message is a fully derived transaction and implements core.Message
