@@ -363,28 +363,33 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	for i := 0; ; i++ {
-		var accntAddress := //account address string? possibly t.signer.Sender()
+		// TODO: figure out how to get sender of transaction
+
+		//var accntAddress := //account address string? possibly t.signer.Sender()
+		var sender, err = t.signer.Sender(t.heads[i])
+		// check err
 		if len(t.heads) == i {
 			return nil
 		}
 
-		if accountLock.GetStringKey(accntAddress) != nil {
+		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
-			accountLock.Insert(accntAddress, true)
+			accountLock.Insert(sender.String(), true)
 			// TODO: lock account here
 			// TODO: defer unlock of account lock here
 			nonceMutex.Lock()
 			defer nonceMutex.Unlock()
 			return t.heads[i]
 		}
+
+		// sender, er:= Signer().Sender(t.heads[0])
+		// from, _ := types.Sender(t.signer, t.heads[0])
+		// nonceMutex.Lock()
+		// defer nounceMutex.Unlock()
+		// return t.heads[0]
 	}
-	//sender, er:= Signer().Sender(t.heads[0])
-	from, _ := types.Sender(t.signer, t.heads[0])
-	nonceMutex.Lock()
-	defer nounceMutex.Unlock()
-	return t.heads[0]
 
 }
 
