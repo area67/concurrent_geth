@@ -362,26 +362,25 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	}
 }
 
-// Peek returns the next transaction by price.
-func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
+func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
 	for i := 0; ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
 
+		// If no senders waiting, quit
 		if len(t.heads) <= 0 {
 			return nil
 		}
 
+		// Get sender at current index in t.heads
 		var sender, err = t.signer.Sender(t.heads[i])
 
 		// check err
 		if err != nil{
 			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 			return nil
-		} 
-		// Unlock structure after iteration
-		// nonceMutex.Unlock();
+		}
 
 		// Check if sender account is locked
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
@@ -390,16 +389,36 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
-			// lock structure to ensure correct read
-			nonceMutex.Lock()
-			// defer unlock of structure
-			defer nonceMutex.Unlock()
-			return t.heads[i]
+			tx, success := TryPeekHelper(sender, i)
+			if success {
+				return tx
+			}
+			// If this line is reached, TryPeekHelper() failed, try again
 		}
-		// Lock structure before iteration
-		// nonceMutex.Lock()
 	}
-	
+}
+
+func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender, index) *Transaction, bool {
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
+	readSender, err := t.signer.Sender(t.heads[i])
+	// check err
+	if err != nil{
+		log.Error("Error getting sender in core/types/transactions.go Peek()",err)
+		return nil, false
+	}
+	if sender.String() == readSender.String() {
+		return t.heads[i], true
+	} else {
+		return nil, false
+	}
+}
+
+// Peek returns the next transaction by price.
+func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
+	// Throughout project, other files call this Peek(). Now using this Peek() as a wrapper
+	// for our thread-safe peek functions to avoid errors or rewrite.
+	return TryPeek()
 }
 
 // Shift replaces the current best head with the next one from the same account.
