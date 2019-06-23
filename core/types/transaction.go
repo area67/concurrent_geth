@@ -19,6 +19,7 @@ package types
 import (
 	"container/heap"
 	"errors"
+	"github.com/ethereum/go-ethereum-geth/core/types"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"io"
 	"math/big"
@@ -379,6 +380,12 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			return t.heads[i]
 		}
 	}
+	//sender, er:= Signer().Sender(t.heads[0])
+	from, _ := types.Sender(t.signer, t.heads[0])
+	nonceMutex.Lock()
+	defer nounceMutex.Unlock()
+	return t.heads[0]
+
 }
 
 // Shift replaces the current best head with the next one from the same account.
@@ -401,6 +408,13 @@ func (t *TransactionsByPriceAndNonce) Pop() {
 	nonceMutex.Lock()
 	heap.Pop(&t.heads)
 	nonceMutex.Unlock()
+}
+
+
+// Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
+// this is like a pop that can "pop"
+func (t *TransactionsByPriceAndNonce) Remove(index int32){
+
 }
 
 // Message is a fully derived transaction and implements core.Message
