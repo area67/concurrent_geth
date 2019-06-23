@@ -19,9 +19,9 @@ package types
 import (
 	"container/heap"
 	"errors"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/cornelk/hashmap"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
 	"sync"
@@ -368,10 +368,15 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	// available or the length of t.heads, whichever is smaller.
 	for i := 0; ; i = (i + 1) % min((numCommitThreads + 1), len(t.heads)) {
 
-		//var accntAddress := //account address string? possibly t.signer.Sender()
+		if len(t.heads) <= 0 {
+			return nil
+		}
+
 		var sender, err = t.signer.Sender(t.heads[i])
+
 		// check err
-		if len(t.heads) == 0 {
+		if err != nil{
+			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 			return nil
 		} 
 		// Unlock structure after iteration
