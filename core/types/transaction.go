@@ -401,14 +401,17 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender, index) *Transaction, bool {
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	readSender, err := t.signer.Sender(t.heads[i])
+	if(index >= len(t.heads)) {
+		return nil, false
+	}
+	readSender, err := t.signer.Sender(t.heads[index])
 	// check err
 	if err != nil{
 		log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 		return nil, false
 	}
 	if sender.String() == readSender.String() {
-		return t.heads[i], true
+		return t.heads[index], true
 	} else {
 		return nil, false
 	}
