@@ -19,9 +19,8 @@ package types
 import (
 	"container/heap"
 	"errors"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
@@ -367,15 +366,18 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
 	for i := 0; ; i = (i+1) % (numCommitThreads + 1) {
 
+		if len(t.heads) == i {
+			return nil
+		}
+
 		var sender, err = t.signer.Sender(t.heads[i])
+
 		// check err
 		if err != nil{
 			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 			return nil
 		}
-		if len(t.heads) == i {
-			return nil
-		}
+
 
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			continue
