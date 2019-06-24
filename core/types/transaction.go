@@ -23,8 +23,8 @@ import (
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
-	"math/big"
 	"math"
+	"math/big"
 	"sync"
 	"sync/atomic"
 
@@ -375,7 +375,7 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 
 		// Get sender at current index in t.heads
 		var sender, err = t.signer.Sender(t.heads[i])
-		sender.String()
+		//sender.String()
 
 		// check err
 		if err != nil{
@@ -390,7 +390,7 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
-			tx, success := TryPeekHelper(sender, i)
+			tx, success := t.TryPeekHelper(sender, i)
 			if success {
 				return tx
 			}
@@ -399,21 +399,26 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	}
 }
 
-func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender, index) *Transaction, bool {
+func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender common.Address, index int) (*Transaction, bool) {
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	if(index >= len(t.heads)) {
+	// if index is out of bounds fail
+	if index >= len(t.heads) {
 		return nil, false
 	}
+	// get sender at expected index
 	readSender, err := t.signer.Sender(t.heads[index])
 	// check err
 	if err != nil{
 		log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 		return nil, false
 	}
+	// confirm expected sender is at expected  index
 	if sender.String() == readSender.String() {
 		return t.heads[index], true
 	} else {
+		// if expected sender not at expected index that means Pop() occurred in an other thread, shifting the senders
+		// return failure and try again
 		return nil, false
 	}
 }
@@ -422,7 +427,7 @@ func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender, index) *Transaction,
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	// Throughout project, other files call this Peek(). Now using this Peek() as a wrapper
 	// for our thread-safe peek functions to avoid errors or rewrite.
-	return TryPeek()
+	return t.TryPeek()
 }
 
 // Shift replaces the current best head with the next one from the same account.
