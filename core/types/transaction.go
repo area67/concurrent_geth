@@ -19,7 +19,6 @@ package types
 import (
 	"container/heap"
 	"errors"
-	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
@@ -363,7 +362,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 }
 
 func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
-	numCommitThreads := utils.MinerLegacyThreadsFlag.Value
+	numCommitThreads := 4 //utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
 	for i := 0; ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {

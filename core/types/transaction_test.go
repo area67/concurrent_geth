@@ -149,7 +149,9 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
 		txs = append(txs, tx)
-		txset.Shift()
+		// need address of tx
+		sender, _ := txset.signer.Sender(tx)
+		txset.Shift(sender)
 	}
 	if len(txs) != 25*25 {
 		t.Errorf("expected %d transactions, found %d", 25*25, len(txs))
