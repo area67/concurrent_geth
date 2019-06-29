@@ -384,6 +384,9 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 		}
 
 		// Check if sender account is locked
+		hashLock := &sync.Mutex{}
+		hashLock.Lock()
+		defer hashLock.Unlock()
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			// Look for next account if account is locked
 			continue
