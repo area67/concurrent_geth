@@ -441,15 +441,16 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 }
 
 // Shift replaces the current best head with the next one from the same account.
-func (t *TransactionsByPriceAndNonce) Shift() {
-	acc, _ := Sender(t.signer, t.heads[0])
+func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
-		t.heads[0], t.txs[acc] = txs[0], txs[1:]
-		heap.Fix(&t.heads, 0)
+	index, _ := t.Find(sender)
+
+	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
+		t.heads[index], t.txs[sender] = txs[0], txs[1:]
+		heap.Fix(&t.heads, index)
 	} else {
-		heap.Pop(&t.heads)
+		heap.Remove(&t.heads, index)
 	}
 }
 
