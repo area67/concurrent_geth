@@ -451,6 +451,11 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	} else {
 		heap.Remove(&t.heads, index)
 	}
+
+	// relinquish control of sender so other threads my pick it up
+	accountLock.Del(sender.String())
+
+
 }
 
 // Pop removes the best transaction, *not* replacing it with the next one from
