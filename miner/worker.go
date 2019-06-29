@@ -813,7 +813,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx.Protected() && !w.config.IsEIP155(w.current.header.Number) {
 				log.Trace("Ignoring reply protected transaction", "hash", tx.Hash(), "eip155", w.config.EIP155Block)
 
-				txs.Pop()
+				txs.Remove(from)
 				return
 				//continue
 			}
@@ -827,7 +827,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			case core.ErrGasLimitReached:
 				// Pop the current out-of-gas transaction without shifting in the next from the account
 				log.Trace("Gas limit exceeded for current block", "sender", from)
-				txs.Pop()
+				txs.Remove(from)
 
 			case core.ErrNonceTooLow:
 				// New head notification data race between the transaction pool and miner, shift
