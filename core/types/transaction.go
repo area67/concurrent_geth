@@ -385,10 +385,12 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 		// Check if sender account is locked
 
 		accountLockLock.Lock()
+		log.Debug("Locked sender ", sender)
 
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			// Look for next account if account is locked
 			accountLockLock.Unlock()
+			log.Debug("Unlocked sender ", sender)
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
@@ -397,11 +399,13 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 			tx, success := t.TryPeekHelper(sender, i)
 			if success {
 				accountLockLock.Unlock()
+				log.Debug("Unlocked sender ", sender, " after success for tx ",tx)
 				return tx
 			} else{
 				// if peek fails release lock on sender
 				accountLock.Del(sender.String())
 				accountLockLock.Unlock()
+				log.Debug("Unlocked sender ", sender, " after failure of peek")
 			}
 			// If this line is reached, TryPeekHelper() failed, try again
 		}
@@ -448,12 +452,14 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
+		log.Debug("Next tx for sender ", sender, " shifted in")
 	} else {
 		heap.Remove(&t.heads, index)
 	}
 
 	// relinquish control of sender so other threads my pick it up
 	accountLock.Del(sender.String())
+	log.Debug("Releasing control of sender ", sender, " in Shift()")
 
 
 }
@@ -475,6 +481,9 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
 	defer nonceMutex.Unlock()
 	heapIndex, _ := t.Find(sender)
 	heap.Remove(&t.heads, heapIndex)
+	log.Debug("Removing sender ", sender, " from heap")
+	accountLock.Del(sender.String())
+	log.Debug("Releasing control of sender ", sender, " in Remove()")
 }
 
 func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
