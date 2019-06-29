@@ -40,7 +40,7 @@ var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
 	nonceMutex   = &sync.Mutex{}
 	accountLock = &hashmap.HashMap{}
-
+	accountLockLock = &sync.Mutex{}
 )
 
 type Transaction struct {
@@ -384,18 +384,25 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 		}
 
 		// Check if sender account is locked
-		hashLock := &sync.Mutex{}
-		hashLock.Lock()
-		defer hashLock.Unlock()
+
+		accountLockLock.Lock()
+
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			// Look for next account if account is locked
+			accountLockLock.Unlock()
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
+
 			tx, success := t.TryPeekHelper(sender, i)
 			if success {
+				accountLockLock.Unlock()
 				return tx
+			} else{
+				// if peek fails release lock on sender
+				accountLock.Del(sender.String())
+				accountLockLock.Unlock()
 			}
 			// If this line is reached, TryPeekHelper() failed, try again
 		}
@@ -474,6 +481,8 @@ func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
 	}
 	return -1, errors.New("could not find sender")
 }
+
+
 
 // Message is a fully derived transaction and implements core.Message
 //
