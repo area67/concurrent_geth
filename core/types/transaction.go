@@ -458,8 +458,21 @@ func (t *TransactionsByPriceAndNonce) Pop() {
 
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
-func (t *TransactionsByPriceAndNonce) Remove(index int32){
+func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
+	heapIndex, _ := t.Find(sender)
+	heap.Remove(&t.heads, heapIndex)
+}
 
+func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
+	for i := 0; i < t.heads.Len(); i++ {
+		temp, _ := Sender(t.signer, t.heads[i])
+		if sender.String() == temp.String() {
+			return i, nil
+		}
+	}
+	return -1, errors.New("could not find sender")
 }
 
 // Message is a fully derived transaction and implements core.Message
