@@ -832,7 +832,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			case core.ErrNonceTooLow:
 				// New head notification data race between the transaction pool and miner, shift
 				log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
-				txs.Shift()
+				txs.Shift(from)
 
 			case core.ErrNonceTooHigh:
 				// Reorg notification data race between the transaction pool and miner, skip account =
@@ -843,13 +843,13 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				// Everything ok, collect the logs and shift in the next transaction from the same account
 				coalescedLogs = append(coalescedLogs, logs...)
 				w.current.tcount++
-				txs.Shift()
+				txs.Shift(from)
 
 			default:
 				// Strange error, discard the transaction and get the next in line (note, the
 				// nonce-too-high clause will prevent us from executing in vain).
 				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-				txs.Shift()
+				txs.Shift(from)
 			}
 
 
