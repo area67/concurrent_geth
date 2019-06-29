@@ -38,7 +38,7 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDb ethdb.Putter) error {
 	// Collect all nodes on the path to key.
 	key = keybytesToHex(key)
 	var nodes []node
-	tn := t.root
+	tn := *(t.root)
 	for len(key) > 0 && tn != nil {
 		switch n := tn.(type) {
 		case *shortNode:
