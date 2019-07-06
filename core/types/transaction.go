@@ -366,12 +366,9 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	numCommitThreads := 4 //utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
-	for i := 0; ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
+	for i := 0; len(t.heads) <= 0 ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
 
-		// If no senders waiting, quit
-		if len(t.heads) <= 0 {
-			return nil
-		}
+
 
 		// Get sender at current index in t.heads
 		var sender, err = t.signer.Sender(t.heads[i])
@@ -392,7 +389,7 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			// Look for next account if account is locked
 			accountLockLock.Unlock()
-			log.Debug(fmt.Sprintf("Unlocked sender: %s", sender))
+			log.Debug(fmt.Sprintf("Unlocked sender: %s", sender.String()))
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
@@ -412,6 +409,9 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 			// If this line is reached, TryPeekHelper() failed, try again
 		}
 	}
+	// If we get here something goofed
+	return nil
+
 }
 
 func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender common.Address, index int) (*Transaction, bool) {
