@@ -194,7 +194,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		log.Debug("Unsuccessful contract execution in Call, insufficent balance")
+		log.Debug("Unsuccessful contract execution in Call, insufficient balance")
 		return nil, gas, ErrInsufficientBalance
 	}
 
@@ -247,7 +247,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		log.Debug("Unsuccessful contract execution in Call, EVM error or code storage gas error")
 	}
-	log.Debug("Contract call successfully excecuted")
+	log.Debug("Contract call successfully executed")
 	return ret, contract.Gas, err
 }
 
@@ -271,7 +271,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
-		log.Debug("Unsuccessful contract execution in CallCode, insufficent balance")
+		log.Debug("Unsuccessful contract execution in CallCode, insufficient balance")
 		return nil, gas, ErrInsufficientBalance
 	}
 
@@ -292,7 +292,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 		}
 		log.Debug("Unsuccessful contract execution in CallCode, EVM error or code storage gas error")
 	}
-	log.Debug("Contract call successfully excecuted")
+	log.Debug("Contract call successfully executed")
 	return ret, contract.Gas, err
 }
 
@@ -329,7 +329,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		}
 		log.Debug("Unsuccessful contract execution in DelegateCall, EVM error or code storage gas error")
 	}
-	log.Debug("Contract call successfully excecuted")
+	log.Debug("Contract call successfully executed")
 	return ret, contract.Gas, err
 }
 
