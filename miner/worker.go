@@ -784,7 +784,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					returnValue =  atomic.LoadInt32(interrupt) == commitInterruptNewHead
 					return
 				}
-				// else aready a thread waiting to return
+				// else already a thread waiting to return
 
 			}
 			// If we don't have enough gas for any further transactions then we're done
@@ -819,7 +819,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			}
 			// Start executing the transaction
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
-
+			log.Debug(fmt.Sprintf("Committing transaction from sender %s", from.String()))
 			logs, err := w.commitTransaction(tx, coinbase)
 
 			// where transaction iteration happens
