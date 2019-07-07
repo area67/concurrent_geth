@@ -739,8 +739,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var loopStatus int32 = OK
 	var returnValue bool
 
-	for {
+	for ;loopStatus!=BREAK;{
 		<-sem
+
+
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
 			case BREAK:
