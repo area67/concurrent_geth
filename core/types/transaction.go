@@ -366,12 +366,16 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	numCommitThreads := 4 //utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
+
+
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
 	for i := 0; len(t.heads) > 0 ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
 
 
 
 		// Get sender at current index in t.heads
-		var sender, err = t.signer.Sender(t.heads[i])
+		var sender, err = Sender(t.signer, t.heads[i])
 		//sender.String()
 
 		// check err
@@ -415,8 +419,8 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 }
 
 func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender common.Address, index int) (*Transaction, bool) {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	//nonceMutex.Lock()
+	//defer nonceMutex.Unlock()
 	// if index is out of bounds fail
 	if index >= len(t.heads) {
 		return nil, false
