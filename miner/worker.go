@@ -740,8 +740,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var returnValue bool
 
 	for ;loopStatus!=BREAK;{
-		<-sem
-
+		<-sem // take semaphore slot
 
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
