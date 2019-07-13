@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
-	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -363,13 +362,37 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 }
 
 func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
+	var result *Transaction = nil
+
+	for i := 0; i < len(t.heads); i++ {
+		var sender, err = Sender(t.signer, t.heads[i])
+		if err != nil{
+			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
+			return nil
+		}
+
+		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
+			continue
+		} else {
+			// add account to hash table, value irrelevant?
+			accountLock.Insert(sender.String(), true)
+			result = t.heads[i]
+		}
+	}
+	return result
+}
+
+/*
+func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
 
 
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	for i := 0; len(t.heads) > 0 ; i = (i + 1) % int(math.Min(float64(common.NumThreads + 1), float64(len(t.heads)))) {
+	for i := 0; i < len(t.heads) ; i = (i + 1) % int(math.Min(float64(common.NumThreads + 1), float64(len(t.heads)))) {
 		fmt.Println("transaction 374 i: ", i, " ", len(t.heads))
 		// Get sender at current index in t.heads
 		var sender, err = Sender(t.signer, t.heads[i])
@@ -437,6 +460,8 @@ func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender common.Address, index
 		return nil, false
 	}
 }
+*/
+
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
