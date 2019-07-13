@@ -687,6 +687,7 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 	)
+	fmt.Println("worker.go 690 Snapshot created ", w.snapshotState)
 
 	w.snapshotState = w.current.state.Copy()
 }
@@ -722,13 +723,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// run number of goroutines equal to number of threads mining on
 
 	// use num threads as semaphore
-	numCommitThreads := 4//utils.MinerLegacyThreadsFlag.Value
-	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", numCommitThreads))
 
+	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", common.NumThreads))
 	// semaphore to limit number of threads running at a time
-	var sem= make(chan bool, numCommitThreads)
+	var sem= make(chan bool, common.NumThreads)
 	// load the semaphore
-	for i := 0; i < numCommitThreads; i++ {
+	for i := 0; i < common.NumThreads; i++ {
 		sem <- true
 	}
 
@@ -740,7 +740,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var returnValue bool
 
 	for ;loopStatus!=BREAK;{
-		<-sem // take semaphore slot
 
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
@@ -748,11 +747,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				break
 
 			case RETURN:
+				for i := 0; i < common.NumThreads; i++ { <-sem }
 				return returnValue
-
-
 		}
 
+		<-sem // take semaphore slot
 		// go func here
 		go func() {
 
@@ -860,7 +859,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	}
 
-
 	if !w.isRunning() && len(coalescedLogs) > 0 {
 		// We don't push the pendingLogsEvent while we are mining. The reason is that
 		// when we are mining, the worker will regenerate a mining block every 3 seconds.
@@ -881,6 +879,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if interrupt != nil {
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
+
+	for i := 0; i < common.NumThreads; i++ { <-sem }
 	return false
 }
 
@@ -1047,6 +1047,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
+	fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
 	if update {
 		w.updateSnapshot()
 	}

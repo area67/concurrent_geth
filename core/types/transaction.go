@@ -363,21 +363,18 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 }
 
 func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
-	numCommitThreads := 4 //utils.MinerLegacyThreadsFlag.Value
 	// Loop through the first several nodes of t.heads, either the number of cores
 	// available or the length of t.heads, whichever is smaller.
 
 
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	for i := 0; len(t.heads) > 0 ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
-
-
-
+	for i := 0; len(t.heads) > 0 ; i = (i + 1) % int(math.Min(float64(common.NumThreads + 1), float64(len(t.heads)))) {
+		fmt.Println("transaction 374 i: ", i, " ", len(t.heads))
 		// Get sender at current index in t.heads
 		var sender, err = Sender(t.signer, t.heads[i])
 		//sender.String()
-
+		fmt.Println("transaction 378 sender ", sender)
 		// check err
 		if err != nil{
 			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
@@ -388,7 +385,6 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 
 		accountLockLock.Lock()
 		log.Debug(fmt.Sprintf("Locked sender: %s", sender.String()))
-
 
 		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
 			// Look for next account if account is locked
@@ -458,6 +454,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
+		fmt.Println("transactions.go 461 In shift next tx for sender ", sender.String(), " tx: ", txs[0])
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 	} else {
 		heap.Remove(&t.heads, index)
@@ -495,7 +492,8 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
 func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
 	for i := 0; i < t.heads.Len(); i++ {
 		temp, _ := Sender(t.signer, t.heads[i])
-		if sender.String() == temp.String() {
+		//	The address should be a number, so the numerical comparison should work, faster than string comparison
+		if sender.Big().Cmp(temp.Big()) == 0 {
 			return i, nil
 		}
 	}
