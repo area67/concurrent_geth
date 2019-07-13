@@ -687,7 +687,7 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 	)
-	fmt.Println("worker.go 690 Snapshot created ", w.snapshotState)
+	//fmt.Println("worker.go 690 Snapshot created ", w.snapshotState)
 
 	w.snapshotState = w.current.state.Copy()
 }
@@ -1047,7 +1047,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
-	fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
+	//fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
 	if update {
 		w.updateSnapshot()
 	}

@@ -364,7 +364,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	var result *Transaction = nil
+	var result *Transaction
 
 	for i := 0; i < len(t.heads); i++ {
 		var sender, err = Sender(t.signer, t.heads[i])
@@ -373,15 +373,16 @@ func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
 			return nil
 		}
 
-		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
+		if _, ok := accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
 			result = t.heads[i]
+			return result
 		}
 	}
-	return result
+	return nil
 }
 
 // Peek returns the next transaction by price.
@@ -400,7 +401,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
-		fmt.Println("transactions.go 461 In shift next tx for sender ", sender.String(), " tx: ", txs[0])
+		//fmt.Println("transactions.go 461 In shift next tx for sender ", sender.String(), " tx: ", txs[0])
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 	} else {
 		heap.Remove(&t.heads, index)
