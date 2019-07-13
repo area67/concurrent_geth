@@ -361,35 +361,33 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	}
 }
 
-func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
+// Peek returns the next transaction by price.
+func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
+	// Lock the txpool
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	var result *Transaction
+	var result *Transaction = nil
 
 	for i := 0; i < len(t.heads); i++ {
+		// Find the sender
 		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil{
 			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 			return nil
 		}
 
+		// Check if the sender is currently being used
 		if _, ok := accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
+			// set the transactions the sender has and break to return
 			result = t.heads[i]
-			return result
+			break
 		}
 	}
-	return nil
-}
-
-// Peek returns the next transaction by price.
-func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	// Throughout project, other files call this Peek(). Now using this Peek() as a wrapper
-	// for our thread-safe peek functions to avoid errors or rewrite.
-	return t.TryPeek()
+	return result
 }
 
 // Shift replaces the current best head with the next one from the same account.
