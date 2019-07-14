@@ -109,6 +109,9 @@ const (
 	commitInterruptResubmit
 )
 
+var (
+	commitTxnsLock   = &sync.Mutex{}
+)
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
 	interrupt *int32
@@ -740,7 +743,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var returnValue bool
 
 	for ;loopStatus!=BREAK;{
-
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
 			case BREAK:
@@ -823,7 +825,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 			log.Debug(fmt.Sprintf("Committing transaction from sender %s", from.String()))
 			logs, err := w.commitTransaction(tx, coinbase)
-
 			// where transaction iteration happens
 			switch err {
 			case core.ErrGasLimitReached:
@@ -839,12 +840,14 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			case core.ErrNonceTooHigh:
 				// Reorg notification data race between the transaction pool and miner, skip account =
 				log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
-				txs.Pop()
+				txs.Remove(from)
 
 			case nil:
 				// Everything ok, collect the logs and shift in the next transaction from the same account
+				commitTxnsLock.Lock()
 				coalescedLogs = append(coalescedLogs, logs...)
 				w.current.tcount++
+				commitTxnsLock.Unlock()
 				txs.Shift(from)
 
 			default:
@@ -853,8 +856,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 				txs.Shift(from)
 			}
-
-
 		}()
 
 	}
