@@ -812,6 +812,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			//
 			// We use the eip155 signer regardless of the current hf.
 			from, _ := types.Sender(w.current.signer, tx)
+			log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s", from.String()))
+			defer func() {log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s", from.String()))}()
 			// Check whether the tx is replay protected. If we're not in the EIP155 hf
 			// phase, start ignoring the sender until we do.
 			if tx.Protected() && !w.config.IsEIP155(w.current.header.Number) {
@@ -823,7 +825,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			}
 			// Start executing the transaction
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
-			log.Debug(fmt.Sprintf("Committing transaction from sender %s", from.String()))
+
 			logs, err := w.commitTransaction(tx, coinbase)
 			// where transaction iteration happens
 			switch err {
