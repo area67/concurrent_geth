@@ -109,6 +109,9 @@ const (
 	commitInterruptResubmit
 )
 
+var (
+	commitTxnsLock   = &sync.Mutex{}
+)
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
 	interrupt *int32
@@ -687,6 +690,7 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 	)
+	//fmt.Println("worker.go 690 Snapshot created ", w.snapshotState)
 
 	w.snapshotState = w.current.state.Copy()
 }
@@ -722,13 +726,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// run number of goroutines equal to number of threads mining on
 
 	// use num threads as semaphore
-	numCommitThreads := 4//utils.MinerLegacyThreadsFlag.Value
-	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", numCommitThreads))
 
+	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", common.NumThreads))
 	// semaphore to limit number of threads running at a time
-	var sem= make(chan bool, numCommitThreads)
+	var sem= make(chan bool, common.NumThreads)
 	// load the semaphore
-	for i := 0; i < numCommitThreads; i++ {
+	for i := 0; i < common.NumThreads; i++ {
 		sem <- true
 	}
 
@@ -739,21 +742,22 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var loopStatus int32 = OK
 	var returnValue bool
 
-	for {
-		<-sem
+	var threadID int32 = 0
+
+	// loop until break signal received
+	// increment threadID to keep track of threads
+	for ;loopStatus!=BREAK;threadID++{
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
-			case BREAK:
-				break
-
 			case RETURN:
+				for i := 0; i < common.NumThreads; i++ { <-sem }
 				return returnValue
-
-
 		}
 
-		// go func here
-		go func() {
+		<-sem // take semaphore slot
+
+		// attempt parallel commit
+		go func(threadID int32) {
 
 			defer func() { sem <- true }()
 			var casResult bool
@@ -781,10 +785,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					casResult = atomic.CompareAndSwapInt32(&loopStatus,BREAK,RETURN)
 				}
 				if casResult {
+					log.Debug(fmt.Sprintf("Return signal sent in commitTransactions() in thread %d",threadID))
 					returnValue =  atomic.LoadInt32(interrupt) == commitInterruptNewHead
 					return
 				}
-				// else aready a thread waiting to return
+				// else already a thread waiting to return
 
 			}
 			// If we don't have enough gas for any further transactions then we're done
@@ -800,6 +805,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx == nil {
 				// no more transactions still need to wait until pending commits are finished or out of gas.
 				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
+				log.Debug(fmt.Sprintf("Break signal sent in commitTransactions() thread %d", threadID))
 				return
 				//break
 			}
@@ -808,6 +814,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			//
 			// We use the eip155 signer regardless of the current hf.
 			from, _ := types.Sender(w.current.signer, tx)
+			log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
+			defer func() {log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s in thread %d", from.String(), threadID))}()
 			// Check whether the tx is replay protected. If we're not in the EIP155 hf
 			// phase, start ignoring the sender until we do.
 			if tx.Protected() && !w.config.IsEIP155(w.current.header.Number) {
@@ -821,7 +829,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
 			logs, err := w.commitTransaction(tx, coinbase)
-
 			// where transaction iteration happens
 			switch err {
 			case core.ErrGasLimitReached:
@@ -836,13 +843,15 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 			case core.ErrNonceTooHigh:
 				// Reorg notification data race between the transaction pool and miner, skip account =
-				log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
-				txs.Pop()
+				log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
+				txs.Remove(from)
 
 			case nil:
 				// Everything ok, collect the logs and shift in the next transaction from the same account
+				commitTxnsLock.Lock()
 				coalescedLogs = append(coalescedLogs, logs...)
 				w.current.tcount++
+				commitTxnsLock.Unlock()
 				txs.Shift(from)
 
 			default:
@@ -851,12 +860,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 				txs.Shift(from)
 			}
+		}(threadID)
 
 
-		}()
+
 
 	}
-
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
 		// We don't push the pendingLogsEvent while we are mining. The reason is that
@@ -878,6 +887,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if interrupt != nil {
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
+
+	for i := 0; i < common.NumThreads; i++ { <-sem }
 	return false
 }
 
@@ -1044,6 +1055,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
+	//fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
 	if update {
 		w.updateSnapshot()
 	}

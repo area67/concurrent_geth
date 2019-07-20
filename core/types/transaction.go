@@ -19,10 +19,10 @@ package types
 import (
 	"container/heap"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
-	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -361,86 +361,34 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	}
 }
 
-func (t *TransactionsByPriceAndNonce) TryPeek() *Transaction {
-	numCommitThreads := 4 //utils.MinerLegacyThreadsFlag.Value
-	// Loop through the first several nodes of t.heads, either the number of cores
-	// available or the length of t.heads, whichever is smaller.
-	for i := 0; ; i = (i + 1) % int(math.Min(float64(numCommitThreads + 1), float64(len(t.heads)))) {
+// Peek returns the next transaction by price.
+func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
+	// Lock the txpool
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
+	var result *Transaction = nil
 
-		// If no senders waiting, quit
-		if len(t.heads) <= 0 {
-			return nil
-		}
-
-		// Get sender at current index in t.heads
-		var sender, err = t.signer.Sender(t.heads[i])
-		//sender.String()
-
-		// check err
+	for i := 0; i < len(t.heads); i++ {
+		// Find the sender
+		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil{
 			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
 			return nil
 		}
 
-		// Check if sender account is locked
-
-		accountLockLock.Lock()
-		log.Debug("Locked sender ", sender)
-
-		if value, ok := accountLock.GetStringKey( sender.String()); value != nil && ok{
-			// Look for next account if account is locked
-			accountLockLock.Unlock()
-			log.Debug("Unlocked sender ", sender)
+		// Check if the sender is currently being used
+		if _, ok := accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
-
-			tx, success := t.TryPeekHelper(sender, i)
-			if success {
-				accountLockLock.Unlock()
-				log.Debug("Unlocked sender ", sender, " after success for tx ",tx)
-				return tx
-			} else{
-				// if peek fails release lock on sender
-				accountLock.Del(sender.String())
-				accountLockLock.Unlock()
-				log.Debug("Unlocked sender ", sender, " after failure of peek")
-			}
-			// If this line is reached, TryPeekHelper() failed, try again
+			log.Debug(fmt.Sprintf("Locking control of sender %s in Pop()", sender.String() ))
+			// set the transactions the sender has and break to return
+			result = t.heads[i]
+			break
 		}
 	}
-}
-
-func (t *TransactionsByPriceAndNonce) TryPeekHelper(sender common.Address, index int) (*Transaction, bool) {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
-	// if index is out of bounds fail
-	if index >= len(t.heads) {
-		return nil, false
-	}
-	// get sender at expected index
-	readSender, err := t.signer.Sender(t.heads[index])
-	// check err
-	if err != nil{
-		log.Error("Error getting sender in core/types/transactions.go Peek()",err)
-		return nil, false
-	}
-	// confirm expected sender is at expected  index
-	if sender.String() == readSender.String() {
-		return t.heads[index], true
-	} else {
-		// if expected sender not at expected index that means Pop() occurred in an other thread, shifting the senders
-		// return failure and try again
-		return nil, false
-	}
-}
-
-// Peek returns the next transaction by price.
-func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	// Throughout project, other files call this Peek(). Now using this Peek() as a wrapper
-	// for our thread-safe peek functions to avoid errors or rewrite.
-	return t.TryPeek()
+	return result
 }
 
 // Shift replaces the current best head with the next one from the same account.
@@ -452,14 +400,15 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
-		log.Debug("Next tx for sender ", sender, " shifted in")
+		//fmt.Println("transactions.go 461 In shift next tx for sender ", sender.String(), " tx: ", txs[0])
+		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 	} else {
 		heap.Remove(&t.heads, index)
 	}
 
 	// relinquish control of sender so other threads my pick it up
 	accountLock.Del(sender.String())
-	log.Debug("Releasing control of sender ", sender, " in Shift()")
+	log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String() ))
 
 
 }
@@ -481,15 +430,16 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
 	defer nonceMutex.Unlock()
 	heapIndex, _ := t.Find(sender)
 	heap.Remove(&t.heads, heapIndex)
-	log.Debug("Removing sender ", sender, " from heap")
+	log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	accountLock.Del(sender.String())
-	log.Debug("Releasing control of sender ", sender, " in Remove()")
+	log.Debug("Releasing control of sender %s in Remove()", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
 	for i := 0; i < t.heads.Len(); i++ {
 		temp, _ := Sender(t.signer, t.heads[i])
-		if sender.String() == temp.String() {
+		//	The address should be a number, so the numerical comparison should work, faster than string comparison
+		if sender.Big().Cmp(temp.Big()) == 0 {
 			return i, nil
 		}
 	}
