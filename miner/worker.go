@@ -742,20 +742,22 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var loopStatus int32 = OK
 	var returnValue bool
 
-	for ;loopStatus!=BREAK;{
+	var threadID int32 = 0
+
+	// loop until break signal received
+	// increment threadID to keep track of threads
+	for ;loopStatus!=BREAK;threadID++{
 		// check if need to return or break before beginning new thread
 		switch loopStatus {
-			case BREAK:
-				break
-
 			case RETURN:
 				for i := 0; i < common.NumThreads; i++ { <-sem }
 				return returnValue
 		}
 
 		<-sem // take semaphore slot
-		// go func here
-		go func() {
+
+		// attempt parallel commit
+		go func(threadID int32) {
 
 			defer func() { sem <- true }()
 			var casResult bool
@@ -783,7 +785,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					casResult = atomic.CompareAndSwapInt32(&loopStatus,BREAK,RETURN)
 				}
 				if casResult {
-					log.Debug("Return signal sent in commitTransactions()")
+					log.Debug(fmt.Sprintf("Return signal sent in commitTransactions() in thread %d",threadID))
 					returnValue =  atomic.LoadInt32(interrupt) == commitInterruptNewHead
 					return
 				}
@@ -803,7 +805,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx == nil {
 				// no more transactions still need to wait until pending commits are finished or out of gas.
 				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
-				log.Debug("Break signal sent in commitTransactions()")
+				log.Debug(fmt.Sprintf("Break signal sent in commitTransactions() thread %d", threadID))
 				return
 				//break
 			}
@@ -812,8 +814,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			//
 			// We use the eip155 signer regardless of the current hf.
 			from, _ := types.Sender(w.current.signer, tx)
-			log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s", from.String()))
-			defer func() {log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s", from.String()))}()
+			log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
+			defer func() {log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s in thread %d", from.String(), threadID))}()
 			// Check whether the tx is replay protected. If we're not in the EIP155 hf
 			// phase, start ignoring the sender until we do.
 			if tx.Protected() && !w.config.IsEIP155(w.current.header.Number) {
@@ -841,7 +843,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 			case core.ErrNonceTooHigh:
 				// Reorg notification data race between the transaction pool and miner, skip account =
-				log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+				log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
 				txs.Remove(from)
 
 			case nil:
@@ -858,7 +860,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 				txs.Shift(from)
 			}
-		}()
+		}(threadID)
+
+
+
 
 	}
 

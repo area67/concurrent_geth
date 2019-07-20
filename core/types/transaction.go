@@ -382,6 +382,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), true)
+			log.Debug(fmt.Sprintf("Locking control of sender %s in Pop()", sender.String() ))
 			// set the transactions the sender has and break to return
 			result = t.heads[i]
 			break
