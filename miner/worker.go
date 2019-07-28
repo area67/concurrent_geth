@@ -110,7 +110,8 @@ const (
 )
 
 var (
-	commitTxnsLock   = &sync.Mutex{}
+	initTxnLock		= &sync.Mutex{}
+	commitTxnsLock	= &sync.Mutex{}
 )
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
@@ -703,6 +704,10 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
+
+	commitTxnsLock.Lock()
+	defer commitTxnsLock.Unlock()
+
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
 
@@ -758,7 +763,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		// attempt parallel commit
 		go func(threadID int32) {
-
 			defer func() { sem <- true }()
 			var casResult bool
 			// In the following three cases, we will interrupt the execution of the transaction.
@@ -792,6 +796,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				// else already a thread waiting to return
 
 			}
+
 			// If we don't have enough gas for any further transactions then we're done
 			if w.current.gasPool.Gas() < params.TxGas {
 				log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
@@ -804,7 +809,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			tx := txs.Peek()
 			if tx == nil {
 				// no more transactions still need to wait until pending commits are finished or out of gas.
-				casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
+				if txs.NumSenders() == 0 {
+					casResult = atomic.CompareAndSwapInt32(&loopStatus,OK,BREAK)
+				}
 				log.Debug(fmt.Sprintf("Break signal sent in commitTransactions() thread %d", threadID))
 				return
 				//break
@@ -853,17 +860,15 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				w.current.tcount++
 				commitTxnsLock.Unlock()
 				txs.Shift(from)
-
 			default:
 				// Strange error, discard the transaction and get the next in line (note, the
 				// nonce-too-high clause will prevent us from executing in vain).
 				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 				txs.Shift(from)
 			}
+
+			atomic.StoreInt32(&loopStatus, OK)
 		}(threadID)
-
-
-
 
 	}
 

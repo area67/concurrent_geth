@@ -377,12 +377,12 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		}
 
 		// Check if the sender is currently being used
-		if _, ok := accountLock.GetStringKey( sender.String()); ok {
+		if _ , ok := accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
-			accountLock.Insert(sender.String(), true)
-			log.Debug(fmt.Sprintf("Locking control of sender %s in Pop()", sender.String() ))
+			accountLock.Insert(sender.String(), sender)
+			log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String() ))
 			// set the transactions the sender has and break to return
 			result = t.heads[i]
 			break
@@ -395,12 +395,11 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	index, _ := t.Find(sender)
+	index, _ := t.find(sender)
 
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
-		//fmt.Println("transactions.go 461 In shift next tx for sender ", sender.String(), " tx: ", txs[0])
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 	} else {
 		heap.Remove(&t.heads, index)
@@ -413,29 +412,25 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 
 }
 
-// Pop removes the best transaction, *not* replacing it with the next one from
-// the same account. This should be used when a transaction cannot be executed
-// and hence all subsequent ones should be discarded from the same account.
-func (t *TransactionsByPriceAndNonce) Pop() {
+func (t *TransactionsByPriceAndNonce) NumSenders() int {
 	nonceMutex.Lock()
-	heap.Pop(&t.heads)
-	nonceMutex.Unlock()
+	defer nonceMutex.Unlock()
+	return len(t.heads)
 }
-
 
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
 func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	heapIndex, _ := t.Find(sender)
+	heapIndex, _ := t.find(sender)
 	heap.Remove(&t.heads, heapIndex)
 	log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
 }
 
-func (t *TransactionsByPriceAndNonce) Find(sender common.Address) (int, error) {
+func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {
 	for i := 0; i < t.heads.Len(); i++ {
 		temp, _ := Sender(t.signer, t.heads[i])
 		//	The address should be a number, so the numerical comparison should work, faster than string comparison
