@@ -112,8 +112,8 @@ func (m *Memory) GetPtr(offset, size int64) []byte {
 
 // Len returns the length of the backing slice
 func (m *Memory) Len() int {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	return len(m.store)
 }
 
