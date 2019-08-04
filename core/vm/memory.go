@@ -38,8 +38,8 @@ func NewMemory() *Memory {
 
 // Set sets offset + size to value
 func (m *Memory) Set(offset, size uint64, value []byte) {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	// It's possible the offset is greater than 0 and size equals 0. This is because
 	// the calcMemSize (common.go) could potentially return 0 when size is zero (NO-OP)
 	if size > 0 {
@@ -55,8 +55,8 @@ func (m *Memory) Set(offset, size uint64, value []byte) {
 // Set32 sets the 32 bytes starting at offset to the value of val, left-padded with zeroes to
 // 32 bytes.
 func (m *Memory) Set32(offset uint64, val *big.Int) {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	// length of store may never be less than offset + size.
 	// The store should be resized PRIOR to setting the memory
 	if offset+32 > uint64(len(m.store)) {
@@ -70,8 +70,8 @@ func (m *Memory) Set32(offset uint64, val *big.Int) {
 
 // Resize resizes the memory to size
 func (m *Memory) Resize(size uint64) {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	if uint64(m.Len()) < size {
 		m.store = append(m.store, make([]byte, size-uint64(m.Len()))...)
 	}
@@ -79,8 +79,8 @@ func (m *Memory) Resize(size uint64) {
 
 // Get returns offset + size as a new slice
 func (m *Memory) Get(offset, size int64) (cpy []byte) {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	if size == 0 {
 		return nil
 	}
@@ -97,8 +97,8 @@ func (m *Memory) Get(offset, size int64) (cpy []byte) {
 
 // GetPtr returns the offset + size
 func (m *Memory) GetPtr(offset, size int64) []byte {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	if size == 0 {
 		return nil
 	}
@@ -119,15 +119,15 @@ func (m *Memory) Len() int {
 
 // Data returns the backing slice
 func (m *Memory) Data() []byte {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	return m.store
 }
 
 // Print dumps the content of the memory.
 func (m *Memory) Print() {
-	m.mu.Lock()
-	defer m.mu.Lock()
+	// m.mu.Lock()
+	// defer m.mu.Lock()
 	fmt.Printf("### mem %d bytes ###\n", len(m.store))
 	if len(m.store) > 0 {
 		addr := 0
