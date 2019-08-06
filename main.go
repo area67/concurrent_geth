@@ -3,7 +3,9 @@ package main
 import (
 	"C"
 	"container/list"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/golang-collections/collections/stack"
+	"go/types"
 )
 
 const numThreads = 32
@@ -98,6 +100,56 @@ type Item struct {
 	promoteItems stack.Stack
 
 	demoteItems list.List
+
+	producer types.Map // TODO: not sure if this is equivalent
+
+	// Failed Consumer
+	sumF         float64
+	numeratorF   int64
+	denominatorF int64
+	exponentF    float64
+
+	// Reader
+	sumR         float64
+	numeratorR   int64
+	denominatorR int64
+	exponentR    float64
+}
+
+func (i *Item) SetItem(key int){
+	i.key          = key
+	i.value        = math.MinInt32
+	i.sum          = 0
+	i.numerator    = 0
+	i.denominator  = 1
+	i.exponent     = 0
+	i.status       = PRESENT
+	i.sumF         = 0
+	i.numeratorF   = 0
+	i.denominatorF = 1
+	i.exponentF    = 0
+	i.sumR         = 0
+	i.numeratorR   = 0
+	i.denominatorR = 1
+	i.exponentR    = 0
+}
+
+func (i *Item) SetItemKV(key, value int){
+	i.key          = key
+	i.value        = value
+	i.sum          = 0
+	i.numerator    = 0
+	i.denominator  = 1
+	i.exponent     = 0
+	i.status       = PRESENT
+	i.sumF         = 0
+	i.numeratorF   = 0
+	i.denominatorF = 1
+	i.exponentF    = 0
+	i.sumR         = 0
+	i.numeratorR   = 0
+	i.denominatorR = 1
+	i.exponentR    = 0
 }
 
 func main() {
