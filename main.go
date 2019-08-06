@@ -2,10 +2,9 @@ package main
 
 import (
 	"C"
+	"container/list"
 	"github.com/golang-collections/collections/stack"
 )
-
-type Stack []int
 
 const numThreads = 32
 
@@ -55,39 +54,39 @@ const (
 	WRITER
 )
 
-type Method struct{
-	id               int
-	process          int
-	itemKey          int
-	itemVal          int
-	semantics        Semantics
-	types            Types
-	invocation       int64
-	response         int64
-	quiescentPeriod  int
-	status           bool
-	txnID            int
+type Method struct {
+	id              int
+	process         int
+	itemKey         int
+	itemVal         int
+	semantics       Semantics
+	types           Types
+	invocation      int64
+	response        int64
+	quiescentPeriod int
+	status          bool
+	txnID           int
 }
 
 func (m *Method) SetMethod(id int, process int, itemKey int, itemVal int, semantics Semantics,
-	                       types Types, invocation int64, response int64, status bool, txnID int){
-	m.id         = id
-	m.process    = process
-	m.itemKey    = itemKey
-	m.itemVal    = itemVal
-	m.semantics  = semantics
-	m.types      = types
+	types Types, invocation int64, response int64, status bool, txnID int) {
+	m.id = id
+	m.process = process
+	m.itemKey = itemKey
+	m.itemVal = itemVal
+	m.semantics = semantics
+	m.types = types
 	m.invocation = invocation
-	m.response   = response
-	m.status     = status
-	m.txnID      = txnID
+	m.response = response
+	m.status = status
+	m.txnID = txnID
 }
 
-type Item struct{
+type Item struct {
 	key   int
 	value int
 	//sum   int
-	sum   float64
+	sum float64
 
 	numerator   int64
 	denominator int64
@@ -96,7 +95,9 @@ type Item struct{
 
 	status Status
 
-	promoteItems := New()
+	promoteItems stack.Stack
+
+	demoteItems list.List
 }
 
 func main() {
