@@ -162,7 +162,50 @@ func (i *Item) addInt(x int64) {
 	// C.printf("addNum = %ld, numerator/denominator = %ld\n", add_num, numerator/denominator);
 	i.sum = float64(i.numerator / i.denominator)
 
-	// i.sum = i.sum + x;
+	// i.sum = i.sum + x
+}
+
+func (i *Item) subInt(x int64) {
+
+	// C.printf("Test add function\n");
+	subNum := x * i.denominator
+
+	i.numerator = i.numerator - subNum
+
+	// C.printf("subNum = %ld, i.numerator/i.denominator = %ld\n", subNum, i.numerator/i.denominator);
+	i.sum = float64(i.numerator / i.denominator)
+
+	// i.sum = i.sum + x
+}
+
+func (i *Item) addFrac(num int64, den int64) {
+
+	// #if DEBUG_
+	// if den == 0 {
+	// 	 C.printf("WARNING: add_frac: den = 0\n")
+	// }
+	// if i.denominator == 0 {
+	//	 C.printf("WARNING: add_frac: 1. denominator = 0\n")
+	// }
+	// #endif
+
+	if i.denominator % den == 0 {
+		i.numerator = i.numerator + num * i.denominator / den
+	} else if den % i.denominator == 0 {
+		i.numerator = i.numerator * den / i.denominator + num
+		i.denominator = den
+	} else {
+		i.numerator = i.numerator * den + num * i.denominator
+		i.denominator = i.denominator * den
+	}
+
+	// #if DEBUG_
+	// if i.denominator == 0 {
+	//   C.printf("WARNING: addFrac: 2. denominator = 0\n")
+	// }
+	// #endif
+
+	i.sum = float64(i.numerator / i.denominator)
 }
 
 func main() {
