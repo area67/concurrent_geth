@@ -152,6 +152,19 @@ func (i *Item) SetItemKV(key, value int){
 	i.exponentR    = 0
 }
 
+func (i *Item) addInt(x int64) {
+
+	// C.printf("Test add function\n")
+	addNum := x * i.denominator
+
+	i.numerator = i.numerator + addNum
+
+	// C.printf("addNum = %ld, numerator/denominator = %ld\n", add_num, numerator/denominator);
+	i.sum = float64(i.numerator / i.denominator)
+
+	// i.sum = i.sum + x;
+}
+
 func main() {
 
 }
