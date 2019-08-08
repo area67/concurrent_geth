@@ -3,9 +3,10 @@ package main
 import (
 	"C"
 	"container/list"
+	"go/types"
+
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/golang-collections/collections/stack"
-	"go/types"
 )
 
 const numThreads = 32
@@ -116,40 +117,40 @@ type Item struct {
 	exponentR    float64
 }
 
-func (i *Item) SetItem(key int){
-	i.key          = key
-	i.value        = math.MinInt32
-	i.sum          = 0
-	i.numerator    = 0
-	i.denominator  = 1
-	i.exponent     = 0
-	i.status       = PRESENT
-	i.sumF         = 0
-	i.numeratorF   = 0
+func (i *Item) SetItem(key int) {
+	i.key = key
+	i.value = math.MinInt32
+	i.sum = 0
+	i.numerator = 0
+	i.denominator = 1
+	i.exponent = 0
+	i.status = PRESENT
+	i.sumF = 0
+	i.numeratorF = 0
 	i.denominatorF = 1
-	i.exponentF    = 0
-	i.sumR         = 0
-	i.numeratorR   = 0
+	i.exponentF = 0
+	i.sumR = 0
+	i.numeratorR = 0
 	i.denominatorR = 1
-	i.exponentR    = 0
+	i.exponentR = 0
 }
 
-func (i *Item) SetItemKV(key, value int){
-	i.key          = key
-	i.value        = value
-	i.sum          = 0
-	i.numerator    = 0
-	i.denominator  = 1
-	i.exponent     = 0
-	i.status       = PRESENT
-	i.sumF         = 0
-	i.numeratorF   = 0
+func (i *Item) SetItemKV(key, value int) {
+	i.key = key
+	i.value = value
+	i.sum = 0
+	i.numerator = 0
+	i.denominator = 1
+	i.exponent = 0
+	i.status = PRESENT
+	i.sumF = 0
+	i.numeratorF = 0
 	i.denominatorF = 1
-	i.exponentF    = 0
-	i.sumR         = 0
-	i.numeratorR   = 0
+	i.exponentF = 0
+	i.sumR = 0
+	i.numeratorR = 0
 	i.denominatorR = 1
-	i.exponentR    = 0
+	i.exponentR = 0
 }
 
 func (i *Item) addInt(x int64) {
@@ -203,6 +204,33 @@ func (i *Item) addFrac(num int64, den int64) {
 	// if i.denominator == 0 {
 	//   C.printf("WARNING: addFrac: 2. denominator = 0\n")
 	// }
+	// #endif
+
+	i.sum = float64(i.numerator / i.denominator)
+}
+
+func (i *Item) subFrac(num int64, den int64) {
+
+	// #if DEBUG_
+	// if den == 0
+	// 	 C.printf("WARNING: subFrac: den = 0\n")
+	// if i.denominator == 0
+	//	 C.printf("WARNING: subFrac: 1. denominator = 0\n");
+	// #endif
+
+	if i.denominator % den == 0 {
+		i.numerator = i.numerator - num * i.denominator / den
+	} else if den % i.denominator == 0 {
+		i.numerator = i.numerator * den / i.denominator - num
+		i.denominator = den
+	} else {
+		i.numerator = i.numerator * den - num * i.denominator
+		i.denominator = i.denominator * den
+	}
+
+	// #if DEBUG_
+	// if denominator == 0
+	//	 C.printf("WARNING: subFrac: 2. denominator = 0\n")
 	// #endif
 
 	i.sum = float64(i.numerator / i.denominator)
