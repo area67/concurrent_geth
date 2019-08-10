@@ -698,6 +698,8 @@ func (w *worker) updateSnapshot() {
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	commitTxnsLock.Lock()
+
+
 	defer commitTxnsLock.Unlock()
 
 	snap := w.current.state.Snapshot()
@@ -818,6 +820,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				return
 				//break
 			}
+
+			//time.Sleep(time.Millisecond * 1000)
+
 			// Error may be ignored here. The error has already been checked
 			// during transaction acceptance is the transaction pool.
 			//

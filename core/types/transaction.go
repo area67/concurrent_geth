@@ -20,17 +20,17 @@ import (
 	"container/heap"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"io"
 	"math/big"
 	"sync"
 	"sync/atomic"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	//"time"
 )
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
@@ -370,24 +370,36 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 
 	for i := 0; i < len(t.heads); i++ {
 		// Find the sender
-		var sender, err = Sender(t.signer, t.heads[i])
-		if err != nil{
-			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
+		var sender, err= Sender(t.signer, t.heads[i])
+		if err != nil {
+			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
 			return nil
 		}
 
 		// Check if the sender is currently being used
-		if _ , ok := accountLock.GetStringKey( sender.String()); ok {
+		if _, ok := accountLock.GetStringKey(sender.String()); ok {
 			continue
 		} else {
 			// add account to hash table, value irrelevant?
 			accountLock.Insert(sender.String(), sender)
-			log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String() ))
+			log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
 			// set the transactions the sender has and break to return
 			result = t.heads[i]
+			log.Debug(fmt.Sprintf("sender: %v has been locked", sender.Hash()))
+			// nonceMutex.Unlock()
+			/*
+			for x:= false; x; {
+				fmt.Printf("LOOP")
+				log.Debug(fmt.Sprintf("LOOP"))
+			}
+			log.Debug(fmt.Sprintf("got past loop "))
+			fmt.Printf("After loop")
+			*/
+
 			break
 		}
 	}
+
 	return result
 }
 
