@@ -37,9 +37,8 @@ import (
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
-	nonceMutex   = &sync.Mutex{}
+	nonceMutex   = &sync.RWMutex{}
 	accountLock = &hashmap.HashMap{}
-	accountLockLock = &sync.Mutex{}
 )
 
 type Transaction struct {
@@ -364,8 +363,8 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	// Lock the txpool
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	nonceMutex.RLock()
+	defer nonceMutex.RUnlock()
 	var result *Transaction = nil
 
 	for i := 0; i < len(t.heads); i++ {
@@ -380,12 +379,16 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		if _ , ok := accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
-			// add account to hash table, value irrelevant?
-			accountLock.Insert(sender.String(), sender)
-			log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String() ))
-			// set the transactions the sender has and break to return
-			result = t.heads[i]
-			break
+			//	Try to add the unlocked account to the hash table, if success the thread can continue processing this
+			//	sender's transactions, if it fails another thread has successfully added it to the table thus continue
+			//	to the next sender.
+			if accountLock.Insert(sender.String(), sender) {
+				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
+				// set the transactions the sender has and break to return
+				result = t.heads[i]
+				break
+			}
+
 		}
 	}
 	return result
@@ -413,8 +416,10 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 }
 
 func (t *TransactionsByPriceAndNonce) NumSenders() int {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	//	This likely does not need to be locked, a data race could result in another iteration of the commitTransactions
+	//	loop, but this should reduce lock contention.
+	// nonceMutex.Lock()
+	// defer nonceMutex.Unlock()
 	return len(t.heads)
 }
 
