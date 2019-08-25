@@ -41,6 +41,11 @@ var (
 	// accountLock = &hashmap.HashMap{}
 )
 
+const (
+	AVAILABLE = 1
+	NOT_AVAILABLE = 0
+)
+
 type Transaction struct {
 	data txdata
 	// caches
@@ -328,11 +333,12 @@ func (s *TxByPrice) Pop() interface{} {
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
-	txs         map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads       TxByPrice                       // Next transaction for each unique account (price heap)
-	signer      Signer                          // Signer for the set of transactions
-	nonceMutex  sync.RWMutex
-	accountLock hashmap.HashMap
+	txs            map[common.Address]Transactions // Per account nonce-sorted list of transactions
+	heads          TxByPrice                       // Next transaction for each unique account (price heap)
+	signer         Signer                          // Signer for the set of transactions
+	nonceMutex     sync.RWMutex
+	accountLock    hashmap.HashMap
+	headsAvailable []int32							// 1 = available, 0 = not available
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -354,22 +360,38 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	}
 	heap.Init(&heads)
 
+	headsAvailable := make([]int32,len(heads))
+	// init all heads to available
+	for i := range headsAvailable{
+		headsAvailable[i]=AVAILABLE
+	}
+
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
 		txs:    txs,
 		heads:  heads,
 		signer: signer,
+		headsAvailable: headsAvailable,
 	}
 }
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	// Lock the txpool
-	t.nonceMutex.RLock()
-	defer t.nonceMutex.RUnlock()
+	//t.nonceMutex.RLock()
+	//defer t.nonceMutex.RUnlock()
 	var result *Transaction = nil
+	var length = len(t.heads)
 
-	for i := 0; i < len(t.heads); i++ {
+	for i := 0; i < length; i++ {
+
+		// check that sender in heads[i] is still available (has not been removed)
+		if t.headsAvailable[i]==0{
+			// sender is finished, look to next sender
+			continue
+		}
+
+
 		// Find the sender
 		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil {
@@ -381,9 +403,9 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		if _, ok := t.accountLock.GetStringKey(sender.String()); ok {
 			continue
 		} else {
-			//	Try to add the unlocked account to the hash table, if success the thread can continue processing this
-			//	sender's transactions, if it fails another thread has successfully added it to the table thus continue
-			//	to the next sender.
+			/*
+			Try to add the unlocked account to the hash table, if success the thread can continue processing this sender's transactions, if it fails another thread has successfully added it to the table thus continue to the next sender.
+			*/
 			if t.accountLock.Insert(sender.String(), sender) {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
 				// set the transactions the sender has and break to return
@@ -399,8 +421,8 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
-	t.nonceMutex.Lock()
-	defer t.nonceMutex.Unlock()
+	// t.nonceMutex.Lock()
+	// defer t.nonceMutex.Unlock()
 	index, _ := t.find(sender)
 
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
@@ -411,7 +433,8 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		t.accountLock.Del(sender.String())
 
 	} else {
-		heap.Remove(&t.heads, index)
+		//heap.Remove(&t.heads, index)
+		t.Remove(sender)
 
 	}
 
@@ -430,18 +453,27 @@ func (t *TransactionsByPriceAndNonce) NumSenders() int {
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
 func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
-	t.nonceMutex.Lock()
-	defer t.nonceMutex.Unlock()
-	heapIndex, _ := t.find(sender)
-	heap.Remove(&t.heads, heapIndex)
-	log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
+	//t.nonceMutex.Lock()
+	// defer t.nonceMutex.Unlock()
+	index, _ := t.find(sender)
+	//heap.Remove(&t.heads, heapIndex)
+	// not sure if cas needed
+	if atomic.CompareAndSwapInt32(&t.headsAvailable[index],AVAILABLE,NOT_AVAILABLE){
+		t.heads[index] = nil
+	}
+
+	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	//t.accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {
 	for i := 0; i < t.heads.Len(); i++ {
-		temp, _ := Sender(t.signer, t.heads[i])
+		tempHead := t.heads[i]
+		if t.headsAvailable[i] == 0{
+			continue
+		}
+		temp, _ := Sender(t.signer, tempHead)
 		//	The address should be a number, so the numerical comparison should work, faster than string comparison
 		if sender.Big().Cmp(temp.Big()) == 0 {
 			return i, nil
