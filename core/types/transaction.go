@@ -405,7 +405,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
-		heap.Fix(&t.heads, index)
+		//heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 		// relinquish control of sender so other threads my pick it up
 		t.accountLock.Del(sender.String())
