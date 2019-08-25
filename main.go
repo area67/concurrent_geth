@@ -292,6 +292,318 @@ func (i *Item) subFracFailed(num int64, den int64) {
 
 }
 
+func work_queue(id int)
+{
+	testSize := TEST_SIZE
+	wallTime := 0.0
+	var tod timeval
+	gettimeofday(&tod, 0)
+	wallTime += tod.tv_sec
+	wallTime += tod.tv_usec * 1e-6
+
+	// How to??? lines 824 - 832
+	/*
+	 *boost::mt19937 randomGenOp
+    	 *randomGenOp.seed(wallTime + id + 1000)
+    	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
+
+	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
+	 *auto start_time_epoch = start_time.time_since_epoch();
+	*/
+
+	m_id := id + 1
+
+	// How to??? line 839
+	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
+
+	wait()
+
+	for var i uint32 = 0; i < testSize; i++
+	{
+	 	item_key := -1
+	 	res := true
+	 	var op_dist uint32 = randomDistOp(randomGenOp)
+
+	 	// How to??? line 850 - 853
+	 	/*
+	 	 *end = std::chrono::high_resolution_clock::now();
+	 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		 *auto pre_function_epoch = pre_function.time_since_epoch();
+		*/
+
+		invocation := pre_function_epoch.count() - start_time_epoch.count()
+
+		if invocation > (LONG_MAX - 10000000000)
+		{
+			//PREPROCESSOR DIRECTIVE lines 864 - 866:
+			/*
+			 * #if DEBUG_
+			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
+			 * #endif
+			 */
+			break
+		}
+
+		if op_dist <= 50
+		{
+			type := CONSUMER
+			var item_pop int 
+			var item_pop_ptr uint32*
+
+			res := queue.try_pop(item_pop)
+			if res
+			{
+				item_key := item_pop
+			}
+			else
+			{
+				item_key := INT_MIN
+			}
+		}
+		else
+		{
+			type := PRODUCER
+			item_key := m_id
+			queue.push(item_key)
+		}
+
+		// How to??? line 890:
+		// end = std::chrono::high_resolution_clock::now();
+		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		post_function_epoch := post_function.time_since_epoch()
+
+		response := post_function_epoch.count() - start_time_epoch.count()
+
+		// How to??? line 915 :
+		// Method m1(m_id, id, item_key, INT_MIN, FIFO, type, invocation, response, res, m_id);
+
+		m_id += NUM_THRDS
+		thrd_lists[id].push_back(m1)
+		thrd_lists_size[id].fetch_add(1)
+		method_time[id] = method_time[id] + (response - invocation)
+	}
+
+	done[id].store(true)
+}
+
+func work_stack(id int)
+{
+	testSize := TEST_SIZE
+	wallTime := 0.0
+	var tod timeval
+	gettimeofday(&tod, 0)
+	wallTime += tod.tv_sec
+	wallTime += tod.tv_usec * 1e-6
+
+	// How to??? lines 945 - 953
+	/*
+	 *boost::mt19937 randomGenOp
+     	 *randomGenOp.seed(wallTime + id + 1000)
+     	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
+
+	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
+	 *auto start_time_epoch = start_time.time_since_epoch();
+	*/
+
+	m_id := id + 1
+
+	// How to??? line 957
+	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
+
+	wait()
+
+	for var i uint32 = 0; i < testSize; i++
+	{
+	 	item_key := -1
+	 	res := true
+	 	var op_dist uint32 = randomDistOp(randomGenOp)
+
+	 	// How to??? line 970 - 973
+	 	/*
+	 	 *end = std::chrono::high_resolution_clock::now();
+	 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		 *auto pre_function_epoch = pre_function.time_since_epoch();
+		*/
+
+		invocation := pre_function_epoch.count() - start_time_epoch.count()
+
+		if invocation > (LONG_MAX - 10000000000)
+		{
+			// How to??? PREPROCESSOR DIRECTIVE lines 984 - 986:
+			/*
+			 * #if DEBUG_
+			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
+			 * #endif
+			 */
+			break
+		}
+
+		if op_dist <= 50
+		{
+			type := CONSUMER
+			var item_pop int
+			res = stack.pop(item_pop)
+
+			if res
+			{
+				item_key := item_pop;
+			}
+			else
+			{
+				item_key := INT_MIN;
+			}
+		}
+		else
+		{
+			type := PRODUCER
+			item_key := m_id
+			stack.push(item_key)
+		}
+
+		// How to??? lines 1006 - 1009
+		// end = std::chrono::high_resolution_clock::now();
+		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		// auto post_function_epoch = post_function.time_since_epoch();
+
+		response := post_function_epoch.count() - start_time_epoch.count()
+
+		// How to??? line 1034
+		// Method m1(m_id, id, item_key, INT_MIN, LIFO, type, invocation, response, res, m_id);
+
+		m_id = m_id + NUM_THRDS
+
+		thrd_lists[id].push_back(m1)
+		
+		thrd_lists_size[id].fetch_add(1)
+
+		method_time[id] = method_time[id] + (response - invocation)
+
+	}
+
+	done[id].store(true)
+}
+
+func work_map(id int)
+{
+	testSize := TEST_SIZE
+	wallTime := 0.0
+	var tod timeval
+	gettimeofday(&tod, 0)
+	wallTime += tod.tv_sec
+	wallTime += tod.tv_usec * 1e-6
+
+	// How to??? lines 1064 - 1071
+	/*
+	 *boost::mt19937 randomGenOp
+     	 *randomGenOp.seed(wallTime + id + 1000)
+    	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
+
+	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
+	 *auto start_time_epoch = start_time.time_since_epoch();
+	*/
+
+	m_id := id + 1
+
+	// How to??? line 1075
+	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
+
+	wait()
+
+	for var i uint32 = 0; i < testSize; i++
+	{
+	 	item_key := -1
+	 	item_val := -1
+
+	 	res := true
+	 	var op_dist uint32 = randomDistOp(randomGenOp)
+
+	 	// How to??? line 1090 - 1093
+	 	/*
+	 	 *end = std::chrono::high_resolution_clock::now();
+	 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		 *auto pre_function_epoch = pre_function.time_since_epoch();
+		*/
+
+		invocation := pre_function_epoch.count() - start_time_epoch.count()
+
+		if invocation > (LONG_MAX - 10000000000)
+		{
+			// How to??? PREPROCESSOR DIRECTIVE lines 1104 - 1106:
+			/*
+			 * #if DEBUG_
+			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
+			 * #endif
+			 */
+			break
+		}
+
+		// How to??? line 1111
+		// tbb::concurrent_hash_map<int,int,MyHashCompare>::accessor a
+
+		if op_dist <= 33
+		{
+			type := CONSUMER
+			item_erase := m_id - 2*NUM_THRDS
+			res := map.erase(item_erase)
+
+			if res
+			{
+				item_key := item_erase
+			}
+			else
+			{
+				item_key := INT_MIN
+			}
+		}
+		else if op dist <= 66
+		{
+			type := CONSUMER
+			item_key := m_id
+			item_val := m_id
+			map.insert(a, item_key)
+			// How to??? line 1130
+			// a->second = item_val;
+		}
+		else
+		{
+			type := READER
+			item_key := m_id - NUM_THRDS
+			res := map.find(a, item_key)
+
+			if res
+			{
+				// How to??? line 1138
+				// item_val = a->second
+			}
+			else
+			{
+				item_key := INT_MIN
+				item_val := INT_MIN
+			}
+		}
+
+		// How to??? lines 1145 - 1148
+		//end = std::chrono::high_resolution_clock::now();
+		//auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		//auto post_function_epoch = post_function.time_since_epoch();
+
+		response := post_function_epoch.count() - start_time_epoch.count()
+
+		// How to??? line 1169
+		//Method m1(m_id, id, item_key, item_val, MAP, type, invocation, response, res, m_id);
+
+		m_id := m_id + NUM_THRDS
+		
+		thrd_lists[id].push_back(m1)
+		
+		thrd_lists_size[id].fetch_add(1)
+
+		method_time[id] = method_time[id] + (response - invocation)
+	}
+
+	done[id].store(true)
+}
+
 func main() {
 
 }
