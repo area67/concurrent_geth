@@ -818,8 +818,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				return
 				//break
 			}
-			// pause to see concurrency
-			time.Sleep(time.Millisecond * 500)
+			//time.Sleep(time.Millisecond * 1000)
+
 
 			// Error may be ignored here. The error has already been checked
 			// during transaction acceptance is the transaction pool.

@@ -20,17 +20,17 @@ import (
 	"container/heap"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"io"
 	"math/big"
 	"sync"
 	"sync/atomic"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	//"time"
 )
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
@@ -371,9 +371,9 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 
 	for i := 0; i < len(t.heads); i++ {
 		// Find the sender
-		var sender, err = Sender(t.signer, t.heads[i])
-		if err != nil{
-			log.Error("Error getting sender in core/types/transactions.go Peek()",err)
+		var sender, err= Sender(t.signer, t.heads[i])
+		if err != nil {
+			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
 			return nil
 		}
 
@@ -391,8 +391,10 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 				break
 			}
 
+
 		}
 	}
+
 	return result
 }
 
