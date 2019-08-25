@@ -3,10 +3,9 @@ package main
 import (
 	"C"
 	"container/list"
-	"go/types"
-
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/golang-collections/collections/stack"
+	"go/types"
+	"math"
 )
 
 const numThreads = 32
@@ -234,6 +233,63 @@ func (i *Item) subFrac(num int64, den int64) {
 	// #endif
 
 	i.sum = float64(i.numerator / i.denominator)
+}
+
+func (i *Item) demote() {
+	i.exponent = i.exponent + 1
+	den := int64(math.Exp2(i.exponent))
+	// C.printf("denominator = %ld\n", den);
+
+	i.subFrac(1, den)
+}
+
+func (i *Item) promote() {
+	den := int64(math.Exp2(i.exponent))
+
+	// #if DEBUG_
+	// if den == 0
+	//   C.printf("2 ^ %f = %ld?\n", i.exponent, den);
+	// #endif
+
+	if i.exponent < 0 {
+		den = 1
+	}
+
+	// C.printf("denominator = %ld\n", den);
+
+	i.addFrac(1, den)
+	i.exponent = i.exponent - 1
+}
+
+func (i *Item) addFracFailed(num int64, den int64) {
+
+	// #if DEBUG_
+	// if den == 0
+	//   C.printf("WARNING: addFracFailed: den = 0\n");
+	// if denominatorF == 0
+	//   C.printf("WARNING: addFracFailed: 1. denominatorF = 0\n")
+	// #endif
+
+	if i.denominatorF % den == 0 {
+		i.numeratorF = i.numeratorF + num * i.denominatorF / den
+	} else if den % i.denominatorF == 0 {
+		i.numeratorF = i.numeratorF * den / i.denominatorF + num
+		i.denominatorF = den
+	} else {
+		i.numeratorF = i.numeratorF * den + num * i.denominatorF
+		i.denominatorF = i.denominatorF * den
+	}
+
+	// #if DEBUG_
+	// if denominatorF == 0
+	//   C.printf("WARNING: addFracFailed: 2. denominatorF = 0\n");
+	// #endif
+
+	i.sumF = float64(i.numeratorF / i.denominatorF)
+}
+
+func (i *Item) subFracFailed(num int64, den int64) {
+
 }
 
 func main() {
