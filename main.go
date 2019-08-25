@@ -604,6 +604,182 @@ func work_map(id int)
 	done[id].store(true)
 }
 
+func verify() 
+{
+	wait();
+
+	// How to??? lines 1188 - 1196
+	/*
+	auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
+	auto start_time_epoch = start_time.time_since_epoch();
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> end;
+
+	end = std::chrono::high_resolution_clock::now();
+
+	auto pre_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+	auto pre_verify_epoch = pre_verify.time_since_epoch();
+	*/
+
+	verify_start := pre_verify_epoch.count() - start_time_epoch.count()
+
+	// How to??? lines 1201 - 1209
+	/*
+	bool(*fn_pt)(long int,long int) = fncomp;
+  	std::map<long int,Method,bool(*)(long int,long int)> map_methods (fn_pt);
+	std::map<long int,Block,bool(*)(long int,long int)> map_block (fn_pt);
+	std::unordered_map<int,Item> map_items;
+	std::map<long int,Method,bool(*)(long int,long int)>::iterator it_start;
+	std::list<Method>::iterator it[NUM_THRDS];
+	int it_count[NUM_THRDS];
+	*/
+
+	stop := false
+	var count_overall uint32 := 0
+	var count_iterated uint32 := 0
+
+	var min int32
+	var old_min int32
+	var it_count int[NUM_THRDS]
+
+	// How to??? line 1225
+	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
+
+	for
+	{
+		if stop
+		{
+			break
+		}
+
+		stop = true
+		min = LONG_MAX
+
+		for i := 0; i < NUM_THRDS; i++
+		{
+			if done[i].load() == false
+			{
+				stop = false
+			}
+
+			var response_time int32 = 0
+
+			for
+			{
+				if it_count[i] >= thrd_lists_size[i].load()
+				{
+					break
+				}
+				else if it_count[i] == 0
+				{
+					it[i] = thrd_lists[i].begin()
+				}
+				else
+				{
+					++it[i]
+				}
+
+				var m Method = *it[i]
+
+				// How to??? line 1258
+				// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_method;
+
+				it_method = map_methods.find(m.response)
+
+				for
+				{
+					if it_method == map_methods.end()
+					{
+						break
+					}
+					m.response++
+					it_method = map_methods.find(m.response)
+				}
+				response_time = m.response
+				// How to???
+				// map_methods.insert ( std::pair<long int,Method>(m.response,m) );
+
+				it_count[i]++
+				count_overall++
+
+				// How to??? line 1275
+				// std::unordered_map<int,Item>::iterator it_item;
+
+				it_item = map_items.find(m.item_key)
+
+				if it_item == map_items.end()
+				{
+					var item(m.item_key) Item
+					item.producer = map_methods.end()
+
+					// How to??? line 1288
+					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
+
+					it_item = map_items.find(m.item_key)
+				}
+			}
+
+			if response_time < min
+			{
+				min = response_time
+			}
+		}
+
+		verify_checkpoint(map_methods, map_items, it_start, count_iterated, min, true, map_block)
+
+	}
+
+	verify_checkpoint(map_methods, map_items, it_start, count_iterated, LONG_MAX, false, map_block)
+
+	// How to??? lines 1326 - 1331
+	/*
+	#if DEBUG_
+		printf("Count overall = %lu, count iterated = %lu, map_methods.size() = %lu\n", count_overall, count_iterated, map_methods.size());
+	#endif
+
+	#if DEBUG_
+		printf("All threads finished!\n");
+	*/
+
+	// How to??? line 1339
+	// std::map<long int,Block,bool(*)(long int,long int)>::iterator it_b;
+
+	for it_b = map_block.begin(); it_b != map_block.end(); ++it_b
+	{
+		fmt.printf("Block start = %ld, finish = %ld\n", it_b->second.start, it_b->second.finish)
+	}
+
+	// How to??? line 1346
+	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_;
+
+	for it_ = map_methods.begin(); it != map_methods.end(); ++it_
+	{
+		// How to??? lines 1349 -1356
+		/*
+		std::unordered_map<int,Item>::iterator it_item;
+		it_item = map_items.find(it_->second.item_key);
+		if(it_->second.type == PRODUCER)
+			printf("PRODUCER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
+		else if ((it_->second).type == CONSUMER)
+			printf("CONSUMER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
+		else if ((it_->second).type == READER)
+			printf("READER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
+		*/
+	}
+
+	// How to??? line 1358
+	// #endif
+
+	// How to??? lines 1360 - 1362
+	// end = std::chrono::high_resolution_clock::now();
+	// auto post_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+
+	post_verify_epoch := post_verify.time_since_epoch()
+	verify_finish := post_verify_epoch.count() - start_time_epoch.count()
+
+	elapsed_time_verify = verify_finish - verify_start
+}
+
 func main() {
 
 }
