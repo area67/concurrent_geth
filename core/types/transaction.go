@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"io"
 	"math/big"
-	"sync"
 	"sync/atomic"
 	//"time"
 )
@@ -336,7 +335,7 @@ type TransactionsByPriceAndNonce struct {
 	txs            map[common.Address]Transactions // Per account nonce-sorted list of transactions
 	heads          TxByPrice                       // Next transaction for each unique account (price heap)
 	signer         Signer                          // Signer for the set of transactions
-	nonceMutex     sync.RWMutex
+	//nonceMutex     sync.RWMutex
 	accountLock    hashmap.HashMap
 	headsAvailable []int32							// 1 = available, 0 = not available
 }

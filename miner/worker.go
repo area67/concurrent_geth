@@ -874,7 +874,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				txs.Shift(from)
 			}
 
-			atomic.StoreInt32(&loopStatus, OK)
+			fmt.Printf("Here %d status: %d\n",threadID,loopStatus)
+			//atomic.StoreInt32(&loopStatus, OK)
 		}(threadID)
 
 	}
