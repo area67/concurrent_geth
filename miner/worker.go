@@ -698,8 +698,6 @@ func (w *worker) updateSnapshot() {
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	commitTxnsLock.Lock()
-
-
 	defer commitTxnsLock.Unlock()
 
 	snap := w.current.state.Snapshot()
@@ -820,8 +818,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				return
 				//break
 			}
-
 			//time.Sleep(time.Millisecond * 1000)
+
 
 			// Error may be ignored here. The error has already been checked
 			// during transaction acceptance is the transaction pool.
@@ -862,10 +860,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 			case nil:
 				// Everything ok, collect the logs and shift in the next transaction from the same account
-				commitTxnsLock.Lock()
+				// commitTxnsLock.Lock()
 				coalescedLogs = append(coalescedLogs, logs...)
 				w.current.tcount++
-				commitTxnsLock.Unlock()
+				//commitTxnsLock.Unlock()
 				txs.Shift(from)
 			default:
 				// Strange error, discard the transaction and get the next in line (note, the

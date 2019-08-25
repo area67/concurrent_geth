@@ -37,9 +37,8 @@ import (
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
-	nonceMutex   = &sync.Mutex{}
-	accountLock = &hashmap.HashMap{}
-	accountLockLock = &sync.Mutex{}
+	// nonceMutex   = &sync.RWMutex{}
+	// accountLock = &hashmap.HashMap{}
 )
 
 type Transaction struct {
@@ -332,6 +331,8 @@ type TransactionsByPriceAndNonce struct {
 	txs    map[common.Address]Transactions // Per account nonce-sorted list of transactions
 	heads  TxByPrice                       // Next transaction for each unique account (price heap)
 	signer Signer                          // Signer for the set of transactions
+	nonceMutex sync.RWMutex
+	accountLock hashmap.HashMap
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -364,8 +365,8 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	// Lock the txpool
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	t.nonceMutex.RLock()
+	defer t.nonceMutex.RUnlock()
 	var result *Transaction = nil
 
 	for i := 0; i < len(t.heads); i++ {
@@ -377,26 +378,20 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		}
 
 		// Check if the sender is currently being used
-		if _, ok := accountLock.GetStringKey(sender.String()); ok {
+		if _ , ok := t.accountLock.GetStringKey( sender.String()); ok {
 			continue
 		} else {
-			// add account to hash table, value irrelevant?
-			accountLock.Insert(sender.String(), sender)
-			log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
-			// set the transactions the sender has and break to return
-			result = t.heads[i]
-			log.Debug(fmt.Sprintf("sender: %v has been locked", sender.Hash()))
-			// nonceMutex.Unlock()
-			/*
-			for x:= false; x; {
-				fmt.Printf("LOOP")
-				log.Debug(fmt.Sprintf("LOOP"))
+			//	Try to add the unlocked account to the hash table, if success the thread can continue processing this
+			//	sender's transactions, if it fails another thread has successfully added it to the table thus continue
+			//	to the next sender.
+			if t.accountLock.Insert(sender.String(), sender) {
+				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
+				// set the transactions the sender has and break to return
+				result = t.heads[i]
+				break
 			}
-			log.Debug(fmt.Sprintf("got past loop "))
-			fmt.Printf("After loop")
-			*/
 
-			break
+
 		}
 	}
 
@@ -405,40 +400,46 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	t.nonceMutex.Lock()
+	defer t.nonceMutex.Unlock()
 	index, _ := t.find(sender)
 
 	if txs, ok := t.txs[sender]; ok && len(txs) > 0 {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
+		// relinquish control of sender so other threads my pick it up
+		t.accountLock.Del(sender.String())
+
 	} else {
 		heap.Remove(&t.heads, index)
+
 	}
 
-	// relinquish control of sender so other threads my pick it up
-	accountLock.Del(sender.String())
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String() ))
+
+
 
 
 }
 
 func (t *TransactionsByPriceAndNonce) NumSenders() int {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	//	This likely does not need to be locked, a data race could result in another iteration of the commitTransactions
+	//	loop, but this should reduce lock contention.
+	// nonceMutex.Lock()
+	// defer nonceMutex.Unlock()
 	return len(t.heads)
 }
 
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
 func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
+	t.nonceMutex.Lock()
+	defer t.nonceMutex.Unlock()
 	heapIndex, _ := t.find(sender)
 	heap.Remove(&t.heads, heapIndex)
 	log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
-	accountLock.Del(sender.String())
+	//t.accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
 }
 
