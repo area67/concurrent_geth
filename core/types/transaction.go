@@ -406,13 +406,17 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
+		// relinquish control of sender so other threads my pick it up
+		t.accountLock.Del(sender.String())
+
 	} else {
 		heap.Remove(&t.heads, index)
+
 	}
 
-	// relinquish control of sender so other threads my pick it up
-	t.accountLock.Del(sender.String())
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String() ))
+
+
 
 
 }
@@ -433,7 +437,7 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address){
 	heapIndex, _ := t.find(sender)
 	heap.Remove(&t.heads, heapIndex)
 	log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
-	t.accountLock.Del(sender.String())
+	//t.accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
 }
 
