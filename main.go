@@ -289,11 +289,88 @@ func (i *Item) addFracFailed(num int64, den int64) {
 }
 
 func (i *Item) subFracFailed(num int64, den int64) {
-
+	// #if DEBUG_
+	// if(den == 0)
+		// C.printf("WARNING: sub_frac_f: den = 0\n");
+	// if(denominator_f == 0)
+		// C.printf("WARNING: sub_frac_f: 1. denominator_f = 0\n");
+	// #endif
+	if i.denominatorF % den == 0 {
+		i.numeratorF = i.numeratorF - num * i.denominatorF / den
+	} else if den % i.denominatorF == 0 {
+		i.numeratorF = i.numeratorF * den / i.denominatorF - num
+		i.denominatorF = den
+	} else {
+		i.numeratorF = i.numeratorF * den - num * i.denominatorF
+		i.denominatorF = i.denominatorF * den
+	}
+	// #if DEBUG_
+	// if(denominator_f == 0)
+		// C.printf("WARNING: sub_frac_f: 2. denominator_f = 0\n");
+	// #endif
+	i.sumF = float64(i.numeratorF / i.denominatorF)
 }
 
-func work_queue(id int)
-{
+func (i *Item) demoteFailed() {
+	i.exponentF = i.exponentF + 1
+	var den = int64(math.Exp2(i.exponentF))
+	// C.printf("denominator = %ld\n", den);
+	i.subFracFailed(1, den)
+}
+
+func (i *Item) promoteFailed() {
+	var den = int64(math.Exp2(i.exponentF))
+ 	// C.printf("denominator = %ld\n", den);
+	i.addFracFailed(1, den)
+	i.exponentF = i.exponentF - 1
+}
+
+//Reader
+func (i *Item) addFracReader(num int64, den int64) {
+	if i.denominatorR % den == 0 {
+		i.numeratorR = i.numeratorR + num * i.denominatorR / den
+	} else if den % i.denominatorR == 0 {
+		i.numeratorR = i.numeratorR * den / i.denominatorR + num
+		i.denominatorR = den
+	} else {
+		i.numeratorR = i.numeratorR * den + num * i.denominatorR
+		i.denominatorR = i.denominatorR * den
+	}
+
+	i.sumR = float64(i.numeratorR / i.denominatorR)
+}
+
+func (i *Item) subFracReader(num int64, den int64) {
+	if i.denominatorR % den == 0 {
+		i.numeratorR = i.numeratorR - num * i.denominatorR / den
+	} else if den % i.denominatorR == 0 {
+		i.denominatorR = i.numeratorR * den / i.denominatorR - num
+		i.denominatorR = den
+	} else {
+		i.numeratorR = i.numeratorR * den - num * i.denominatorR
+		i.denominatorR = i.denominatorR * den
+	}
+
+	i.sumR = float64(i.numeratorR / i.denominatorR)
+}
+
+func (i *Item) demoteReader() {
+	i.exponentR = i.exponentR + 1
+    var den = int64(math.Exp2(i.exponentR))
+	// C.printf("denominator = %ld\n", den);
+	i.subFracReader(1, den)
+}
+
+func (i *Item) promoteReader() {
+	var den= int64(math.Exp2(i.exponentR))
+	// C.printf("denominator = %ld\n", den);
+	i.addFracReader(1, den)
+	i.exponentR = i.exponentR - 1
+}
+
+
+
+func work_queue(id int32) {
 	testSize := TEST_SIZE
 	wallTime := 0.0
 	var tod timeval
@@ -318,8 +395,7 @@ func work_queue(id int)
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++
-	{
+	for i := 0; i < testSize; i++ {
 	 	item_key := -1
 	 	res := true
 	 	var op_dist uint32 = randomDistOp(randomGenOp)
