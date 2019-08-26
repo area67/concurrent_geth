@@ -367,6 +367,25 @@ func (i *Item) promoteReader() {
 	i.addFracReader(1, den)
 	i.exponentR = i.exponentR - 1
 }
+// End of Item struct
+
+type Block struct {
+	start  int64
+	finish int64
+}
+
+func (b *Block) setBlock(){
+	b.start = 0
+	b.finish = 0
+}
+// End of Block struct
+
+var finalOutcome bool
+var methodCount  uint32
+
+func fncomp (lhs int64, rhs int64) bool{
+	return lhs < rhs
+}
 
 
 
