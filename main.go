@@ -6,6 +6,8 @@ import (
 	"github.com/golang-collections/collections/stack"
 	"go/types"
 	"math"
+	"sync/atomic"
+	//"go.uber.org/atomic"
 )
 
 const numThreads = 32
@@ -386,6 +388,19 @@ var methodCount  uint32
 func fncomp (lhs int64, rhs int64) bool{
 	return lhs < rhs
 }
+
+var threadLists     = make([]Method, 0, numThreads)// empty slice with capacity numThreads
+var threadListsSize [numThreads]int32              // atomic ops only
+var done            [numThreads]bool               // atomic ops only
+var barrier int32 = 0
+
+func wait(){
+	atomic.AddInt32(&barrier, 1)
+	for atomic.LoadInt32(&barrier) < numThreads {}
+}
+
+var methodTime   [numThreads]int64
+var overheadTime [numThreads]int64
 
 
 
