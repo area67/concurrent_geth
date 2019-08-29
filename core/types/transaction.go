@@ -385,7 +385,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	for i := 0; i < length; i++ {
 
 		// check that sender in heads[i] is still available (has not been removed)
-		if t.headsAvailable[i]==0{
+		if atomic.LoadInt32(&t.headsAvailable[i]) == 0{
 			// sender is finished, look to next sender
 			continue
 		}
