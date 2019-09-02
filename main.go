@@ -6,14 +6,12 @@ import (
 	"github.com/golang-collections/collections/stack"
 	"go/types"
 	"math"
+	"os"
 	"reflect"
 	"sort"
-	"sync/atomic"
-
-	"time"
-	//"go.uber.org/atomic"
-	"os"
 	"strconv"
+	"sync/atomic"
+	"time"
 )
 
 const numThreads = 32
@@ -78,7 +76,7 @@ type Method struct {
 	txnID           int
 }
 
-func (m *Method) SetMethod(id int, process int, itemKey int, itemVal int, semantics Semantics,
+func (m *Method) setMethod(id int, process int, itemKey int, itemVal int, semantics Semantics,
 	types Types, invocation int64, response int64, status bool, txnID int) {
 	m.id = id
 	m.process = process
@@ -125,7 +123,7 @@ type Item struct {
 	exponentR    float64
 }
 
-func (i *Item) SetItem(key int) {
+func (i *Item) setItem(key int) {
 	i.key = key
 	i.value = math.MinInt32
 	i.sum = 0
@@ -143,7 +141,7 @@ func (i *Item) SetItem(key int) {
 	i.exponentR = 0
 }
 
-func (i *Item) SetItemKV(key, value int) {
+func (i *Item) setItemKV(key, value int) {
 	i.key = key
 	i.value = value
 	i.sum = 0
@@ -217,7 +215,7 @@ func (i *Item) addFrac(num int64, den int64) {
 	i.sum = float64(i.numerator / i.denominator)
 }
 
-func (i *Item) subFrac(num int64, den int64) {
+func (i *Item) subFrac(num, den int64) {
 
 	// #if DEBUG_
 	// if den == 0
@@ -392,7 +390,7 @@ func (b *Block) setBlock(){
 var finalOutcome bool
 var methodCount  uint32
 
-func fncomp (lhs int64, rhs int64) bool{
+func fncomp (lhs, rhs int64) bool{
 	return lhs < rhs
 }
 
@@ -413,22 +411,53 @@ var start time.Time
 
 var elapsedTimeVerify int64
 
-func findFirstKey(m *map[int64]Method) int64{
+
+func findFirstMethodKey(m map[int64]Method) int64{
 	keys := make([]int, 0)
-	for k := range *m {
+	for k := range m {
 		keys = append(keys, int(k))
 	}
 	sort.Ints(keys)
 	return int64(keys[0])
 }
 
-func handleFailedConsumer(mapMethods *map[int64]Method, mapItems *map[int64]Item, methodMapKey int64){
+func findFirstItemKey(m map[int64]Item) int64{
+	keys := make([]int, 0)
+	for k := range m {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+	return int64(keys[0])
+}
 
-	for it0 := findFirstKey(mapMethods); it0 != methodMapKey; it0++{
+// methodMapKey and itemMapKey are meant to serve in place of iterators
+func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, methodMapKey int64, itemMapKey int64, stackFailed stack.Stack){
 
-		// Serializability
-		if *mapMethods[it0].response < *mapMethods[methodMapKey].invocation &&
-			*
+	for methItr0 := findFirstMethodKey(methodMap); methItr0 != methodMapKey; methItr0++{
+
+		// linearizability
+		// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
+
+		// sequential consistency
+		// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+		//     methodMap[methItr0].process == methodMap[methodMapKey].process
+
+		// serializability
+		if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+			methodMap[methItr0].txnID == methodMap[methodMapKey].txnID ||
+			methodMap[methItr0].txnID < methodMap[methodMapKey].txnID{
+
+			itemItr0 := methodMap[methItr0].itemKey
+
+			if methodMap[methItr0].types == PRODUCER &&
+				itemMap[itemMapKey].status == PRESENT &&
+				methodMap[methItr0].semantics == FIFO ||
+				methodMap[methItr0].semantics == LIFO ||
+				methodMap[methodMapKey].itemKey == methodMap[methItr0].itemKey{
+
+				stackFailed.Push(itemItr0)
+			}
+		}
 	}
 
 
@@ -438,8 +467,7 @@ func handleFailedConsumer(mapMethods *map[int64]Method, mapItems *map[int64]Item
 
 
 
-func work_queue(id int)
-{
+func work_queue(id int) {
 	testSize := TEST_SIZE
 	wallTime := 0.0
 	var tod timeval
@@ -550,8 +578,7 @@ func work_queue(id int)
 	done[id].store(true)
 }
 
-func work_stack(id int)
-{
+func work_stack(id int) {
 	testSize := TEST_SIZE
 	wallTime := 0.0
 	var tod timeval
@@ -576,8 +603,7 @@ func work_stack(id int)
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++
-	{
+	for var i uint32 = 0; i < testSize; i++ {
 	 	item_key := -1
 	 	res := true
 	 	var op_dist uint32 = randomDistOp(randomGenOp)
@@ -647,8 +673,7 @@ func work_stack(id int)
 	done[id].store(true)
 }
 
-func work_map(id int)
-{
+func work_map(id int) {
 	testSize := TEST_SIZE
 	wallTime := 0.0
 	var tod timeval
@@ -673,8 +698,7 @@ func work_map(id int)
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++
-	{
+	for var i uint32 = 0; i < testSize; i++ {
 	 	item_key := -1
 	 	item_val := -1
 
@@ -768,9 +792,8 @@ func work_map(id int)
 	done[id].store(true)
 }
 
-func verify() 
-{
-	wait();
+func verify() {
+	wait()
 
 	// How to??? lines 1188 - 1196
 	/*
@@ -809,37 +832,29 @@ func verify()
 	// How to??? line 1225
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
 
-	for
-	{
-		if stop
-		{
+	for {
+		if stop {
 			break
 		}
 
 		stop = true
 		min = LONG_MAX
 
-		for i := 0; i < NUM_THRDS; i++
-		{
-			if done[i].load() == false
-			{
+		for i := 0; i < NUM_THRDS; i++ {
+			if done[i].load() == false {
 				stop = false
 			}
 
 			var response_time int32 = 0
 
-			for
-			{
-				if it_count[i] >= thrd_lists_size[i].load()
-				{
+			for {
+				if it_count[i] >= thrd_lists_size[i].load() {
 					break
 				}
-				else if it_count[i] == 0
-				{
+				else if it_count[i] == 0 {
 					it[i] = thrd_lists[i].begin()
 				}
-				else
-				{
+				else {
 					++it[i]
 				}
 
@@ -850,10 +865,8 @@ func verify()
 
 				it_method = map_methods.find(m.response)
 
-				for
-				{
-					if it_method == map_methods.end()
-					{
+				for {
+					if it_method == map_methods.end() {
 						break
 					}
 					m.response++
@@ -908,16 +921,14 @@ func verify()
 	// How to??? line 1339
 	// std::map<long int,Block,bool(*)(long int,long int)>::iterator it_b;
 
-	for it_b = map_block.begin(); it_b != map_block.end(); ++it_b
-	{
+	for it_b = map_block.begin(); it_b != map_block.end(); ++it_b {
 		fmt.printf("Block start = %ld, finish = %ld\n", it_b->second.start, it_b->second.finish)
 	}
 
 	// How to??? line 1346
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_;
 
-	for it_ = map_methods.begin(); it != map_methods.end(); ++it_
-	{
+	for it_ = map_methods.begin(); it != map_methods.end(); ++it_ {
 		// How to??? lines 1349 -1356
 		/*
 		std::unordered_map<int,Item>::iterator it_item;
@@ -944,8 +955,7 @@ func verify()
 	elapsed_time_verify = verify_finish - verify_start
 }
 
-func main()
-{
+func main() {
 	method_count := 0
 	TBB_QUEUE := 0
 	BOOST_STACK := 0
