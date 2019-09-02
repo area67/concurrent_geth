@@ -6,7 +6,9 @@ import (
 	"github.com/golang-collections/collections/stack"
 	"go/types"
 	"math"
+	"reflect"
 	"sync/atomic"
+	"time"
 	//"go.uber.org/atomic"
 )
 
@@ -103,7 +105,8 @@ type Item struct {
 
 	demoteItems list.List
 
-	producer types.Map // TODO: not sure if this is equivalent
+	producer map[int64]reflect.MapIter // TODO: not sure if this is equivalent
+
 
 	// Failed Consumer
 	sumF         float64
@@ -401,6 +404,15 @@ func wait(){
 
 var methodTime   [numThreads]int64
 var overheadTime [numThreads]int64
+
+var start time.Time
+
+var elapsedTimeVerify int64
+
+func handleFailedConsumer()
+
+
+
 
 
 
