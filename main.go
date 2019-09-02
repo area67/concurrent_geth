@@ -8,8 +8,14 @@ import (
 	"math"
 	"reflect"
 	"sync/atomic"
+<<<<<<< HEAD
 	"time"
 	//"go.uber.org/atomic"
+=======
+	"os"
+	"strconv"
+	"time"
+>>>>>>> 4e7b8b0daa85e5e04bf7a231f909ae638299b2ce
 )
 
 const numThreads = 32
@@ -415,8 +421,8 @@ func handleFailedConsumer()
 
 
 
-
-func work_queue(id int32) {
+func work_queue(id int)
+{
 	testSize := TEST_SIZE
 	wallTime := 0.0
 	var tod timeval
@@ -424,36 +430,48 @@ func work_queue(id int32) {
 	wallTime += tod.tv_sec
 	wallTime += tod.tv_usec * 1e-6
 
-	// How to??? lines 824 - 832
+	// How to??? lines 824 - 828
 	/*
 	 *boost::mt19937 randomGenOp
-    	 *randomGenOp.seed(wallTime + id + 1000)
-    	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
-
-	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
-	 *auto start_time_epoch = start_time.time_since_epoch();
+     *randomGenOp.seed(wallTime + id + 1000)
+     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
 	*/
+
+	// Is this right? lines 831 and 832
+    //auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
+	//auto start_time_epoch = start_time.time_since_epoch();
+	var start_time int64 = time.Now().UnixNano()
+	var start_time_epoch int64 = start_time - time.Now().UnixNano()
 
 	m_id := id + 1
 
-	// How to??? line 839
+	// line 839
 	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
+	var end int64
 
 	wait()
 
-	for i := 0; i < testSize; i++ {
+	for var i uint32 = 0; i < testSize; i++
+	{
 	 	item_key := -1
 	 	res := true
+
+	 	// Keep this? rendomGenOP is from boost library which we supposedly don't need
 	 	var op_dist uint32 = randomDistOp(randomGenOp)
 
-	 	// How to??? line 850 - 853
+	 	// end = std::chrono::high_resolution_clock::now();
+	 	end = time.Now().UnixNano()
+
+	 	// How to??? lines 852 and 853
 	 	/*
-	 	 *end = std::chrono::high_resolution_clock::now();
 	 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
 		 *auto pre_function_epoch = pre_function.time_since_epoch();
 		*/
 
-		invocation := pre_function_epoch.count() - start_time_epoch.count()
+
+		// Hmm, do we need .count()??
+		//invocation := pre_function_epoch.count() - start_time_epoch.count()
+		invocation := pre_function_epoch - start_time_epoch
 
 		if invocation > (LONG_MAX - 10000000000)
 		{
@@ -489,14 +507,21 @@ func work_queue(id int32) {
 			queue.push(item_key)
 		}
 
-		// How to??? line 890:
+		// line 890
 		// end = std::chrono::high_resolution_clock::now();
+		end = time.Now().UnixNano()
+
 		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		post_function_epoch := post_function.time_since_epoch()
+		post_function = end
 
-		response := post_function_epoch.count() - start_time_epoch.count()
+		// Is this right??
+		// auto post_function_epoch = post_function.time_since_epoch();
+		post_function_epoch := time.Now().UnixNano() - post_function
 
-		// How to??? line 915 :
+		//response := post_function_epoch.count() - start_time_epoch.count()
+		response := post_function_epoch - start_time_epoch
+
+		// How to??? line 915
 		// Method m1(m_id, id, item_key, INT_MIN, FIFO, type, invocation, response, res, m_id);
 
 		m_id += NUM_THRDS
@@ -520,8 +545,8 @@ func work_stack(id int)
 	// How to??? lines 945 - 953
 	/*
 	 *boost::mt19937 randomGenOp
-     	 *randomGenOp.seed(wallTime + id + 1000)
-     	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
+     *randomGenOp.seed(wallTime + id + 1000)
+     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
 
 	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
 	 *auto start_time_epoch = start_time.time_since_epoch();
@@ -617,8 +642,8 @@ func work_map(id int)
 	// How to??? lines 1064 - 1071
 	/*
 	 *boost::mt19937 randomGenOp
-     	 *randomGenOp.seed(wallTime + id + 1000)
-    	 *boost::uniform_int<unsigned int> randomDistOp(1, 100)
+     *randomGenOp.seed(wallTime + id + 1000)
+     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
 
 	 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
 	 *auto start_time_epoch = start_time.time_since_epoch();
@@ -902,6 +927,163 @@ func verify()
 	elapsed_time_verify = verify_finish - verify_start
 }
 
-func main() {
+func main()
+{
+	method_count := 0
+	TBB_QUEUE := 0
+	BOOST_STACK := 0
+	TBB_MAP := 0
 
+	if len(os.Args) == 2
+	{
+		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
+		TEST_SIZE = strconv.Atoi(os.Args[1])
+		TBB_QUEUE = 1
+		fmt.printf("Testing TBB_QUEUE")
+	}
+	else if len(os.Args) == 3
+	{
+		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
+		TEST_SIZE = strconv.Atoi(os.Args[1])
+
+		if strconv.Atoi(os.Args[2]) == 0
+		{
+			TBB_QUEUE = 1
+			fmt.printf("Testing TBB_QUEUE\n")
+		}
+		else if strconv.Atoi(os.Args[2]) == 1
+		{
+			BOOST_STACK = 1
+			fmt.printf("Testing BOOST_STACK\n")
+		}
+		else if strconv.Atoi(os.Args[2]) == 2
+		{
+			TBB_MAP = 1
+			fmt.printf("Testing TBB_MAP\n")
+		}
+	}
+	else
+	{
+		fmt.printf("Test size = 10\n")
+		TEST_SIZE = 10
+		TBB_QUEUE = 1
+		fmt.printf("Testing TBB_QUEUE\n")
+	}
+
+	final_outcome := true
+
+	// How to???
+	/*
+	std::thread t[NUM_THRDS];
+	
+	std::thread v;
+
+	start = std::chrono::high_resolution_clock::now();
+	*/
+
+	for i := 0; i < NUM_THRDS; i++
+	{
+		if TBB_QUEUE
+		{
+			//t[i] = std::thread(work_queue,i);
+		}
+		else if BOOST_STACK
+		{
+			//t[i] = std::thread(work_stack,i);
+		}
+		else if TBB_MAP
+		{
+			//t[i] = std::thread(work_map,i);
+		}
+	}
+
+	//v = std::thread(verify);
+	/*
+	for(int i = 0; i < NUM_THRDS; i++)
+	{
+		t[i].join();
+	}
+	//TODO: Uncomment line 1426
+	v.join();
+	*/
+
+	if final_outcome == true
+	{
+		fmt.printf("-------------Program Correct Up To This Point-------------\n")
+	}
+	else
+	{
+		fmt.printf("-------------Program Not Correct-------------\n")
+	}
+
+	//auto finish = std::chrono::high_resolution_clock::now();
+	//auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
+
+	var elapsed_time_double float64 = elapsed_time.count() * 0.000000001
+	fmt.printf("Total Time: %.15lf seconds\n", elapsed_time_double);
+
+	var elapsed_time_method int32 = 0
+	var elapsed_overhead_time_double int32 = 0
+
+	for i = 0; i < NUM_THRDS; i++
+	{
+		if method_time[i] > elapsed_time_method
+		{
+			elapsed_time_method = method_time[i]
+		}
+		if overhead_time[i] > elapsed_overhead_time
+		{
+			elapsed_overhead_time = overhead_time[i]
+		}
+	}
+
+	var elapsed_time_method_double float64 = elapsed_time_method * 0.000000001
+	var elapsed_overhead_time_double float64 = elapsed_overhead_time * 0.000000001
+	var elapsed_time_verify_double float64 = elapsed_time_verify * 0.000000001
+
+	fmt.printf("Total Method Time: %.15lf seconds\n", elapsed_time_method_double)
+	fmt.printf("Total Overhead Time: %.15lf seconds\n", elapsed_overhead_time_double)
+
+	elapsed_time_verify_double = elapsed_time_verify_double - elapsed_time_method_double
+
+	fmt.printf("Total Verification Time: %.15lf seconds\n", elapsed_time_verify_double)
+
+	if TBB_QUEUE
+	{
+		fmt.printf("Final Queue Configuration: \n");
+		// How to???
+		//typedef tbb::concurrent_queue<int>::iterator iter;
+		//for(iter i(queue.unsafe_begin()); i!=queue.unsafe_end(); i++)
+			//printf("%d ", *i);
+		//printf("\n");
+	}
+	else if BOOST_STACK
+	{
+		fmt.printf("Final Stack Configuration: \n")
+		var stack_val int
+
+		for
+		{
+			if stack.pop(stack_val)
+			{
+				fmt.printf("%d ", stack_val)
+			}
+			else
+			{
+				break
+			}
+			fmt.printf("\n")
+		}
+	}
+	else if TBB_MAP
+	{
+		fmt.printf("Final Map Configuration: \n")
+		// How to???
+		/*
+		tbb::concurrent_hash_map<int,int,MyHashCompare>::iterator it;
+		for( it=map.begin(); it!=map.end(); ++it )
+    		printf("%d,%d ",it->first,it->second);
+		printf("\n");
+		*/
+	}
 }
