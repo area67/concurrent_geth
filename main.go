@@ -7,15 +7,13 @@ import (
 	"go/types"
 	"math"
 	"reflect"
+	"sort"
 	"sync/atomic"
-<<<<<<< HEAD
+
 	"time"
 	//"go.uber.org/atomic"
-=======
 	"os"
 	"strconv"
-	"time"
->>>>>>> 4e7b8b0daa85e5e04bf7a231f909ae638299b2ce
 )
 
 const numThreads = 32
@@ -415,7 +413,26 @@ var start time.Time
 
 var elapsedTimeVerify int64
 
-func handleFailedConsumer()
+func findFirstKey(m *map[int64]Method) int64{
+	keys := make([]int, 0)
+	for k := range *m {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+	return int64(keys[0])
+}
+
+func handleFailedConsumer(mapMethods *map[int64]Method, mapItems *map[int64]Item, methodMapKey int64){
+
+	for it0 := findFirstKey(mapMethods); it0 != methodMapKey; it0++{
+
+		// Serializability
+		if *mapMethods[it0].response < *mapMethods[methodMapKey].invocation &&
+			*
+	}
+
+
+}
 
 
 
