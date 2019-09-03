@@ -106,9 +106,9 @@ type Item struct {
 
 	promoteItems stack.Stack
 
-	demoteItems list.List
+	demoteMethods []*Method
 
-	producer map[int64]reflect.MapIter // TODO: not sure if this is equivalent
+	producer *int64 // map iterator
 
 
 	// Failed Consumer
@@ -436,7 +436,7 @@ func maxOf(vars []int) int {
 	return max
 }
 
-func findMethodKey(m map[int64]Method, position string) (int64, error) {
+func findMethodKey(m map[int64]*Method, position string) (int64, error) {
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
@@ -456,7 +456,7 @@ func findMethodKey(m map[int64]Method, position string) (int64, error) {
 }
 
 
-func findFirstItemKey(m map[int64]Item) int64{
+func findFirstItemKey(m map[int64]*Item) int64{
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
@@ -466,7 +466,7 @@ func findFirstItemKey(m map[int64]Item) int64{
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, ik int64, stackFailed stack.Stack){
+func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed stack.Stack){
 
 	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
 		if err != nil {
@@ -499,7 +499,7 @@ func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, mk
 	}
 }
 
-func handleFailedReader(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, ik int64, stackFailed stack.Stack){
+func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed stack.Stack){
 
 	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
 		if err != nil {
@@ -518,7 +518,7 @@ func handleFailedReader(methodMap map[int64]Method, itemMap map[int64]Item, mk i
 			methodMap[mk0].txnID == methodMap[mk].txnID ||
 			methodMap[mk0].txnID < methodMap[mk].txnID{
 
-			itemItr0 := methodMap[mk0].itemKey
+			itemItr0 := int64(methodMap[mk0].itemKey)
 
 			if methodMap[mk0].types == PRODUCER &&
 				itemMap[ik].status == PRESENT &&
@@ -530,20 +530,66 @@ func handleFailedReader(methodMap map[int64]Method, itemMap map[int64]Item, mk i
 	}
 }
 
-func verifyCheckpoint(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, count uint64, min int64, reset bool, blockMap map[int64]Block){
+func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
-	if len(methodMap) != 0 {
+	if len(mapMethods) != 0 {
 
-		itr, err := findMethodKey(methodMap, "begin")
-		end, err2 := findMethodKey(methodMap, "end")
+		it, err := findMethodKey(mapMethods, "begin")
+		end, err2 := findMethodKey(mapMethods, "end")
 		if err != nil && err2 != nil {
 			return
 		}
-		if count == 0 {
-			reset = false
-		} else if itr != end {
-			itr = mk
+		if countIterated == 0 {
+			resetItStart = false
+		} else if it != end {
+			itStart = itStart + 1
+			it = itStart
 		}
+
+		for ; it != end; it++{
+			if mapMethods[it].response > min{
+				break
+			}
+
+			if methodCount % 5000 == 0 {
+				fmt.Printf("methodCount = %d\n", methodCount)
+			}
+			methodCount = methodCount + 1
+
+			itStart = it
+			resetItStart = false
+			countIterated = countIterated + 1
+
+			itItems := int64(mapMethods[it].itemKey)
+
+			// #if DEBUG_
+			/// if mapItems[itItems].status != PRESENT{
+			//  	fmt.Println("WARNING: Current item not present!")
+			//} }
+
+			// if mapMethods[it].types == PRODUCER{
+				// fmt.Printf("PRODUCER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+			// }
+
+			// else if mapMethods[it].types == CONSUMER {
+				// fmt.Printf("CONSUMER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+			// }
+			// #endif
+
+			if mapMethods[it].types == PRODUCER {
+				*mapItems[itItems].producer = it
+
+				if mapItems[itItems].status == ABSENT {
+
+					// reset item parameters
+					mapItems[itItems].status = PRESENT
+					mapItems[itItems].demoteMethods = nil
+				}
+
+				mapItems[itItems].addInt(1)
+			}
+		}
+
 	}
 }
 
