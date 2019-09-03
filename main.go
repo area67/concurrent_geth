@@ -3,6 +3,7 @@ package main
 import (
 	"C"
 	"container/list"
+	"fmt"
 	"github.com/golang-collections/collections/stack"
 	"go/types"
 	"math"
@@ -411,15 +412,49 @@ var start time.Time
 
 var elapsedTimeVerify int64
 
+func minOf(vars []int) int {
+	min := vars[0]
 
-func findFirstMethodKey(m map[int64]Method) int64{
+	for _, i := range vars {
+		if min > i {
+			min = i
+		}
+	}
+
+	return min
+}
+
+func maxOf(vars []int) int {
+	max := vars[0]
+
+	for _, i := range vars {
+		if max < i {
+			max = i
+		}
+	}
+
+	return max
+}
+
+func findMethodKey(m map[int64]Method, position string) (int64, error) {
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
 	}
 	sort.Ints(keys)
-	return int64(keys[0])
+
+	begin := minOf(keys)
+	end   := maxOf(keys)
+
+	if position == "begin" {
+		return int64(keys[begin]), nil
+	} else if position == "end" {
+		return int64(keys[end]), nil
+	} else {
+		return -1, fmt.Errorf("the map key could not be found")
+	}
 }
+
 
 func findFirstItemKey(m map[int64]Item) int64{
 	keys := make([]int, 0)
@@ -431,9 +466,12 @@ func findFirstItemKey(m map[int64]Item) int64{
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, methodMapKey int64, itemMapKey int64, stackFailed stack.Stack){
+func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, ik int64, stackFailed stack.Stack){
 
-	for methItr0 := findFirstMethodKey(methodMap); methItr0 != methodMapKey; methItr0++{
+	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
+		if err != nil {
+			break
+		}
 
 		// linearizability
 		// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
@@ -443,24 +481,70 @@ func handleFailedConsumer(methodMap map[int64]Method, itemMap map[int64]Item, me
 		//     methodMap[methItr0].process == methodMap[methodMapKey].process
 
 		// serializability
-		if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-			methodMap[methItr0].txnID == methodMap[methodMapKey].txnID ||
-			methodMap[methItr0].txnID < methodMap[methodMapKey].txnID{
+		if methodMap[mk0].response < methodMap[mk].invocation &&
+			methodMap[mk0].txnID == methodMap[mk].txnID ||
+			methodMap[mk0].txnID < methodMap[mk].txnID{
 
-			itemItr0 := methodMap[methItr0].itemKey
+			itemItr0 := methodMap[mk0].itemKey
 
-			if methodMap[methItr0].types == PRODUCER &&
-				itemMap[itemMapKey].status == PRESENT &&
-				methodMap[methItr0].semantics == FIFO ||
-				methodMap[methItr0].semantics == LIFO ||
-				methodMap[methodMapKey].itemKey == methodMap[methItr0].itemKey{
+			if methodMap[mk0].types == PRODUCER &&
+				itemMap[ik].status == PRESENT &&
+				methodMap[mk0].semantics == FIFO ||
+				methodMap[mk0].semantics == LIFO ||
+				methodMap[mk].itemKey == methodMap[mk0].itemKey{
 
 				stackFailed.Push(itemItr0)
 			}
 		}
 	}
+}
 
+func handleFailedReader(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, ik int64, stackFailed stack.Stack){
 
+	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
+		if err != nil {
+			break
+		}
+
+		// linearizability
+		// #if methodMap[methItr0].response < methodMap[methodMapKey].invocation
+
+		// sequential consistency
+		// #elif methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+		//     methodMap[methItr0].process == methodMap[methodMapKey].process
+
+		// serializability
+		if methodMap[mk0].response < methodMap[mk].invocation &&
+			methodMap[mk0].txnID == methodMap[mk].txnID ||
+			methodMap[mk0].txnID < methodMap[mk].txnID{
+
+			itemItr0 := methodMap[mk0].itemKey
+
+			if methodMap[mk0].types == PRODUCER &&
+				itemMap[ik].status == PRESENT &&
+				methodMap[mk].itemKey == methodMap[mk0].itemKey{
+
+				stackFailed.Push(itemItr0)
+			}
+		}
+	}
+}
+
+func verifyCheckpoint(methodMap map[int64]Method, itemMap map[int64]Item, mk int64, count uint64, min int64, reset bool, blockMap map[int64]Block){
+
+	if len(methodMap) != 0 {
+
+		itr, err := findMethodKey(methodMap, "begin")
+		end, err2 := findMethodKey(methodMap, "end")
+		if err != nil && err2 != nil {
+			return
+		}
+		if count == 0 {
+			reset = false
+		} else if itr != end {
+			itr = mk
+		}
+	}
 }
 
 
