@@ -499,7 +499,7 @@ func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, 
 	}
 }
 
-func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed stack.Stack){
+func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed *stack.Stack){
 
 	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
 		if err != nil {
@@ -531,6 +531,10 @@ func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk
 }
 
 func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
+
+	var stackConsumer *stack.Stack        // stack of map[int64]*Item
+	var stackFinishedMethods *stack.Stack // stack of map[int64]*Method
+	var stackFailed *stack.Stack          // stack of map[int64]*Item
 
 	if len(mapMethods) != 0 {
 
@@ -587,6 +591,56 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 				}
 
 				mapItems[itItems].addInt(1)
+
+				if mapMethods[it].semantics == FIFO || mapMethods[it].semantics == LIFO {
+					it0, err := findMethodKey(mapMethods, "begin")
+					if  err != nil{
+						return
+					}
+					for ; it0 != it; it0++{
+						// #if linearizability
+						// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
+
+						// #elif sequential consistency
+						// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+						//     methodMap[methItr0].process == methodMap[methodMapKey].process
+
+						// #elif serializability
+						if mapMethods[it0].response < mapMethods[it].invocation &&
+							mapMethods[it0].txnID == mapMethods[it].txnID ||
+							mapMethods[it0].txnID < mapMethods[it].txnID{
+						// #endif
+							itItems0 := int64(mapMethods[it0].itemKey)
+
+							// Demotion
+							// FIFO Semantics
+							if (mapMethods[it0].types == PRODUCER && mapItems[itItems0].status == PRESENT) &&
+								(mapMethods[it].types == PRODUCER && mapMethods[it0].semantics == FIFO) {
+
+								mapItems[itItems0].promoteItems.Push(mapItems[itItems].key)
+								mapItems[itItems].demote()
+								mapItems[itItems].demoteMethods = append(mapItems[itItems].demoteMethods, mapMethods[it0])
+							}
+
+							// LIFO Semantics
+							if (mapMethods[it0].types == PRODUCER && mapItems[itItems0].status == PRESENT) &&
+								(mapMethods[it].types == PRODUCER && mapMethods[it0].semantics == LIFO) {
+
+								mapItems[itItems].promoteItems.Push(mapItems[itItems].key)
+								mapItems[itItems0].demote()
+								mapItems[itItems0].demoteMethods = append(mapItems[itItems0].demoteMethods, mapMethods[it])
+							}
+						}
+					}
+				}
+			}
+
+			if mapMethods[it].types == PRODUCER {
+				if mapMethods[it].status == true {
+					mapItems[itItems].demoteReader()
+				} else{
+					handleFailedReader(mapMethods, mapItems, it, itItems, stackFailed)
+				}
 			}
 		}
 
