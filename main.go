@@ -455,6 +455,9 @@ func findMethodKey(m map[int64]*Method, position string) (int64, error) {
 	}
 }
 
+func reslice(s []*Method, index int) []*Method {
+	return append(s[:index], s[index+1:]...)
+}
 
 func findFirstItemKey(m map[int64]*Item) int64{
 	keys := make([]int, 0)
@@ -532,9 +535,9 @@ func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk
 
 func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
-	var stackConsumer *stack.Stack        // stack of map[int64]*Item
-	var stackFinishedMethods *stack.Stack // stack of map[int64]*Method
-	var stackFailed *stack.Stack          // stack of map[int64]*Item
+	var stackConsumer stack.Stack         // stack of map[int64]*Item
+	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
+	var stackFailed stack.Stack           // stack of map[int64]*Item
 
 	if len(mapMethods) != 0 {
 
@@ -639,7 +642,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 				if mapMethods[it].status == true {
 					mapItems[itItems].demoteReader()
 				} else{
-					handleFailedReader(mapMethods, mapItems, it, itItems, stackFailed)
+					handleFailedReader(mapMethods, mapItems, it, itItems, &stackFailed)
 				}
 			}
 
@@ -668,10 +671,44 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 
 					if mapItems[itItems].sum < 0 {
 
-						for i, v := range mapItems[itItems].demoteMethods {
-							
+						for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
+
+							if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
+								mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
+								// Methods do not overlap
+								// fmt.Println("NOTE: Methods do not overlap")
+							} else {
+								mapItems[itItems].promote()
+
+								// need to remove from promote list
+								itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
+								var temp stack.Stack
+
+								for mapItems[itMthdItem].promoteItems.Peek() != nil{
+
+									top := mapItems[itMthdItem].promoteItems.Peek()
+									if top != mapMethods[it].itemKey {
+										temp.Push(top)
+									}
+									mapItems[itMthdItem].promoteItems.Pop()
+									fmt.Println("stuck here?")
+								}
+								// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
+
+								//
+								mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
+							}
 						}
 					}
+					stackConsumer.Push(itItems)
+					stackFinishedMethods.Push(it)
+
+					end, err = findMethodKey(mapMethods, "end")
+					if *mapItems[itItems].producer != end {
+						stackFinishedMethods.Push(mapItems[itItems].producer)
+					}
+				} else {
+					handleFailedConsumer(mapMethods, mapItems, it, itItems, stackFailed)
 				}
 			}
 		}
