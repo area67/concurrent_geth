@@ -8,7 +8,6 @@ import (
 	"go/types"
 	"math"
 	"os"
-	"reflect"
 	"sort"
 	"strconv"
 	"sync/atomic"
@@ -459,13 +458,23 @@ func reslice(s []*Method, index int) []*Method {
 	return append(s[:index], s[index+1:]...)
 }
 
-func findFirstItemKey(m map[int64]*Item) int64{
+func findItemKey(m map[int64]*Item, position string) (int64, error){
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
 	}
 	sort.Ints(keys)
-	return int64(keys[0])
+
+	begin := minOf(keys)
+	end   := maxOf(keys)
+
+	if position == "begin" {
+		return int64(keys[begin]), nil
+	} else if position == "end" {
+		return int64(keys[end]), nil
+	} else {
+		return -1, fmt.Errorf("the map key could not be found")
+	}
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
@@ -535,7 +544,7 @@ func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk
 
 func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
-	var stackConsumer stack.Stack         // stack of map[int64]*Item
+	var stackConsumer  = stack.New()        // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
 	var stackFailed stack.Stack           // stack of map[int64]*Item
 
@@ -712,7 +721,70 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 				}
 			}
 		}
+		if resetItStart {
+			itStart--
+		}
 
+		//NEED TO FLAG ITEMS ASSOCIATED WITH CONSUMER METHODS AS ABSENT
+		for stackConsumer.Len() != 0 {
+
+			itTop, ok := stackConsumer.Peek().(int64)
+			if !ok {
+				return
+			}
+
+			for mapItems[itTop].promoteItems.Len() != 0 {
+				itemPromote := mapItems[itTop].promoteItems.Peek().(int64)
+				itPromoteItem := itemPromote
+				mapItems[itPromoteItem].promote()
+				mapItems[itTop].promoteItems.Pop()
+			}
+			stackConsumer.Pop()
+		}
+
+		for stackFailed.Len() != 0 {
+			itTop := stackFailed.Peek().(int64)
+
+			if mapItems[itTop].status == PRESENT {
+				mapItems[itTop].demoteFailed()
+			}
+			stackFailed.Pop()
+		}
+
+		// remove methods that are no longer active
+		for stackFinishedMethods.Len() != 0 {
+			itTop := stackFinishedMethods.Peek().(int64)
+			delete(mapMethods, itTop)
+			stackFinishedMethods.Pop()
+		}
+
+		// verify sums
+		outcome := true
+		itVerify, err := findItemKey(mapItems, "begin")
+		end, endErr := findItemKey(mapItems, "end")
+
+		if err != nil || endErr != nil {
+			return
+		}
+
+		for ; itVerify != end; itVerify++ {
+
+			if mapItems[itVerify].sum < 0 {
+				outcome = false
+				// #if DEBUG_
+					// fmt.Printf("WARNING: Item %d, sum %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sum)
+				// #endif
+			}
+			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
+
+			if (math.Ceil(mapItems[itVerify].sum) + mapItems[itVerify].sumR) < 0 {
+				outcome = false
+
+				// #if DEBUG_
+					// fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumR)
+				// #endif
+			}
+		}
 	}
 }
 
@@ -786,11 +858,10 @@ func work_queue(id int) {
 		{
 			type := CONSUMER
 			var item_pop int 
-			var item_pop_ptr uint32*
+			var item_pop_ptr *uint32
 
 			res := queue.try_pop(item_pop)
-			if res
-			{
+			if res {
 				item_key := item_pop
 			}
 			else
