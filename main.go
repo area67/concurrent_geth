@@ -40,14 +40,14 @@ func (mhc MyHashCompare) equal(x int, y int) bool {
 type Status int
 
 const (
-	PRESENT Status = 1 + iota
+	PRESENT Status = iota
 	ABSENT
 )
 
 type Semantics int
 
 const (
-	FIFO Semantics = 1 + iota
+	FIFO Semantics = iota
 	LIFO
 	SET
 	MAPP
@@ -57,7 +57,7 @@ const (
 type Types int
 
 const (
-	PRODUCER Types = 1 + iota
+	PRODUCER Types = iota
 	CONSUMER
 	READER
 	WRITER
@@ -635,11 +635,43 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 				}
 			}
 
-			if mapMethods[it].types == PRODUCER {
+			if mapMethods[it].types == READER {
 				if mapMethods[it].status == true {
 					mapItems[itItems].demoteReader()
 				} else{
 					handleFailedReader(mapMethods, mapItems, it, itItems, stackFailed)
+				}
+			}
+
+			if mapMethods[it].types	== CONSUMER {
+
+				/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
+				it_consumer = map_consumer.find((it->second).key);
+				if(it_consumer == map_consumer.end())
+				{
+					std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
+					//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
+					map_consumer.insert(entry);
+				} else {
+					it_consumer->second = it_item_0;
+				}*/
+
+				if mapMethods[it].status == true {
+
+					// promote reads
+					if mapItems[itItems].sum > 0 {
+						mapItems[itItems].sumR = 0
+					}
+
+					mapItems[itItems].subInt(1)
+					mapItems[itItems].status = ABSENT
+
+					if mapItems[itItems].sum < 0 {
+
+						for i, v := range mapItems[itItems].demoteMethods {
+							
+						}
+					}
 				}
 			}
 		}
