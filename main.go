@@ -781,9 +781,36 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 				outcome = false
 
 				// #if DEBUG_
-					// fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumR)
+				// fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumR)
 				// #endif
 			}
+
+			var n float64
+			if mapItems[itVerify].sumF == 0 {
+				n = 0
+			} else {
+				n = -1
+			}
+
+			if (math.Ceil(mapItems[itVerify].sum) + mapItems[itVerify].sumF) * n < 0 {
+				outcome = false
+				// #if DEBUG_
+				// fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumF)
+				// #endif
+			}
+
+		}
+		if outcome == true {
+			finalOutcome = true
+			// #if DEBUG_
+				// fmt.Println("-------------Program Correct Up To This Point-------------")
+			// #endif
+		} else {
+			finalOutcome = false
+
+			// #if DEBUG_
+				// fmt.Println("-------------Program Not Correct-------------")
+			// #endif
 		}
 	}
 }
