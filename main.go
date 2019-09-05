@@ -2,15 +2,14 @@ package main
 
 import (
 	"C"
-	"container/list"
 	"fmt"
 	"github.com/golang-collections/collections/stack"
-	"go/types"
 	"math"
 	"os"
 	"sort"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -819,13 +818,14 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 
 
 
-func work_queue(id int) {
-	testSize := TEST_SIZE
+func workQueue(id int) {
+
+	testSize := testSize
 	wallTime := 0.0
-	var tod timeval
-	gettimeofday(&tod, 0)
-	wallTime += tod.tv_sec
-	wallTime += tod.tv_usec * 1e-6
+	var tod syscall.Timeval
+	syscall.Gettimeofday(&tod)
+	wallTime += float64(tod.Sec)
+	wallTime += float64(tod.Usec) * 1e-6
 
 	// How to??? lines 824 - 828
 	/*
