@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang-collections/collections/stack"
 	"math"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -833,14 +834,18 @@ func workQueue(id int) {
      *randomGenOp.seed(wallTime + id + 1000)
      *boost::uniform_int<unsigned int> randomDistOp(1, 100)
 	*/
+	var randomGenOp rand.Rand
+	randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
+	s := rand.NewSource(time.Now().UnixNano()) // uniformly distributed pseudo-random number between 1 - 100
+	randDistOp := rand.New(s)
 
 	// Is this right? lines 831 and 832
     //auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
 	//auto start_time_epoch = start_time.time_since_epoch();
-	var start_time int64 = time.Now().UnixNano()
-	var start_time_epoch int64 = start_time - time.Now().UnixNano()
+	startTime := time.Now().UnixNano()
+	startTimeEpoch := startTime - time.Now().UnixNano()
 
-	m_id := id + 1
+	mId := id + 1
 
 	// line 839
 	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
@@ -848,13 +853,13 @@ func workQueue(id int) {
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++
-	{
-	 	item_key := -1
+	var i uint32 = 0
+	for ; i < testSize; i++ {
+	 	itemKey := -1
 	 	res := true
 
 	 	// Keep this? rendomGenOP is from boost library which we supposedly don't need
-	 	var op_dist uint32 = randomDistOp(randomGenOp)
+	 	var opDist uint32 = uint32(randDistOp.Int31n(99) + 1)
 
 	 	// end = std::chrono::high_resolution_clock::now();
 	 	end = time.Now().UnixNano()
