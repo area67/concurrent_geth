@@ -395,18 +395,22 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil {
 			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
+			fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
 			return nil
 		}
 
 		// Check if the sender is currently being used
 		if _, ok := t.accountLock.GetStringKey(sender.String()); ok {
+			fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
 			continue
+
 		} else {
 			/*
 			Try to add the unlocked account to the hash table, if success the thread can continue processing this sender's transactions, if it fails another thread has successfully added it to the table thus continue to the next sender.
 			*/
 			if t.accountLock.Insert(sender.String(), sender) {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
+				fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
 				result = t.heads[i]
 				break
