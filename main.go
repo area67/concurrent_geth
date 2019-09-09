@@ -934,13 +934,15 @@ func workQueue(id int) {
 	done[id].store(true)
 }
 
-func work_stack(id int) {
-	testSize := TEST_SIZE
+func workStack(id int) {
+	testSize := testSize
 	wallTime := 0.0
-	var tod timeval
-	gettimeofday(&tod, 0)
-	wallTime += tod.tv_sec
-	wallTime += tod.tv_usec * 1e-6
+	var tod syscall.Timeval
+	if err := syscall.Gettimeofday(&tod); err != nil {
+		return
+	}
+	wallTime += float64(tod.Sec)
+	wallTime += float64(tod.Usec) * 1e-6
 
 	// How to??? lines 945 - 953
 	/*
@@ -1164,7 +1166,7 @@ func verify() {
 	auto pre_verify_epoch = pre_verify.time_since_epoch();
 	*/
 
-	verify_start := pre_verify_epoch.count() - start_time_epoch.count()
+	verifyStart := pre_verify_epoch.count() - start_time_epoch.count()
 
 	// How to??? lines 1201 - 1209
 	/*
@@ -1258,7 +1260,7 @@ func verify() {
 			}
 		}
 
-		verify_checkpoint(map_methods, map_items, it_start, count_iterated, min, true, map_block)
+		verifyCheckpoint(mapMethods, mapItems, itStart, countIterated, min, true, mapBlock)
 
 	}
 
