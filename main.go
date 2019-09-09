@@ -872,26 +872,22 @@ func workQueue(id int) {
 			break
 		}
 
-		if op_dist <= 50
-		{
-			type := CONSUMER
+		if op_dist <= 50 {
+			constType := CONSUMER
 			var item_pop int 
 			var item_pop_ptr *uint32
 
 			res := queue.try_pop(item_pop)
 			if res {
-				item_key := item_pop
-			}
-			else
+				itemKey = item_pop
+			} else
 			{
-				item_key := INT_MIN
+				itemKey = INT_MIN
 			}
-		}
-		else
-		{
-			type := PRODUCER
-			item_key := m_id
-			queue.push(item_key)
+		} else {
+			constType := PRODUCER
+			itemKey = mId
+			queue.push(itemKey)
 		}
 
 		// line 890
@@ -911,7 +907,7 @@ func workQueue(id int) {
 		// How to??? line 915
 		// Method m1(m_id, id, item_key, INT_MIN, FIFO, type, invocation, response, res, m_id);
 
-		m_id += NUM_THRDS
+		mId += NUM_THRDS
 		thrd_lists[id].push_back(m1)
 		thrd_lists_size[id].fetch_add(1)
 		method_time[id] = method_time[id] + (response - invocation)
@@ -940,15 +936,15 @@ func workStack(id int) {
 	 *auto start_time_epoch = start_time.time_since_epoch();
 	*/
 
-	m_id := id + 1
+	mId := id + 1
 
 	// How to??? line 957
 	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++ {
-	 	item_key := -1
+	for i := 0; i < testSize; i++ {
+	 	itemKey := -1
 	 	res := true
 	 	var op_dist uint32 = randomDistOp(randomGenOp)
 
@@ -972,26 +968,21 @@ func workStack(id int) {
 			break
 		}
 
-		if op_dist <= 50
-		{
-			type := CONSUMER
+		if op_dist <= 50 {
+			constType := CONSUMER
 			var item_pop int
 			res = stack.pop(item_pop)
 
-			if res
+			if res {
+				itemKey = item_pop;
+			} else
 			{
-				item_key := item_pop;
+				itemKey = INT_MIN;
 			}
-			else
-			{
-				item_key := INT_MIN;
-			}
-		}
-		else
-		{
-			type := PRODUCER
-			item_key := m_id
-			stack.push(item_key)
+		} else {
+			constType := PRODUCER
+			itemKey := mId
+			stack.push(itemKey)
 		}
 
 		// How to??? lines 1006 - 1009
@@ -1004,7 +995,7 @@ func workStack(id int) {
 		// How to??? line 1034
 		// Method m1(m_id, id, item_key, INT_MIN, LIFO, type, invocation, response, res, m_id);
 
-		m_id = m_id + NUM_THRDS
+		mId = mId + NUM_THRDS
 
 		thrd_lists[id].push_back(m1)
 		
@@ -1035,15 +1026,15 @@ func work_map(id int) {
 	 *auto start_time_epoch = start_time.time_since_epoch();
 	*/
 
-	m_id := id + 1
+	mId := id + 1
 
 	// How to??? line 1075
 	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
 
 	wait()
 
-	for var i uint32 = 0; i < testSize; i++ {
-	 	item_key := -1
+	for i := 0; i < testSize; i++ {
+	 	itemKey := -1
 	 	item_val := -1
 
 	 	res := true
@@ -1072,44 +1063,33 @@ func work_map(id int) {
 		// How to??? line 1111
 		// tbb::concurrent_hash_map<int,int,MyHashCompare>::accessor a
 
-		if op_dist <= 33
-		{
-			type := CONSUMER
+		if op_dist <= 33 {
+			constType := CONSUMER
 			item_erase := m_id - 2*NUM_THRDS
 			res := map.erase(item_erase)
 
-			if res
-			{
-				item_key := item_erase
+			if res {
+				itemKey = item_erase
+			} else{
+				itemKey = INT_MIN
 			}
-			else
-			{
-				item_key := INT_MIN
-			}
-		}
-		else if op dist <= 66
-		{
-			type := CONSUMER
-			item_key := m_id
-			item_val := m_id
-			map.insert(a, item_key)
+		} else if op dist <= 66 {
+			constType := CONSUMER
+			itemKey = mID
+			item_val = mId
+			map.insert(a, itemKey)
 			// How to??? line 1130
 			// a->second = item_val;
-		}
-		else
-		{
-			type := READER
-			item_key := m_id - NUM_THRDS
+		} else {
+			constType := READER
+			itemKey = m_id - NUM_THRDS
 			res := map.find(a, item_key)
 
-			if res
-			{
+			if res {
 				// How to??? line 1138
 				// item_val = a->second
-			}
-			else
-			{
-				item_key := INT_MIN
+			} else {
+				itemKey = INT_MIN
 				item_val := INT_MIN
 			}
 		}
@@ -1124,7 +1104,7 @@ func work_map(id int) {
 		// How to??? line 1169
 		//Method m1(m_id, id, item_key, item_val, MAP, type, invocation, response, res, m_id);
 
-		m_id := m_id + NUM_THRDS
+		mId = mId + NUM_THRDS
 		
 		thrd_lists[id].push_back(m1)
 		
@@ -1166,8 +1146,8 @@ func verify() {
 	*/
 
 	stop := false
-	var count_overall uint32 := 0
-	var count_iterated uint32 := 0
+	var count_overall uint32 = 0
+	var count_iterated uint32 = 0
 
 	var min int32
 	var old_min int32
@@ -1272,7 +1252,7 @@ func verify() {
 	// How to??? line 1346
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_;
 
-	for it_ = map_methods.begin(); it != map_methods.end(); ++it_ {
+	for it = map_methods.begin(); it != map_methods.end(); ++it {
 		// How to??? lines 1349 -1356
 		/*
 		std::unordered_map<int,Item>::iterator it_item;
