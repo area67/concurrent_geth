@@ -839,11 +839,9 @@ func workQueue(id int) {
 	s := rand.NewSource(time.Now().UnixNano()) // uniformly distributed pseudo-random number between 1 - 100
 	randDistOp := rand.New(s)
 
-	// Is this right? lines 831 and 832
-    //auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
-	//auto start_time_epoch = start_time.time_since_epoch();
-	startTime := time.Now().UnixNano()
-	startTimeEpoch := startTime - time.Now().UnixNano()
+	// TODO: I'm 84% sure this is correct
+	startTime := time.Unix(0, start.UnixNano())
+	startTimeEpoch := time.Since(startTime)
 
 	mId := id + 1
 
