@@ -824,19 +824,15 @@ func workQueue(id int) {
 	testSize := testSize
 	wallTime := 0.0
 	var tod syscall.Timeval
-	syscall.Gettimeofday(&tod)
+	if err := syscall.Gettimeofday(&tod); err != nil {
+		return
+	}
 	wallTime += float64(tod.Sec)
 	wallTime += float64(tod.Usec) * 1e-6
 
-	// How to??? lines 824 - 828
-	/*
-	 *boost::mt19937 randomGenOp
-     *randomGenOp.seed(wallTime + id + 1000)
-     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
-	*/
 	var randomGenOp rand.Rand
 	randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
-	s := rand.NewSource(time.Now().UnixNano()) // uniformly distributed pseudo-random number between 1 - 100
+	s := rand.NewSource(time.Now().UnixNano())
 	randDistOp := rand.New(s)
 
 	// TODO: I'm 84% sure this is correct
@@ -845,36 +841,28 @@ func workQueue(id int) {
 
 	mId := id + 1
 
-	// line 839
-	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
-	var end int64
+	var end time.Time
 
 	wait()
 
-	var i uint32 = 0
-	for ; i < testSize; i++ {
-	 	itemKey := -1
+	for i := uint32(0); i < testSize; i++ {
+
+		var types Types
+		itemKey := -1
 	 	res := true
+	 	opDist := uint32(randDistOp.Int31n(99) + 1)  // uniformly distributed pseudo-random number between 1 - 100 ??
 
-	 	// Keep this? rendomGenOP is from boost library which we supposedly don't need
-	 	var opDist uint32 = uint32(randDistOp.Int31n(99) + 1)
+	 	end = time.Now()
 
-	 	// end = std::chrono::high_resolution_clock::now();
-	 	end = time.Now().UnixNano()
-
-	 	// How to??? lines 852 and 853
-	 	/*
-	 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		 *auto pre_function_epoch = pre_function.time_since_epoch();
-		*/
+	 	preFunction := time.Unix(0, end.UnixNano())
+	 	preFunctionEpoch := time.Since(preFunction)
 
 
 		// Hmm, do we need .count()??
 		//invocation := pre_function_epoch.count() - start_time_epoch.count()
-		invocation := pre_function_epoch - start_time_epoch
+		invocation := preFunctionEpoch - startTimeEpoch
 
-		if invocation > (LONG_MAX - 10000000000)
-		{
+		if invocation > (math.MaxInt64 - 10000000000) {
 			//PREPROCESSOR DIRECTIVE lines 864 - 866:
 			/*
 			 * #if DEBUG_
