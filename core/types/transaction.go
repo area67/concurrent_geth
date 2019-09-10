@@ -362,7 +362,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	headsAvailable := make([]int32,len(heads))
 	// init all heads to available
 	for i := range headsAvailable{
-		headsAvailable[i]=AVAILABLE
+		headsAvailable[i] = AVAILABLE
 	}
 
 	// Assemble and return the transaction set
@@ -385,7 +385,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	for i := 0; i < length; i++ {
 
 		// check that sender in heads[i] is still available (has not been removed)
-		if t.headsAvailable[i]==0{
+		if t.headsAvailable[i] == NOT_AVAILABLE {
 			// sender is finished, look to next sender
 			continue
 		}
@@ -403,7 +403,9 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			continue
 		} else {
 			/*
-			Try to add the unlocked account to the hash table, if success the thread can continue processing this sender's transactions, if it fails another thread has successfully added it to the table thus continue to the next sender.
+			Try to add the unlocked account to the hash table, if success the thread can continue processing this
+			sender's transactions, if it fails another thread has successfully added it to the table thus continue to
+			the next sender.
 			*/
 			if t.accountLock.Insert(sender.String(), sender) {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
@@ -446,7 +448,14 @@ func (t *TransactionsByPriceAndNonce) NumSenders() int {
 	//	loop, but this should reduce lock contention.
 	// nonceMutex.Lock()
 	// defer nonceMutex.Unlock()
-	return len(t.heads)
+	//return len(t.heads)
+	result := 0
+	for i := 0; i < len(t.headsAvailable); i++ {
+		if t.headsAvailable[i] == AVAILABLE {
+			result++
+		}
+	}
+	return result
 }
 
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
@@ -469,11 +478,11 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {
 	for i := 0; i < t.heads.Len(); i++ {
 		tempHead := t.heads[i]
-		if t.headsAvailable[i] == 0{
+		if t.headsAvailable[i] == NOT_AVAILABLE {
 			continue
 		}
 		temp, _ := Sender(t.signer, tempHead)
-		//	The address should be a number, so the numerical comparison should work, faster than string comparison
+		//	Check if the sender and the found address are the same
 		if sender.Big().Cmp(temp.Big()) == 0 {
 			return i, nil
 		}
