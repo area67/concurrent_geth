@@ -872,7 +872,7 @@ func workQueue(id int) {
 			break
 		}
 
-		if op_dist <= 50 {
+		if opDist <= 50 {
 			constType := CONSUMER
 			var item_pop int 
 			var item_pop_ptr *uint32
