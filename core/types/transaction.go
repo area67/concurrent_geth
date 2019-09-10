@@ -385,7 +385,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	for i := 0; i < length; i++ {
 
 		// check that sender in heads[i] is still available (has not been removed)
-		if t.headsAvailable[i] == NOT_AVAILABLE {
+		if atomic.LoadInt32(&t.headsAvailable[i]) == 0{
 			// sender is finished, look to next sender
 			continue
 		}
@@ -395,12 +395,15 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil {
 			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
+			fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
 			return nil
 		}
 
 		// Check if the sender is currently being used
 		if _, ok := t.accountLock.GetStringKey(sender.String()); ok {
+			fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
 			continue
+
 		} else {
 			/*
 			Try to add the unlocked account to the hash table, if success the thread can continue processing this
@@ -409,6 +412,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			*/
 			if t.accountLock.Insert(sender.String(), sender) {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
+				fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
 				result = t.heads[i]
 				break
@@ -430,6 +434,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		//heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
+		fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
 		// relinquish control of sender so other threads my pick it up
 		t.accountLock.Del(sender.String())
 
@@ -440,6 +445,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	}
 
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
+	fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 
 }
 
@@ -458,6 +464,15 @@ func (t *TransactionsByPriceAndNonce) NumSenders() int {
 	return result
 }
 
+func (t *TransactionsByPriceAndNonce) NumTransactions() int{
+	var count = 0
+	for k , _ := range t.txs{
+		fmt.Printf("%x : %d\n",k, t.txs[k].Len())
+
+		count += t.txs[k].Len()
+	}
+	return count
+}
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
 func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
@@ -473,6 +488,7 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
 	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	//t.accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
+	fmt.Printf("Releasing control of sender %s in Remove()\n", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {

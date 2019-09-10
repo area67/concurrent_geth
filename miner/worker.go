@@ -750,6 +750,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	var threadID int32 = 0
 
+	// debug: want to know how manny txs in trasactions by price and nonce
+	fmt.Printf("Attempting commit of %d transactions from %d senders\n", txs.NumTransactions()  ,txs.NumSenders())
+
 	// loop until break signal received
 	// increment threadID to keep track of threads
 	for ; loopStatus != BREAK; threadID++ {
