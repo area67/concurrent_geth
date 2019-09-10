@@ -873,7 +873,7 @@ func workQueue(id int) {
 		}
 
 		if op_dist <= 50 {
-			constType = CONSUMER
+			types = CONSUMER
 			var item_pop int
 			var item_pop_ptr *uint32
 
@@ -885,7 +885,7 @@ func workQueue(id int) {
 				itemKey = INT_MIN
 			}
 		} else {
-			constType := PRODUCER
+			types = PRODUCER
 			itemKey = mId
 			queue.push(itemKey)
 		}
@@ -907,7 +907,7 @@ func workQueue(id int) {
 		// How to??? line 915
 		// Method m1(m_id, id, item_key, INT_MIN, FIFO, type, invocation, response, res, m_id);
 
-		mId += NUM_THRDS
+		mId += numThreads
 		thrd_lists[id].push_back(m1)
 		thrd_lists_size[id].fetch_add(1)
 		method_time[id] = method_time[id] + (response - invocation)
@@ -968,7 +968,7 @@ func workStack(id int) {
 		}
 
 		if op_dist <= 50 {
-			constType := CONSUMER
+			types := CONSUMER
 			var item_pop int
 			res = stack.pop(item_pop)
 
@@ -979,7 +979,7 @@ func workStack(id int) {
 				itemKey = INT_MIN;
 			}
 		} else {
-			constType := PRODUCER
+			types := PRODUCER
 			itemKey := mId
 			stack.push(itemKey)
 		}
@@ -994,7 +994,7 @@ func workStack(id int) {
 		// How to??? line 1034
 		// Method m1(m_id, id, item_key, INT_MIN, LIFO, type, invocation, response, res, m_id);
 
-		mId = mId + NUM_THRDS
+		mId = mId + numThreads
 
 		thrd_lists[id].push_back(m1)
 
@@ -1063,8 +1063,8 @@ func work_map(id int) {
 		// tbb::concurrent_hash_map<int,int,MyHashCompare>::accessor a
 
 		if op_dist <= 33 {
-			constType := CONSUMER
-			item_erase := m_id - 2*NUM_THRDS
+			types := CONSUMER
+			item_erase := m_id - 2*numThreads
 			res := map.erase(item_erase)
 
 			if res {
@@ -1073,15 +1073,15 @@ func work_map(id int) {
 				itemKey = INT_MIN
 			}
 		} else if op dist <= 66 {
-			constType := CONSUMER
+			types := CONSUMER
 			itemKey = mID
 			item_val = mId
 			map.insert(a, itemKey)
 			// How to??? line 1130
 			// a->second = item_val;
 		} else {
-			constType := READER
-			itemKey = m_id - NUM_THRDS
+			types := READER
+			itemKey = m_id - numThreads
 			res := map.find(a, item_key)
 
 			if res {
@@ -1103,7 +1103,7 @@ func work_map(id int) {
 		// How to??? line 1169
 		//Method m1(m_id, id, item_key, item_val, MAP, type, invocation, response, res, m_id);
 
-		mId = mId + NUM_THRDS
+		mId = mId + numThreads
 
 		thrd_lists[id].push_back(m1)
 
