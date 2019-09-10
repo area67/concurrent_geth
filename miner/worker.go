@@ -705,6 +705,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
+		log.Debug(fmt.Sprintln(err))
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
@@ -751,7 +752,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var threadID int32 = 0
 
 	// debug: want to know how manny txs in trasactions by price and nonce
-	fmt.Printf("Attempting commit of %d transactions from %d senders\n", txs.NumTransactions()  ,txs.NumSenders())
+	//fmt.Printf("Attempting commit of %d transactions from %d senders\n", txs.NumTransactions()  ,txs.NumSenders())
 
 	// loop until break signal received
 	// increment threadID to keep track of threads
