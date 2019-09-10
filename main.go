@@ -1048,8 +1048,7 @@ func work_map(id int) {
 
 		invocation := pre_function_epoch.count() - start_time_epoch.count()
 
-		if invocation > (LONG_MAX - 10000000000)
-		{
+		if invocation > (LONG_MAX - 10000000000) {
 			// How to??? PREPROCESSOR DIRECTIVE lines 1104 - 1106:
 			/*
 			 * #if DEBUG_
