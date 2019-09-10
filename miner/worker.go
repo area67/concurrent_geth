@@ -705,6 +705,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
+		log.Debug(fmt.Sprintln(err))
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
