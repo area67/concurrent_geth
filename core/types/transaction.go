@@ -412,7 +412,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			*/
 			if t.accountLock.Insert(sender.String(), sender) {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
-				fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
+				// fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
 				result = t.heads[i]
 				break
@@ -434,7 +434,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		t.heads[index], t.txs[sender] = txs[0], txs[1:]
 		//heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
-		fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
+		// fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
 		// relinquish control of sender so other threads my pick it up
 		t.accountLock.Del(sender.String())
 
@@ -445,7 +445,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 	}
 
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
-	fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
+	// fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 
 }
 
@@ -488,7 +488,7 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
 	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	//t.accountLock.Del(sender.String())
 	log.Debug("Releasing control of sender %s in Remove()", sender.String())
-	fmt.Printf("Releasing control of sender %s in Remove()\n", sender.String())
+	// fmt.Printf("Releasing control of sender %s in Remove()\n", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {
