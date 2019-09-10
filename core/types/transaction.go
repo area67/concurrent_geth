@@ -395,13 +395,13 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		var sender, err = Sender(t.signer, t.heads[i])
 		if err != nil {
 			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
-			fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
+			//fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
 			return nil
 		}
 
 		// Check if the sender is currently being used
 		if _, ok := t.accountLock.GetStringKey(sender.String()); ok {
-			fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
+			// fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
 			continue
 
 		} else {
@@ -467,7 +467,7 @@ func (t *TransactionsByPriceAndNonce) NumSenders() int {
 func (t *TransactionsByPriceAndNonce) NumTransactions() int{
 	var count = 0
 	for k , _ := range t.txs{
-		fmt.Printf("%x : %d\n",k, t.txs[k].Len())
+		//fmt.Printf("%x : %d\n",k, t.txs[k].Len())
 
 		count += t.txs[k].Len()
 	}
@@ -487,7 +487,7 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
 
 	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	//t.accountLock.Del(sender.String())
-	log.Debug("Releasing control of sender %s in Remove()", sender.String())
+	log.Debug(fmt.Sprintf("Releasing control of sender %s in Remove()", sender.String()))
 	// fmt.Printf("Releasing control of sender %s in Remove()\n", sender.String())
 }
 
