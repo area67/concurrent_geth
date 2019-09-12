@@ -705,7 +705,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
-		log.Debug(fmt.Sprintln(err))
+		log.Debug(fmt.Sprintf("Transaction error, reverting to snapshot %s", err))
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
@@ -852,33 +852,33 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			logs, err := w.commitTransaction(tx, coinbase)
 			// where transaction iteration happens
 			switch err {
-			case core.ErrGasLimitReached:
-				// Pop the current out-of-gas transaction without shifting in the next from the account
-				log.Trace("Gas limit exceeded for current block", "sender", from)
-				txs.Remove(from)
+				case core.ErrGasLimitReached:
+					// Pop the current out-of-gas transaction without shifting in the next from the account
+					log.Trace("Gas limit exceeded for current block", "sender", from)
+					txs.Remove(from)
 
-			case core.ErrNonceTooLow:
-				// New head notification data race between the transaction pool and miner, shift
-				log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
-				txs.Shift(from)
+				case core.ErrNonceTooLow:
+					// New head notification data race between the transaction pool and miner, shift
+					log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+					txs.Shift(from)
 
-			case core.ErrNonceTooHigh:
-				// Reorg notification data race between the transaction pool and miner, skip account =
-				log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
-				txs.Remove(from)
+				case core.ErrNonceTooHigh:
+					// Reorg notification data race between the transaction pool and miner, skip account =
+					log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
+					txs.Remove(from)
 
-			case nil:
-				// Everything ok, collect the logs and shift in the next transaction from the same account
-				commitTxnsLock.Lock()
-				coalescedLogs = append(coalescedLogs, logs...)
-				w.current.tcount++
-				commitTxnsLock.Unlock()
-				txs.Shift(from)
-			default:
-				// Strange error, discard the transaction and get the next in line (note, the
-				// nonce-too-high clause will prevent us from executing in vain).
-				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-				txs.Shift(from)
+				case nil:
+					// Everything ok, collect the logs and shift in the next transaction from the same account
+					commitTxnsLock.Lock()
+					coalescedLogs = append(coalescedLogs, logs...)
+					w.current.tcount++
+					commitTxnsLock.Unlock()
+					txs.Shift(from)
+				default:
+					// Strange error, discard the transaction and get the next in line (note, the
+					// nonce-too-high clause will prevent us from executing in vain).
+					log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
+					txs.Shift(from)
 			}
 
 			//fmt.Printf("Here %d status: %d\n",threadID,loopStatus)
