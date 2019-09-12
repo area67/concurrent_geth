@@ -17,7 +17,9 @@
 package core
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/cornelk/hashmap"
+	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -100,7 +102,11 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 			if inUseAccounts.Insert(recipient.String(), recipient) {
 				db.SubBalance(sender, amount)
 				db.AddBalance(recipient, amount)
+				log.Debug(fmt.Sprintf("Removing %d from %x", amount, sender))
+				log.Debug(fmt.Sprintf("Adding %d to %x", amount, recipient))
 				ok = false
+				inUseAccounts.Del(sender.String())
+				inUseAccounts.Del(recipient.String())
 			} else {
 				inUseAccounts.Del(sender.String())
 			}
