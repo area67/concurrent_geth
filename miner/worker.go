@@ -843,8 +843,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				return
 				//continue
 			}
+
 			// Start executing the transaction
+			// commitTxnsLock.Lock()
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
+			// commitTxnsLock.Unlock()
 
 			logs, err := w.commitTransaction(tx, coinbase)
 			// where transaction iteration happens
