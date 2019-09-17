@@ -1257,7 +1257,7 @@ func verify() {
 	// How to??? line 1346
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_;
 
-	for it = map_methods.begin(); it != map_methods.end(); ++it {
+	//for it = map_methods.begin(); it != map_methods.end(); ++it {
 		// How to??? lines 1349 -1356
 		/*
 			std::unordered_map<int,Item>::iterator it_item;
@@ -1269,7 +1269,7 @@ func verify() {
 			else if ((it_->second).type == READER)
 				printf("READER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
 		*/
-	}
+	//}
 
 	// How to??? line 1358
 	// #endif
@@ -1292,22 +1292,22 @@ func main() {
 
 	if len(os.Args) == 2 {
 		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
-		TEST_SIZE = strconv.Atoi(os.Args[1])
+		TEST_SIZE,_ = strconv.Atoi(os.Args[1])
 		TBB_QUEUE = 1
 		fmt.printf("Testing TBB_QUEUE")
 	} else if len(os.Args) == 3 {
 		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
-		TEST_SIZE = strconv.Atoi(os.Args[1])
+		TEST_SIZE,_ = strconv.Atoi(os.Args[1])
 
-		if strconv.Atoi(os.Args[2]) == 0
-		{
+		args,_ := strconv.Atoi(os.Args[2])
+
+		if args == 0 {
 			TBB_QUEUE = 1
 			fmt.printf("Testing TBB_QUEUE\n")
-		}
-		else if strconv.Atoi(os.Args[2]) == 1 {
+		} else if args == 1 {
 			BOOST_STACK = 1
 			fmt.printf("Testing BOOST_STACK\n")
-		} else if strconv.Atoi(os.Args[2]) == 2 {
+		} else if args == 2 {
 			TBB_MAP = 1
 			fmt.printf("Testing TBB_MAP\n")
 		}
@@ -1329,12 +1329,14 @@ func main() {
 		start = std::chrono::high_resolution_clock::now();
 	*/
 
+
+	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		if TBB_QUEUE {
+		if TBB_QUEUE ==1 {
 			//t[i] = std::thread(work_queue,i);
-		} else if BOOST_STACK {
+		} else if BOOST_STACK ==1 {
 			//t[i] = std::thread(work_stack,i);
-		} else if TBB_MAP {
+		} else if TBB_MAP == 1 {
 			//t[i] = std::thread(work_map,i);
 		}
 	}
@@ -1362,7 +1364,7 @@ func main() {
 	fmt.printf("Total Time: %.15lf seconds\n", elapsed_time_double);
 
 	var elapsed_time_method int32 = 0
-	var elapsed_overhead_time_double int32 = 0
+	var elapsed_overhead_time_double float64 = 0
 
 	for i = 0; i < numTHreads; i++ {
 		if method_time[i] > elapsed_time_method {
@@ -1374,7 +1376,7 @@ func main() {
 	}
 
 	var elapsed_time_method_double float64 = elapsed_time_method * 0.000000001
-	var elapsed_overhead_time_double float64 = elapsed_overhead_time * 0.000000001
+	elapsed_overhead_time_double = elapsed_overhead_time * 0.000000001
 	var elapsed_time_verify_double float64 = elapsed_time_verify * 0.000000001
 
 	fmt.printf("Total Method Time: %.15lf seconds\n", elapsed_time_method_double)
@@ -1384,17 +1386,14 @@ func main() {
 
 	fmt.printf("Total Verification Time: %.15lf seconds\n", elapsed_time_verify_double)
 
-	if TBB_QUEUE
-	{
+	if TBB_QUEUE == 1 {
 		fmt.printf("Final Queue Configuration: \n");
 		// How to???
 		//typedef tbb::concurrent_queue<int>::iterator iter;
 		//for(iter i(queue.unsafe_begin()); i!=queue.unsafe_end(); i++)
 		//printf("%d ", *i);
 		//printf("\n");
-	}
-	else if BOOST_STACK
-	{
+	} else if BOOST_STACK == 1 {
 		fmt.printf("Final Stack Configuration: \n")
 		var stack_val int
 
@@ -1410,9 +1409,7 @@ func main() {
 			}
 			fmt.printf("\n")
 		}
-	}
-	else if TBB_MAP
-	{
+	} else if TBB_MAP == 1 {
 		fmt.printf("Final Map Configuration: \n")
 		// How to???
 		/*
