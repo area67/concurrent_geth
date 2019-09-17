@@ -2,7 +2,9 @@ package main
 
 import (
 	"C"
+	"container/list"
 	"fmt"
+	queue2 "github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
 	"math"
 	"math/rand"
@@ -23,7 +25,7 @@ const SEQUENTIAL_CONSISTENCY = 0
 const SERIALIZABILITY = 1
 const DEBUG_ = 0
 
-var queue, stackk, mapp uint32
+var tbbQueue, boostStack, tbbMap uint32
 
 // MyHashCompare are blah, blah, blah
 type MyHashCompare struct{}
@@ -394,7 +396,9 @@ func fncomp (lhs, rhs int64) bool{
 	return lhs < rhs
 }
 
-var threadLists     = make([]Method, 0, numThreads)// empty slice with capacity numThreads
+var queue queue2.Queue
+
+var threadLists     = make([]list.List, 0, numThreads)// empty slice with capacity numThreads
 var threadListsSize [numThreads]int32              // atomic ops only
 var done            [numThreads]bool               // atomic ops only
 var barrier int32 = 0
@@ -872,22 +876,22 @@ func workQueue(id int) {
 			break
 		}
 
-		if op_dist <= 50 {
+		if opDist <= 50 {
 			types = CONSUMER
-			var item_pop int
-			var item_pop_ptr *uint32
+			var itemPop int
+			var itemPopPtr *uint64
 
-			res := queue.try_pop(item_pop)
-			if res {
-				itemKey = item_pop
-			} else
-			{
-				itemKey = INT_MIN
+			res := queue.Peek()
+			if res != 0 {
+				queue.Dequeue()  // try_pop(item_pop)
+				itemKey = itemPop
+			}else {
+				itemKey = math.MaxInt32
 			}
 		} else {
 			types = PRODUCER
 			itemKey = mId
-			queue.push(itemKey)
+			queue.Enqueue(itemKey)
 		}
 
 		// line 890
@@ -895,19 +899,23 @@ func workQueue(id int) {
 		end := time.Now().UnixNano()
 
 		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		post_function = end
+		postFunction := end
 
 		// Is this right??
 		// auto post_function_epoch = post_function.time_since_epoch();
-		post_function_epoch := time.Now().UnixNano() - post_function
+		postFunctionEpoch := time.Now().UnixNano() - postFunction
 
 		//response := post_function_epoch.count() - start_time_epoch.count()
-		response := post_function_epoch - start_time_epoch
+		response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
-		// How to??? line 915
-		// Method m1(m_id, id, item_key, INT_MIN, FIFO, type, invocation, response, res, m_id);
-
+		// TODO: what is the txnID??
+		m1 := Method{mId, id, itemKey, math.MinInt64, FIFO, types, invocation, response, res, mId, }
 		mId += numThreads
+
+		threadLists[id].PushBack(m1)
+
+		threadListsSize = append(threadListsSize, 1)
+
 		thrd_lists[id].push_back(m1)
 		thrd_lists_size[id].fetch_add(1)
 		method_time[id] = method_time[id] + (response - invocation)
@@ -943,10 +951,10 @@ func workStack(id int) {
 
 	wait()
 
-	for  i  = 0; i < testSize; i++ {
+	for  i  := uint32(0); i < testSize; i++ {
 		itemKey := -1
 		res := true
-		var op_dist uint32 = randomDistOp(randomGenOp)
+		var opDist uint32 = randomDistOp(randomGenOp)
 
 		// How to??? line 970 - 973
 		/*
