@@ -4,14 +4,15 @@ import (
 	"C"
 	"container/list"
 	"fmt"
-	queue2 "github.com/golang-collections/collections/queue"
+	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
+	"go.uber.org/atomic"
 	"math"
 	"math/rand"
 	"os"
 	"sort"
 	"strconv"
-	"sync/atomic"
+	Atomic "sync/atomic"
 	"syscall"
 	"time"
 )
@@ -396,16 +397,18 @@ func fncomp (lhs, rhs int64) bool{
 	return lhs < rhs
 }
 
-var queue queue2.Queue
+var q queue.Queue
+var s stack.Stack
 
 var threadLists     = make([]list.List, 0, numThreads)// empty slice with capacity numThreads
-var threadListsSize [numThreads]int32              // atomic ops only
-var done            [numThreads]bool               // atomic ops only
-var barrier int32 = 0
+var threadListsSize = make([]atomic.Int32, 0, numThreads)    // atomic ops only
+var done            = make([]atomic.Bool, 0, numThreads)     // atomic ops only
+var barrier int32                                            // atomic int
+
 
 func wait(){
-	atomic.AddInt32(&barrier, 1)
-	for atomic.LoadInt32(&barrier) < numThreads {}
+	Atomic.AddInt32(&barrier, 1)
+	for Atomic.LoadInt32(&barrier) < numThreads {}
 }
 
 var methodTime   [numThreads]int64
@@ -854,7 +857,7 @@ func workQueue(id int) {
 		var types Types
 		itemKey := -1
 		res := true
-		opDist := uint32(randDistOp.Int31n(99) + 1)  // uniformly distributed pseudo-random number between 1 - 100 ??
+		opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		end = time.Now()
 
@@ -864,7 +867,7 @@ func workQueue(id int) {
 
 		// Hmm, do we need .count()??
 		//invocation := pre_function_epoch.count() - start_time_epoch.count()
-		invocation := preFunctionEpoch - startTimeEpoch
+		invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 		if invocation > (math.MaxInt64 - 10000000000) {
 			//PREPROCESSOR DIRECTIVE lines 864 - 866:
@@ -881,9 +884,9 @@ func workQueue(id int) {
 			var itemPop int
 			var itemPopPtr *uint64
 
-			res := queue.Peek()
+			res := q.Peek()
 			if res != 0 {
-				queue.Dequeue()  // try_pop(item_pop)
+				q.Dequeue()  // try_pop(item_pop)
 				itemKey = itemPop
 			}else {
 				itemKey = math.MaxInt32
@@ -891,7 +894,7 @@ func workQueue(id int) {
 		} else {
 			types = PRODUCER
 			itemKey = mId
-			queue.Enqueue(itemKey)
+			q.Enqueue(itemKey)
 		}
 
 		// line 890
@@ -908,238 +911,35 @@ func workQueue(id int) {
 		//response := post_function_epoch.count() - start_time_epoch.count()
 		response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
-		// TODO: what is the txnID??
-		m1 := Method{mId, id, itemKey, math.MinInt64, FIFO, types, invocation, response, res, mId, }
+		var m1 Method
+		m1.setMethod(mId, id, itemKey, math.MinInt64, FIFO, types, invocation, response, res, mId)
+
 		mId += numThreads
 
 		threadLists[id].PushBack(m1)
-
-		threadListsSize = append(threadListsSize, 1)
-
-		thrd_lists[id].push_back(m1)
-		thrd_lists_size[id].fetch_add(1)
-		method_time[id] = method_time[id] + (response - invocation)
+		threadListsSize[id].Add(1)
+		Atomic.AddInt64(&methodTime[id], 1)
 	}
 
-	done[id].store(true)
-}
-
-func workStack(id int) {
-	testSize := testSize
-	wallTime := 0.0
-	var tod syscall.Timeval
-	if err := syscall.Gettimeofday(&tod); err != nil {
-		return
-	}
-	wallTime += float64(tod.Sec)
-	wallTime += float64(tod.Usec) * 1e-6
-
-	// How to??? lines 945 - 953
-	/*
-		 *boost::mt19937 randomGenOp
-	     *randomGenOp.seed(wallTime + id + 1000)
-	     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
-
-		 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
-		 *auto start_time_epoch = start_time.time_since_epoch();
-	*/
-
-	mId := id + 1
-
-	// How to??? line 957
-	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
-
-	wait()
-
-	for  i  := uint32(0); i < testSize; i++ {
-		itemKey := -1
-		res := true
-		var opDist uint32 = randomDistOp(randomGenOp)
-
-		// How to??? line 970 - 973
-		/*
-			 	 *end = std::chrono::high_resolution_clock::now();
-			 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-				 *auto pre_function_epoch = pre_function.time_since_epoch();
-		*/
-
-		invocation := pre_function_epoch.count() - start_time_epoch.count()
-
-		if invocation > (LONG_MAX - 10000000000) {
-			// How to??? PREPROCESSOR DIRECTIVE lines 984 - 986:
-			/*
-			 * #if DEBUG_
-			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
-			 * #endif
-			 */
-			break
-		}
-
-		if op_dist <= 50 {
-			types := CONSUMER
-			var item_pop int
-			res = stack.pop(item_pop)
-
-			if res {
-				itemKey = item_pop;
-			} else
-			{
-				itemKey = INT_MIN;
-			}
-		} else {
-			types := PRODUCER
-			itemKey := mId
-			stack.push(itemKey)
-		}
-
-		// How to??? lines 1006 - 1009
-		// end = std::chrono::high_resolution_clock::now();
-		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		// auto post_function_epoch = post_function.time_since_epoch();
-
-		response := post_function_epoch.count() - start_time_epoch.count()
-
-		// How to??? line 1034
-		// Method m1(m_id, id, item_key, INT_MIN, LIFO, type, invocation, response, res, m_id);
-
-		mId = mId + numThreads
-
-		thrd_lists[id].push_back(m1)
-
-		thrd_lists_size[id].fetch_add(1)
-
-		method_time[id] = method_time[id] + (response - invocation)
-
-	}
-
-	done[id].store(true)
-}
-
-func work_map(id int) {
-	testSize := TEST_SIZE
-	wallTime := 0.0
-	var tod timeval
-	gettimeofday(&tod, 0)
-	wallTime += tod.tv_sec
-	wallTime += tod.tv_usec * 1e-6
-
-	// How to??? lines 1064 - 1071
-	/*
-		 *boost::mt19937 randomGenOp
-	     *randomGenOp.seed(wallTime + id + 1000)
-	     *boost::uniform_int<unsigned int> randomDistOp(1, 100)
-
-		 *auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
-		 *auto start_time_epoch = start_time.time_since_epoch();
-	*/
-
-	mId := id + 1
-
-	// How to??? line 1075
-	//std::chrono::time_point<std::chrono::high_resolution_clock> end;
-
-	wait()
-
-	for i := 0; i < testSize; i++ {
-		itemKey := -1
-		item_val := -1
-
-		res := true
-		var op_dist uint32 = randomDistOp(randomGenOp)
-
-		// How to??? line 1090 - 1093
-		/*
-			 	 *end = std::chrono::high_resolution_clock::now();
-			 	 *auto pre_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-				 *auto pre_function_epoch = pre_function.time_since_epoch();
-		*/
-
-		invocation := pre_function_epoch.count() - start_time_epoch.count()
-
-		if invocation > (LONG_MAX - 10000000000) {
-			// How to??? PREPROCESSOR DIRECTIVE lines 1104 - 1106:
-			/*
-			 * #if DEBUG_
-			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
-			 * #endif
-			 */
-			break
-		}
-
-		// How to??? line 1111
-		// tbb::concurrent_hash_map<int,int,MyHashCompare>::accessor a
-
-		if op_dist <= 33 {
-			types := CONSUMER
-			item_erase := m_id - 2*numThreads
-			res := map.erase(item_erase)
-
-			if res {
-				itemKey = item_erase
-			} else{
-				itemKey = INT_MIN
-			}
-		} else if op dist <= 66 {
-			types := CONSUMER
-			itemKey = mID
-			item_val = mId
-			map.insert(a, itemKey)
-			// How to??? line 1130
-			// a->second = item_val;
-		} else {
-			types := READER
-			itemKey = m_id - numThreads
-			res := map.find(a, item_key)
-
-			if res {
-				// How to??? line 1138
-				// item_val = a->second
-			} else {
-				itemKey = INT_MIN
-				item_val = INT_MIN
-			}
-		}
-
-		// How to??? lines 1145 - 1148
-		//end = std::chrono::high_resolution_clock::now();
-		//auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		//auto post_function_epoch = post_function.time_since_epoch();
-
-		response := post_function_epoch.count() - start_time_epoch.count()
-
-		// How to??? line 1169
-		//Method m1(m_id, id, item_key, item_val, MAP, type, invocation, response, res, m_id);
-
-		mId = mId + numThreads
-
-		thrd_lists[id].push_back(m1)
-
-		thrd_lists_size[id].fetch_add(1)
-
-		method_time[id] = method_time[id] + (response - invocation)
-	}
-
-	done[id].store(true)
+	done[id].Store(true)
 }
 
 func verify() {
 	wait()
 
-	// How to??? lines 1188 - 1196
-	/*
-		auto start_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(start);
-		auto start_time_epoch = start_time.time_since_epoch();
+	startTime := time.Unix(0, start.UnixNano())
+	startTimeEpoch := time.Since(startTime)
 
-		std::chrono::time_point<std::chrono::high_resolution_clock> end;
+	var end time.Time
+	end := time.Now()
 
-		end = std::chrono::high_resolution_clock::now();
+	preVerify := time.Unix(0, end.UnixNano())
+	preVerifyEpoch := time.Since(preVerify)
 
-		auto pre_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		auto pre_verify_epoch = pre_verify.time_since_epoch();
-	*/
 
-	verifyStart := pre_verify_epoch.count() - start_time_epoch.count()
+	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
+	*fnPt  := fncomp
 	// How to??? lines 1201 - 1209
 	/*
 		bool(*fn_pt)(long int,long int) = fncomp;
