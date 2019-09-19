@@ -1,5 +1,5 @@
 package common
 
 const (
-	NumThreads   = 1
+	NumThreads   = 4
 )
