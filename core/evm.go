@@ -99,15 +99,21 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	for ok := true; ok;  {
 		if inUseAccounts.Insert(sender.String(), sender) {
+			log.Debug(fmt.Sprintf("Sender Account: %x locked for transfer", sender))
 			if inUseAccounts.Insert(recipient.String(), recipient) {
+				log.Debug(fmt.Sprintf("Recipient Account: %x locked for transfer", recipient))
+
 				db.SubBalance(sender, amount)
 				db.AddBalance(recipient, amount)
 				log.Debug(fmt.Sprintf("Removing %d from %x", amount, sender))
 				log.Debug(fmt.Sprintf("Adding %d to %x", amount, recipient))
 				ok = false
+				log.Debug(fmt.Sprintf("Transfer Complete. Unlocking %x and %x", sender, recipient))
 				inUseAccounts.Del(sender.String())
 				inUseAccounts.Del(recipient.String())
+
 			} else {
+				log.Debug(fmt.Sprintf("Failed to lock recipient account %x, removing sender %x from lockPool", recipient, sender))
 				inUseAccounts.Del(sender.String())
 			}
 		}
