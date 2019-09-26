@@ -941,6 +941,9 @@ func verify() {
 
 	fnPt       := fncomp
 	mapMethods := make(map[int64]Method, 0)
+	mapBlock   := make(map[int64]Block, 0)
+	it         := make([]int, 0, numThreads)
+
 
 	// How to??? lines 1201 - 1209
 	/*
@@ -954,8 +957,8 @@ func verify() {
 	*/
 
 	stop := false
-	var count_overall uint32 = 0
-	var count_iterated uint32 = 0
+	var countOverall uint32 = 0
+	var countIterated uint32 = 0
 
 	var min int32
 	var oldMin int32
@@ -983,18 +986,16 @@ func verify() {
 				if itCount[i] >= threadListsSize[i].Load() {
 					break
 				} else if itCount[i] == 0 {
-					it[i] = threadLists[i].Front()
+					it[i] = 0 //threadLists[i].Front()
 				} else {
 					//++it[i]
 					it[i]++
 				}
 
-				var m Method = *it[i]
+				m := threadLists[it[i]].Back().Value.(Method)
 
-				// How to??? line 1258
-				// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_method;
+				itMethod := mapMethods[m.response] // it_method = map_methods.find(m.response)
 
-				it_method = map_methods.find(m.response)
 
 				for {
 					if it_method == map_methods.end() {
