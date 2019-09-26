@@ -479,6 +479,25 @@ func findItemKey(m map[int64]*Item, position string) (int64, error){
 	}
 }
 
+func findBlockKey(m map[int64]*Block, position string) (int64, error){
+	keys := make([]int, 0)
+	for k := range m {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+
+	begin := minOf(keys)
+	end   := maxOf(keys)
+
+	if position == "begin" {
+		return int64(keys[begin]), nil
+	} else if position == "end" {
+		return int64(keys[end]), nil
+	} else {
+		return -1, fmt.Errorf("the map key could not be found")
+	}
+}
+
 // methodMapKey and itemMapKey are meant to serve in place of iterators
 func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed stack.Stack){
 
@@ -936,7 +955,7 @@ func verify() {
 
 	fnPt       := fncomp
 	mapMethods := make(map[int64]*Method, 0)
-	mapBlock   := make(map[int64]Block, 0)
+	mapBlock   := make(map[int64]*Block, 0)
 	mapItems    := make(map[int64]*Item, 0)
 	it         := make([]int, 0, numThreads)
 	var itStart int64
@@ -957,8 +976,8 @@ func verify() {
 	var countOverall uint32 = 0
 	var countIterated uint32 = 0
 
-	var min int32
-	var oldMin int32
+	var min int64
+	var oldMin int64
 	var itCount[numThreads] int32
 
 	// How to??? line 1225
@@ -977,7 +996,7 @@ func verify() {
 				stop = false
 			}
 
-			var responseTime int32 = 0
+			var responseTime int64 = 0
 
 			for {
 				if itCount[i] >= threadListsSize[i].Load() {
@@ -1004,7 +1023,7 @@ func verify() {
 					m.response++
 					itMethod = m.response
 				}
-				responseTime := m.response
+				responseTime = m.response
 
 				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
 
@@ -1044,22 +1063,23 @@ func verify() {
 
 	verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), math.MaxInt64, false, mapBlock)
 
-	// How to??? lines 1326 - 1331
 	/*
 		#if DEBUG_
 			printf("Count overall = %lu, count iterated = %lu, map_methods.size() = %lu\n", count_overall, count_iterated, map_methods.size());
 		#endif
 
-		#if DEBUG_
-			printf("All threads finished!\n");
-	*/
+	#if DEBUG_
+		printf("All threads finished!\n");
 
-	// How to??? line 1339
-	// std::map<long int,Block,bool(*)(long int,long int)>::iterator it_b;
-	itB, err :=
 
-	for itB = map_block.begin(); it_b != map_block.end(); ++it_b {
-		fmt.printf("Block start = %ld, finish = %ld\n", it_b->second.start, it_b->second.finish)
+	itB, err := findBlockKey(mapBlock, "begin")
+	itBEnd, err2 := findBlockKey(mapBlock, "end")
+	if err != nil || err2 != nil {
+		return
+	}
+
+	for ; itB != itBEnd; itB++ {
+		fmt.Printf("Block start = %d, finish = %d\n", mapBlock[itB].start, mapBlock[itB].finish)
 	}
 
 	// How to??? line 1346
@@ -1079,7 +1099,6 @@ func verify() {
 		*/
 	//}
 
-	// How to??? line 1358
 	// #endif
 
 	// How to??? lines 1360 - 1362
