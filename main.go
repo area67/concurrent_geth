@@ -1118,7 +1118,6 @@ func main() {
 
 	finalOutcome := true
 
-
 	// std::thread t[NUM_THRDS];
 
 	start := time.Now()
@@ -1141,7 +1140,7 @@ func main() {
 	elapsedTime := finish.UnixNano() - start.UnixNano()  //auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
 
 	var elapsedTimeDouble float64 = float64(elapsedTime) * 0.000000001
-	fmt.Printf("Total Time: %.15lf seconds\n", elapsedTimeDouble)
+	fmt.Printf("Total Time: %.15f seconds\n", elapsedTimeDouble)
 
 	var elapsedTimeMethod int64 = 0
 	var elapsedOverheadTime float64 = 0
@@ -1155,12 +1154,12 @@ func main() {
 		}
 	}
 
-	var elapsed_time_method_double float64 = elapsed_time_method * 0.000000001
-	elapsed_overhead_time_double = elapsed_overhead_time * 0.000000001
-	var elapsed_time_verify_double float64 = float64(elapsedTimeVerify) * 0.000000001
+	var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
+	var elapsedOverheadTimeDouble float64= elapsedOverheadTime * 0.000000001
+	var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
 
-	fmt.printf("Total Method Time: %.15lf seconds\n", elapsed_time_method_double)
-	fmt.printf("Total Overhead Time: %.15lf seconds\n", elapsed_overhead_time_double)
+	fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
+	fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
 
 	elapsed_time_verify_double = elapsed_time_verify_double - elapsed_time_method_double
 
