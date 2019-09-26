@@ -479,7 +479,7 @@ func findItemKey(m map[int64]*Item, position string) (int64, error){
 	}
 }
 
-func findBlockKey(m map[int64]*Block, position string) (int64, error){
+func findBlockKey(m map[int64]Block, position string) (int64, error){
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
@@ -840,7 +840,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 
 
 
-func workQueue(id int) {
+func work(id int) {
 
 	testSize := testSize
 	wallTime := 0.0
@@ -944,7 +944,6 @@ func verify() {
 	startTime := time.Unix(0, start.UnixNano())
 	startTimeEpoch := time.Since(startTime)
 
-	var end time.Time
 	end := time.Now()
 
 	preVerify := time.Unix(0, end.UnixNano())
@@ -955,7 +954,7 @@ func verify() {
 
 	fnPt       := fncomp
 	mapMethods := make(map[int64]*Method, 0)
-	mapBlock   := make(map[int64]*Block, 0)
+	mapBlock   := make(map[int64]Block, 0)
 	mapItems    := make(map[int64]*Item, 0)
 	it         := make([]int, 0, numThreads)
 	var itStart int64
@@ -1110,44 +1109,13 @@ func verify() {
 	postVerifyEpoch := time.Now().UnixNano() - postVerify
 	verifyFinish := postVerifyEpoch - startTimeEpoch.Nanoseconds()
 
-	elapsedTimeVerify := verifyFinish - verifyStart
+	elapsedTimeVerify = verifyFinish - verifyStart
 }
 
 func main() {
-	method_count := 0
-	TBB_QUEUE := 0
-	BOOST_STACK := 0
-	TBB_MAP := 0
+	methodCount := 0
 
-	if len(os.Args) == 2 {
-		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
-		TEST_SIZE,_ = strconv.Atoi(os.Args[1])
-		TBB_QUEUE = 1
-		fmt.printf("Testing TBB_QUEUE")
-	} else if len(os.Args) == 3 {
-		fmt.printf("Test size = %d\n", strconv.Atoi(os.Args[1]))
-		TEST_SIZE,_ = strconv.Atoi(os.Args[1])
-
-		args,_ := strconv.Atoi(os.Args[2])
-
-		if args == 0 {
-			TBB_QUEUE = 1
-			fmt.printf("Testing TBB_QUEUE\n")
-		} else if args == 1 {
-			BOOST_STACK = 1
-			fmt.printf("Testing BOOST_STACK\n")
-		} else if args == 2 {
-			TBB_MAP = 1
-			fmt.printf("Testing TBB_MAP\n")
-		}
-	} else {
-		fmt.printf("Test size = 10\n")
-		TEST_SIZE = 10
-		TBB_QUEUE = 1
-		fmt.printf("Testing TBB_QUEUE\n")
-	}
-
-	final_outcome := true
+	finalOutcome := true
 
 	// How to???
 	/*
@@ -1157,17 +1125,12 @@ func main() {
 
 		start = std::chrono::high_resolution_clock::now();
 	*/
+	start := time.Now()
 
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		if TBB_QUEUE ==1 {
-			//t[i] = std::thread(work_queue,i);
-		} else if BOOST_STACK ==1 {
-			//t[i] = std::thread(work_stack,i);
-		} else if TBB_MAP == 1 {
-			//t[i] = std::thread(work_map,i);
-		}
+		go work(i)
 	}
 
 	//v = std::thread(verify);
@@ -1180,17 +1143,17 @@ func main() {
 		v.join();
 	*/
 
-	if final_outcome == true {
-		fmt.printf("-------------Program Correct Up To This Point-------------\n")
+	if finalOutcome == true {
+		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
 	} else {
-		fmt.printf("-------------Program Not Correct-------------\n")
+		fmt.Printf("-------------Program Not Correct-------------\n")
 	}
 
 	//auto finish = std::chrono::high_resolution_clock::now();
 	//auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
 
-	var elapsed_time_double float64 = elapsed_time.count() * 0.000000001
-	fmt.printf("Total Time: %.15lf seconds\n", elapsed_time_double);
+	var elapsedTimeDouble float64 = elapsedTime * 0.000000001
+	fmt.Printf("Total Time: %.15lf seconds\n", elapsed_time_double);
 
 	var elapsed_time_method int32 = 0
 	var elapsed_overhead_time_double float64 = 0
@@ -1206,7 +1169,7 @@ func main() {
 
 	var elapsed_time_method_double float64 = elapsed_time_method * 0.000000001
 	elapsed_overhead_time_double = elapsed_overhead_time * 0.000000001
-	var elapsed_time_verify_double float64 = elapsed_time_verify * 0.000000001
+	var elapsed_time_verify_double float64 = float64(elapsedTimeVerify) * 0.000000001
 
 	fmt.printf("Total Method Time: %.15lf seconds\n", elapsed_time_method_double)
 	fmt.printf("Total Overhead Time: %.15lf seconds\n", elapsed_overhead_time_double)
