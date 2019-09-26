@@ -12,6 +12,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	Atomic "sync/atomic"
 	"syscall"
 	"time"
@@ -1117,31 +1118,18 @@ func main() {
 
 	finalOutcome := true
 
-	// How to???
-	/*
-		std::thread t[NUM_THRDS];
 
-		std::thread v;
+	// std::thread t[NUM_THRDS];
 
-		start = std::chrono::high_resolution_clock::now();
-	*/
 	start := time.Now()
-
+	var wg sync.WaitGroup
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		go work(i)
+		go work(i) // ???
 	}
 
-	//v = std::thread(verify);
-	/*
-		for(int i = 0; i < NUM_THRDS; i++)
-		{
-			t[i].join();
-		}
-		//TODO: Uncomment line 1426
-		v.join();
-	*/
+	go verify() // v = std::thread(verify) ???
 
 	if finalOutcome == true {
 		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
@@ -1149,21 +1137,21 @@ func main() {
 		fmt.Printf("-------------Program Not Correct-------------\n")
 	}
 
-	//auto finish = std::chrono::high_resolution_clock::now();
-	//auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
+	finish      := time.Now()                            //auto finish = std::chrono::high_resolution_clock::now();
+	elapsedTime := finish.UnixNano() - start.UnixNano()  //auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
 
-	var elapsedTimeDouble float64 = elapsedTime * 0.000000001
-	fmt.Printf("Total Time: %.15lf seconds\n", elapsed_time_double);
+	var elapsedTimeDouble float64 = float64(elapsedTime) * 0.000000001
+	fmt.Printf("Total Time: %.15lf seconds\n", elapsedTimeDouble)
 
-	var elapsed_time_method int32 = 0
-	var elapsed_overhead_time_double float64 = 0
+	var elapsedTimeMethod int64 = 0
+	var elapsedOverheadTime float64 = 0
 
-	for i = 0; i < numTHreads; i++ {
-		if method_time[i] > elapsed_time_method {
-			elapsed_time_method = method_time[i]
+	for i := 0; i < numThreads; i++ {
+		if methodTime[i] > elapsedTimeMethod {
+			elapsedTimeMethod = methodTime[i]
 		}
-		if overhead_time[i] > elapsed_overhead_time {
-			elapsed_overhead_time = overhead_time[i]
+		if float64(overheadTime[i]) > elapsedOverheadTime {
+			elapsedOverheadTime = float64(overheadTime[i])
 		}
 	}
 
