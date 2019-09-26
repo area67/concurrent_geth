@@ -977,7 +977,7 @@ func verify() {
 	var countIterated uint32 = 0
 
 	var min int64
-	var oldMin int64
+	//var oldMin int64
 	var itCount[numThreads] int32
 
 	// How to??? line 1225
@@ -1114,7 +1114,7 @@ func verify() {
 }
 
 func main() {
-	methodCount := 0
+	methodCount = 0
 
 	finalOutcome := true
 
@@ -1161,41 +1161,8 @@ func main() {
 	fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
 	fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
 
-	elapsed_time_verify_double = elapsed_time_verify_double - elapsed_time_method_double
+	elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
 
-	fmt.printf("Total Verification Time: %.15lf seconds\n", elapsed_time_verify_double)
+	fmt.Printf("Total Verification Time: %.15lf seconds\n", elapsedTimeVerifyDouble)
 
-	if TBB_QUEUE == 1 {
-		fmt.printf("Final Queue Configuration: \n");
-		// How to???
-		//typedef tbb::concurrent_queue<int>::iterator iter;
-		//for(iter i(queue.unsafe_begin()); i!=queue.unsafe_end(); i++)
-		//printf("%d ", *i);
-		//printf("\n");
-	} else if BOOST_STACK == 1 {
-		fmt.printf("Final Stack Configuration: \n")
-		var stack_val int
-
-		for
-		{
-			if stack.pop(stack_val)
-			{
-				fmt.printf("%d ", stack_val)
-			}
-			else
-			{
-				break
-			}
-			fmt.printf("\n")
-		}
-	} else if TBB_MAP == 1 {
-		fmt.printf("Final Map Configuration: \n")
-		// How to???
-		/*
-				tbb::concurrent_hash_map<int,int,MyHashCompare>::iterator it;
-				for( it=map.begin(); it!=map.end(); ++it )
-		    		printf("%d,%d ",it->first,it->second);
-				printf("\n");
-		*/
-	}
 }
