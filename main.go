@@ -942,6 +942,7 @@ func verify() {
 	fnPt       := fncomp
 	mapMethods := make(map[int64]*Method, 0)
 	mapBlock   := make(map[int64]Block, 0)
+	mapItem    := make(map[int64]*Item, 0)
 	it         := make([]int, 0, numThreads)
 
 
@@ -1009,20 +1010,23 @@ func verify() {
 				}
 				responseTime := m.response
 
-				// How to???
-				// map_methods.insert ( std::pair<long int,Method>(m.response,m) );
+				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
 
-				it_count[i]++
-				count_overall++
+				itCount[i]++
+				countOverall++
 
-				// How to??? line 1275
-				// std::unordered_map<int,Item>::iterator it_item;
+				itItem := m.itemKey // it_item = map_items.find(m.item_key);
 
-				it_item = map_items.find(m.item_key)
+				mapItemsEnd, err := findItemKey(mapItem, "end")
+				if err != nil {
+					return
+				}
 
-				if it_item == map_items.end()
-				{
-					var item(m.item_key) Item
+				if int64(itItem) == mapItemsEnd {
+					var item Item
+					item.key = m.itemKey
+
+
 					item.producer = map_methods.end()
 
 					// How to??? line 1288
