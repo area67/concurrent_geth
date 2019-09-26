@@ -939,7 +939,9 @@ func verify() {
 
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
-	*fnPt  := fncomp
+	fnPt       := fncomp
+	mapMethods := make(map[int64]Method, 0)
+
 	// How to??? lines 1201 - 1209
 	/*
 		bool(*fn_pt)(long int,long int) = fncomp;
@@ -956,8 +958,8 @@ func verify() {
 	var count_iterated uint32 = 0
 
 	var min int32
-	var old_min int32
-	var it_count[numThreads] int
+	var oldMin int32
+	var itCount[numThreads] int32
 
 	// How to??? line 1225
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
@@ -968,20 +970,20 @@ func verify() {
 		}
 
 		stop = true
-		min = LONG_MAX
+		min = math.MaxInt64
 
 		for i := 0; i < numThreads; i++ {
-			if done[i].load() == false {
+			if done[i].Load() == false {
 				stop = false
 			}
 
-			var response_time int32 = 0
+			var responseTime int32 = 0
 
 			for {
-				if it_count[i] >= thrd_lists_size[i].load() {
+				if itCount[i] >= threadListsSize[i].Load() {
 					break
-				} else if it_count[i] == 0 {
-					it[i] = thrd_lists[i].begin()
+				} else if itCount[i] == 0 {
+					it[i] = threadLists[i].Front()
 				} else {
 					//++it[i]
 					it[i]++
