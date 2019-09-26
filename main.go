@@ -21,11 +21,6 @@ const numThreads = 32
 
 var testSize uint32
 
-const LINEARIZABILITY = 0
-const SEQUENTIAL_CONSISTENCY = 0
-const SERIALIZABILITY = 1
-const DEBUG_ = 0
-
 var tbbQueue, boostStack, tbbMap uint32
 
 // MyHashCompare are blah, blah, blah
@@ -110,7 +105,7 @@ type Item struct {
 
 	demoteMethods []*Method
 
-	producer *int64 // map iterator
+	producer int64 // map iterator
 
 
 	// Failed Consumer
@@ -600,7 +595,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 			// #endif
 
 			if mapMethods[it].types == PRODUCER {
-				*mapItems[itItems].producer = it
+				mapItems[itItems].producer = it
 
 				if mapItems[itItems].status == ABSENT {
 
@@ -720,7 +715,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 					stackFinishedMethods.Push(it)
 
 					end, err = findMethodKey(mapMethods, "end")
-					if *mapItems[itItems].producer != end {
+					if mapItems[itItems].producer != end {
 						stackFinishedMethods.Push(mapItems[itItems].producer)
 					}
 				} else {
@@ -942,8 +937,9 @@ func verify() {
 	fnPt       := fncomp
 	mapMethods := make(map[int64]*Method, 0)
 	mapBlock   := make(map[int64]Block, 0)
-	mapItem    := make(map[int64]*Item, 0)
+	mapItems    := make(map[int64]*Item, 0)
 	it         := make([]int, 0, numThreads)
+	var itStart int64
 
 
 	// How to??? lines 1201 - 1209
@@ -1017,7 +1013,7 @@ func verify() {
 
 				itItem := m.itemKey // it_item = map_items.find(m.item_key);
 
-				mapItemsEnd, err := findItemKey(mapItem, "end")
+				mapItemsEnd, err := findItemKey(mapItems, "end")
 				if err != nil {
 					return
 				}
@@ -1027,26 +1023,26 @@ func verify() {
 					item.key = m.itemKey
 
 
-					item.producer = map_methods.end()
+
+					item.producer, err = findMethodKey(mapMethods, "end")
 
 					// How to??? line 1288
 					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
-
-					it_item = map_items.find(m.item_key)
+					mapItems[int64(m.itemKey)] = &item
+					itItem = m.itemKey
 				}
 			}
 
-			if response_time < min
-			{
-				min = response_time
+			if responseTime < min {
+				min = responseTime
 			}
 		}
 
-		verifyCheckpoint(mapMethods, mapItems, itStart, countIterated, min, true, mapBlock)
+		verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), int64(min), true, mapBlock)
 
 	}
 
-	verify_checkpoint(map_methods, map_items, it_start, count_iterated, LONG_MAX, false, map_block)
+	verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), math.MaxInt64, false, mapBlock)
 
 	// How to??? lines 1326 - 1331
 	/*
@@ -1060,8 +1056,9 @@ func verify() {
 
 	// How to??? line 1339
 	// std::map<long int,Block,bool(*)(long int,long int)>::iterator it_b;
+	itB, err :=
 
-	for it_b = map_block.begin(); it_b != map_block.end(); ++it_b {
+	for itB = map_block.begin(); it_b != map_block.end(); ++it_b {
 		fmt.printf("Block start = %ld, finish = %ld\n", it_b->second.start, it_b->second.finish)
 	}
 
