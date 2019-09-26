@@ -940,7 +940,7 @@ func verify() {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	fnPt       := fncomp
-	mapMethods := make(map[int64]Method, 0)
+	mapMethods := make(map[int64]*Method, 0)
 	mapBlock   := make(map[int64]Block, 0)
 	it         := make([]int, 0, numThreads)
 
@@ -994,17 +994,21 @@ func verify() {
 
 				m := threadLists[it[i]].Back().Value.(Method)
 
-				itMethod := mapMethods[m.response] // it_method = map_methods.find(m.response)
+				mapMethodsEnd, err := findMethodKey(mapMethods, "end")
+				if err != nil{
+					return
+				}
 
-
+				itMethod := m.response
 				for {
-					if it_method == map_methods.end() {
+					if itMethod == mapMethodsEnd { //
 						break
 					}
 					m.response++
-					it_method = map_methods.find(m.response)
+					itMethod = m.response
 				}
-				response_time := m.response
+				responseTime := m.response
+
 				// How to???
 				// map_methods.insert ( std::pair<long int,Method>(m.response,m) );
 
