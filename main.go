@@ -1104,11 +1104,13 @@ func verify() {
 	// How to??? lines 1360 - 1362
 	// end = std::chrono::high_resolution_clock::now();
 	// auto post_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+	end = time.Now()
+	postVerify := end.UnixNano()
 
-	post_verify_epoch := post_verify.time_since_epoch()
-	verify_finish := post_verify_epoch.count() - start_time_epoch.count()
+	postVerifyEpoch := time.Now().UnixNano() - postVerify
+	verifyFinish := postVerifyEpoch - startTimeEpoch.Nanoseconds()
 
-	elapsed_time_verify := verify_finish - verify_start
+	elapsedTimeVerify := verifyFinish - verifyStart
 }
 
 func main() {
