@@ -475,7 +475,7 @@ func (w *worker) mainLoop() {
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs)
 				w.commitTransactions(txset, coinbase, nil)
 
-				// verification tool coul
+				// verification tool could go here?
 
 				w.updateSnapshot()
 
@@ -830,9 +830,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				return
 
 			}
-			//time.Sleep(time.Millisecond * 1000)
 
 			// txn start
+			// pause to see concurrency
+			//time.Sleep(time.Millisecond * 500)
 
 			// Error may be ignored here. The error has already been checked
 			// during transaction acceptance is the transaction pool.
