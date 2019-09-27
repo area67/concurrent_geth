@@ -474,7 +474,12 @@ func (w *worker) mainLoop() {
 				}
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs)
 				w.commitTransactions(txset, coinbase, nil)
+
+				// verification tool coul
+
 				w.updateSnapshot()
+
+
 			} else {
 				// If we're mining, but nothing is being processed, wake on new transactions
 				if w.config.Clique != nil && w.config.Clique.Period == 0 {
@@ -826,6 +831,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 			}
 			//time.Sleep(time.Millisecond * 1000)
+
+			// txn start
 
 			// Error may be ignored here. The error has already been checked
 			// during transaction acceptance is the transaction pool.
