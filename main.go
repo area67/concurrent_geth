@@ -926,10 +926,11 @@ func work(id int) {
 		//response := post_function_epoch.count() - start_time_epoch.count()
 		response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
+		// TODO: create 2 Methods: 1 for add, 1 for subtract
 		var m1 Method
 		m1.setMethod(mId, id, itemKey, math.MinInt64, FIFO, types, invocation, response, res, mId)
 
-		mId += numThreads
+		// mId += numThreads
 
 		threadLists[id].PushBack(m1)
 		threadListsSize[id].Add(1)
