@@ -9,10 +9,9 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/rand"
-	"os"
+
 	"sort"
-	"strconv"
-	"sync"
+
 	Atomic "sync/atomic"
 	"syscall"
 	"time"
@@ -28,7 +27,7 @@ var tbbQueue, boostStack, tbbMap uint32
 type MyHashCompare struct{}
 
 func (mhc MyHashCompare) hash(x int) C.size_t {
-	return x
+	return C.size_t(x)
 }
 
 func (mhc MyHashCompare) equal(x int, y int) bool {
@@ -897,7 +896,7 @@ func work(id int) {
 		if opDist <= 50 {
 			types = CONSUMER
 			var itemPop int
-			var itemPopPtr *uint64
+			// var itemPopPtr *uint64
 
 			res := q.Peek()
 			if res != 0 {
@@ -954,7 +953,7 @@ func verify() {
 
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
-	fnPt       := fncomp
+	// fnPt       := fncomp
 	mapMethods := make(map[int64]*Method, 0)
 	mapBlock   := make(map[int64]Block, 0)
 	mapItems    := make(map[int64]*Item, 0)
@@ -1122,7 +1121,7 @@ func main() {
 	// std::thread t[NUM_THRDS];
 
 	start := time.Now()
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
