@@ -21,8 +21,6 @@ const numThreads = 32
 
 var testSize uint32
 
-var tbbQueue, boostStack, tbbMap uint32
-
 // MyHashCompare are blah, blah, blah
 type MyHashCompare struct{}
 
