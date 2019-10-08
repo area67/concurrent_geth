@@ -778,7 +778,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		go func(threadID int32) {
 
 			defer func() { sem <- true }()
-			var casResult bool
+			// var casResult bool
 			// In the following three cases, we will interrupt the execution of the transaction.
 			// (1) new head block event arrival, the interrupt signal is 1
 			// (2) worker start or restart, the interrupt signal is 1
@@ -798,7 +798,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					}
 				}
 				// set loopStatus to indicate ready to return
-				casResult = atomic.CompareAndSwapInt32(&loopStatus, OK, RETURN)
+				// casResult = atomic.CompareAndSwapInt32(&loopStatus, OK, RETURN)
+				atomic.StoreInt32(&loopStatus,RETURN)
+				returnValue = atomic.LoadInt32(interrupt) == commitInterruptNewHead
+				return
+				/*
 				if !casResult {
 					casResult = atomic.CompareAndSwapInt32(&loopStatus, BREAK, RETURN)
 				}
@@ -807,6 +811,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					returnValue = atomic.LoadInt32(interrupt) == commitInterruptNewHead
 					return
 				}
+				*/
 				// else already a thread waiting to return
 
 			}
@@ -815,7 +820,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if w.current.gasPool.Gas() < params.TxGas {
 				log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 				// set signal to break
-				casResult = atomic.CompareAndSwapInt32(&loopStatus, OK, BREAK)
+				atomic.CompareAndSwapInt32(&loopStatus, OK, BREAK)
 				return
 				// break
 			}
@@ -824,7 +829,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx == nil {
 				// no more transactions still need to wait until pending commits are finished or out of gas.
 				if txs.NumSenders() == 0 {
-					casResult = atomic.CompareAndSwapInt32(&loopStatus, OK, BREAK)
+					atomic.CompareAndSwapInt32(&loopStatus, OK, BREAK)
 					log.Debug(fmt.Sprintf("Break signal sent in commitTransactions() thread %d", threadID))
 				}
 
