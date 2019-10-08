@@ -468,8 +468,6 @@ func (t *TransactionsByPriceAndNonce) NumSenders() int {
 func (t *TransactionsByPriceAndNonce) NumTransactions() int{
 	var count = 0
 	for k , _ := range t.txs{
-		//fmt.Printf("%x : %d\n",k, t.txs[k].Len())
-
 		count += t.txs[k].Len()
 	}
 	return count

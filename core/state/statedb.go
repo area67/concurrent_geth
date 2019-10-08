@@ -605,10 +605,10 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 
 // Prepare sets the current transaction hash and index and block hash which is
 // used when the EVM emits new state logs.
-func (self *StateDB) Prepare(thash, bhash common.Hash, ti int) {
+func (self *StateDB) Prepare(thash, bhash common.Hash, ti int32) {
 	self.thash = thash
 	self.bhash = bhash
-	self.txIndex = ti
+	self.txIndex = int(ti)
 }
 
 func (s *StateDB) clearJournalAndRefund() {

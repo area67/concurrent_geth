@@ -77,6 +77,11 @@ const (
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
 	staleThreshold = 7
+
+	// Concurrency condition variables
+	OK int32 = 0
+	BREAK int32 = 1
+	RETURN int32 = 2
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -87,7 +92,7 @@ type environment struct {
 	ancestors mapset.Set     // ancestor set (used for checking uncle parent validity)
 	family    mapset.Set     // family set (used for checking uncle invalidity)
 	uncles    mapset.Set     // uncle set
-	tcount    int            // tx count in cycle
+	tcount    int32            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
 	header   *types.Header
@@ -110,8 +115,10 @@ const (
 )
 
 var (
-	initTxnLock    = &sync.Mutex{}
-	commitTxnsLock = &sync.Mutex{}
+	workerRecieptsLock    = &sync.Mutex{}
+	workerLogsLock = &sync.Mutex{}
+	workerTxnsLock = &sync.Mutex{}
+
 )
 
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
@@ -714,8 +721,13 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 		return nil, err
 	}
 
+	workerTxnsLock.Lock()
 	w.current.txs = append(w.current.txs, tx)
+	workerTxnsLock.Unlock()
+	workerRecieptsLock.Lock()
 	w.current.receipts = append(w.current.receipts, receipt)
+	workerRecieptsLock.Unlock()
+
 
 	return receipt.Logs, nil
 }
@@ -747,9 +759,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	// 0 = OK, 1 = Break, 2 = Return
-	const OK int32 = 0
-	const BREAK int32 = 1
-	const RETURN int32 = 2
+
 	var loopStatus int32 = OK
 	var returnValue bool
 
@@ -762,17 +772,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// increment threadID to keep track of threads
 	for ; loopStatus != BREAK; threadID++ {
 		// check if need to return or break before beginning new thread
-		switch loopStatus {
-		case RETURN:
-			for i := 0; i < common.NumThreads; i++ {
-				<-sem
-			}
-			return returnValue
-		}
 
 		<-sem // take semaphore slot
-
-
 		// attempt parallel commit
 		go func(threadID int32) {
 
@@ -884,10 +885,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 				case nil:
 					// Everything ok, collect the logs and shift in the next transaction from the same account
-					//commitTxnsLock.Lock()
+					workerLogsLock.Lock()
 					coalescedLogs = append(coalescedLogs, logs...)
-					w.current.tcount++
-					// commitTxnsLock.Unlock()
+					workerLogsLock.Unlock()
+					atomic.AddInt32(&w.current.tcount, 1)
 					txs.Shift(from)
 					fmt.Printf("Txn from sender %s sucessfull\n", from.String())
 				default:
@@ -897,14 +898,19 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
 					txs.Shift(from)
 			}
-
-			//fmt.Printf("Txn from sender %s sucessfull", from)
-
-			//atomic.StoreInt32(&loopStatus, OK)
 		}(threadID)
 
+		switch loopStatus {
+		case RETURN:
+			for i := 0; i < common.NumThreads; i++ {
+				<-sem
+			}
+			return returnValue
+		}
+	}
 
-
+	for i := 0; i < common.NumThreads; i++ {
+		<-sem
 	}
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
@@ -928,9 +934,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
 
-	for i := 0; i < common.NumThreads; i++ {
-		<-sem
-	}
 	return false
 }
 
