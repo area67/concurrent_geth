@@ -1114,7 +1114,7 @@ func verify() {
 func main() {
 	methodCount = 0
 
-	finalOutcome := true
+	finalOutcome = true
 
 	// std::thread t[NUM_THRDS];
 
