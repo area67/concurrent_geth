@@ -70,6 +70,8 @@ type Method struct {
 	quiescentPeriod int
 	status          bool
 	txnID           int
+	senderID        int
+	requestAmnt     int
 }
 
 func (m *Method) setMethod(id int, process int, itemKey int, itemVal int, semantics Semantics,
@@ -87,8 +89,8 @@ func (m *Method) setMethod(id int, process int, itemKey int, itemVal int, semant
 }
 
 type Item struct {
-	key   int
-	value int
+	key   int    // Account Hash ???
+	value int    // Account Balance ???
 	//sum   int
 	sum float64
 
@@ -637,9 +639,8 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 						//     methodMap[methItr0].process == methodMap[methodMapKey].process
 
 						// #elif serializability
-						if mapMethods[it0].response < mapMethods[it].invocation &&
-							mapMethods[it0].txnID == mapMethods[it].txnID ||
-							mapMethods[it0].txnID < mapMethods[it].txnID{
+						if mapMethods[it0].senderID == mapMethods[it].senderID &&
+							mapMethods[it0].requestAmnt > mapMethods[it].requestAmnt{
 							// #endif
 							itItems0 := int64(mapMethods[it0].itemKey)
 
