@@ -56,32 +56,23 @@ const (
 
 type Method struct {
 	id              int // atomic var
-	//process         int
 	itemAddr        int // account address
 	itemBalance     int // account balance
 	semantics       Semantics // hardcode as SET
 	types           Types  // producing/consuming  adding/subtracting
-	//invocation      int64
-	//response        int64
-	//quiescentPeriod int
 	status          bool
-	//txnID           int
-	senderID        int
+	senderID        int // same as itemAddr ??
 	requestAmnt     int
 }
 
 func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int) {
 	m.id = id
-	//m.process = process
 	m.itemAddr = itemAddr
 	m.itemBalance = itemBalance
 	m.semantics = semantics
 	m.types = types
-	//m.invocation = invocation
-	//m.response = response
 	m.status = status
-	//m.txnID = txnID
 	m.senderID = senderID
 	m.requestAmnt = requestAmnt
 }
@@ -89,22 +80,14 @@ func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Sema
 type Item struct {
 	key   int    // Account Hash ???
 	value int    // Account Balance ???
-	//sum   int
 	sum float64
-
 	numerator   int64
 	denominator int64
-
 	exponent float64
-
 	status Status
-
 	promoteItems stack.Stack
-
 	demoteMethods []*Method
-
-	producer int64 // map iterator
-
+	producer int // map iterator
 
 	// Failed Consumer
 	sumF         float64
@@ -497,7 +480,7 @@ func maxOf(vars []int) int {
 //}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods []*Method, items []*Item, mk int64, it int, stackFailed stack.Stack){
+func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stackFailed stack.Stack){
 
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
@@ -518,7 +501,7 @@ func handleFailedConsumer(methods []*Method, items []*Item, mk int64, it int, st
 	}
 }
 
-func handleFailedReader(methods []*Method, items []*Item, mk int64, ik int, stackFailed *stack.Stack){
+func handleFailedReader(methods []*Method, items []*Item, mk int, ik int, stackFailed *stack.Stack){
 
 	for it0 := 0; it0 != ik; it0++ {
 		// serializability
@@ -537,7 +520,7 @@ func handleFailedReader(methods []*Method, items []*Item, mk int64, ik int, stac
 	}
 }
 
-func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
+func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
 	var stackConsumer  = stack.New()        // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
@@ -545,11 +528,9 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 
 	if len(methods) != 0 {
 
-		it, err := findMethodKey(mapMethods, "begin")
-		end, err2 := findMethodKey(mapMethods, "end")
-		if err != nil && err2 != nil {
-			return
-		}
+		it := 0
+		end := len(methods) - 1
+
 		if countIterated == 0 {
 			resetItStart = false
 		} else if it != end {
@@ -589,7 +570,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 			// #endif
 
 			if methods[it].types == PRODUCER {
-				items[itItems].producer = it
+				items[itItems].producer = int64(it)
 
 				if items[itItems].status == ABSENT {
 
@@ -599,58 +580,17 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 				}
 
 				items[itItems].addInt(1)
-
-				if methods[it].semantics == FIFO || methods[it].semantics == LIFO {
-					it0, err := findMethodKey(mapMethods, "begin")
-					if  err != nil{
-						return
-					}
-					for ; it0 != it; it0++{
-						// #if linearizability
-						// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
-
-						// #elif sequential consistency
-						// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-						//     methodMap[methItr0].process == methodMap[methodMapKey].process
-
-						// #elif serializability
-						if mapMethods[it0].senderID == mapMethods[it].senderID &&
-							mapMethods[it0].requestAmnt > mapMethods[it].requestAmnt{
-							// #endif
-							itItems0 := mapMethods[it0].itemAddr
-
-							// Demotion
-							// FIFO Semantics
-							if (mapMethods[it0].types == PRODUCER && mapItems[itItems0].status == PRESENT) &&
-								(mapMethods[it].types == PRODUCER && mapMethods[it0].semantics == FIFO) {
-
-								mapItems[itItems0].promoteItems.Push(mapItems[itItems].key)
-								mapItems[itItems].demote()
-								mapItems[itItems].demoteMethods = append(mapItems[itItems].demoteMethods, mapMethods[it0])
-							}
-
-							// LIFO Semantics
-							if (mapMethods[it0].types == PRODUCER && mapItems[itItems0].status == PRESENT) &&
-								(mapMethods[it].types == PRODUCER && mapMethods[it0].semantics == LIFO) {
-
-								mapItems[itItems].promoteItems.Push(mapItems[itItems].key)
-								mapItems[itItems0].demote()
-								mapItems[itItems0].demoteMethods = append(mapItems[itItems0].demoteMethods, mapMethods[it])
-							}
-						}
-					}
-				}
 			}
 
-			if mapMethods[it].types == READER {
-				if mapMethods[it].status == true {
-					mapItems[itItems].demoteReader()
+			if methods[it].types == READER {
+				if methods[it].status == true {
+					items[itItems].demoteReader()
 				} else{
-					handleFailedReader(mapMethods, mapItems, it, itItems, &stackFailed)
+					handleFailedReader(methods, items, it, itItems, &stackFailed)
 				}
 			}
 
-			if mapMethods[it].types	== CONSUMER {
+			if methods[it].types	== CONSUMER {
 
 				/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 				it_consumer = map_consumer.find((it->second).key);
@@ -663,15 +603,15 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 					it_consumer->second = it_item_0;
 				}*/
 
-				if mapMethods[it].status == true {
+				if methods[it].status == true {
 
 					// promote reads
-					if mapItems[itItems].sum > 0 {
-						mapItems[itItems].sumR = 0
+					if items[itItems].sum > 0 {
+						items[itItems].sumR = 0
 					}
 
-					mapItems[itItems].subInt(1)
-					mapItems[itItems].status = ABSENT
+					items[itItems].subInt(1)
+					items[itItems].status = ABSENT
 
 					//if mapItems[itItems].sum < 0 {
 					//
@@ -707,12 +647,12 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 					stackConsumer.Push(itItems)
 					stackFinishedMethods.Push(it)
 
-					end, err = findMethodKey(mapMethods, "end")
-					if mapItems[itItems].producer != end {
-						stackFinishedMethods.Push(mapItems[itItems].producer)
+					end = len(methods) - 1
+					if items[itItems].producer != end {
+						stackFinishedMethods.Push(items[itItems].producer)
 					}
 				} else {
-					handleFailedConsumer(mapMethods, mapItems, it, itItems, stackFailed)
+					handleFailedConsumer(methods, items, it, itItems, stackFailed)
 				}
 			}
 		}
@@ -728,11 +668,11 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 				return
 			}
 
-			for mapItems[itTop].promoteItems.Len() != 0 {
-				itemPromote := mapItems[itTop].promoteItems.Peek().(int64)
+			for items[itTop].promoteItems.Len() != 0 {
+				itemPromote := items[itTop].promoteItems.Peek().(int64)
 				itPromoteItem := itemPromote
-				mapItems[itPromoteItem].promote()
-				mapItems[itTop].promoteItems.Pop()
+				items[itPromoteItem].promote()
+				items[itTop].promoteItems.Pop()
 			}
 			stackConsumer.Pop()
 		}
@@ -740,8 +680,8 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 		for stackFailed.Len() != 0 {
 			itTop := stackFailed.Peek().(int64)
 
-			if mapItems[itTop].status == PRESENT {
-				mapItems[itTop].demoteFailed()
+			if items[itTop].status == PRESENT {
+				items[itTop].demoteFailed()
 			}
 			stackFailed.Pop()
 		}
@@ -749,7 +689,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 		// remove methods that are no longer active
 		for stackFinishedMethods.Len() != 0 {
 			itTop := stackFinishedMethods.Peek().(int64)
-			delete(mapMethods, itTop)
+			delete(methods, itTop)
 			stackFinishedMethods.Pop()
 		}
 
@@ -764,7 +704,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIter
 
 		for ; itVerify != end; itVerify++ {
 
-			if mapItems[itVerify].sum < 0 {
+			if items[itVerify].sum < 0 {
 				outcome = false
 				// #if DEBUG_
 				// fmt.Printf("WARNING: Item %d, sum %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sum)
