@@ -514,9 +514,12 @@ func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, 
 		//     methodMap[methItr0].process == methodMap[methodMapKey].process
 
 		// serializability
-		if methodMap[mk0].response < methodMap[mk].invocation &&
+		/*if methodMap[mk0].response < methodMap[mk].invocation &&
 			methodMap[mk0].txnID == methodMap[mk].txnID ||
 			methodMap[mk0].txnID < methodMap[mk].txnID{
+		*/
+		if methodMap[mk0].itemKey == methodMap[mk].itemKey &&
+			methodMap[mk0].itemVal > methodMap[mk].itemVal {
 
 			itemItr0 := methodMap[mk0].itemKey
 
@@ -547,9 +550,12 @@ func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk
 		//     methodMap[methItr0].process == methodMap[methodMapKey].process
 
 		// serializability
-		if methodMap[mk0].response < methodMap[mk].invocation &&
+		/*if methodMap[mk0].response < methodMap[mk].invocation &&
 			methodMap[mk0].txnID == methodMap[mk].txnID ||
 			methodMap[mk0].txnID < methodMap[mk].txnID{
+		*/
+		if methodMap[mk0].itemKey == methodMap[mk].itemKey &&
+			methodMap[mk0].itemVal > methodMap[mk].itemVal {
 
 			itemItr0 := int64(methodMap[mk0].itemKey)
 
