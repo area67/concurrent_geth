@@ -61,8 +61,8 @@ const (
 type Method struct {
 	id              int // atomic var
 	//process         int
-	itemKey         int
-	itemVal         int
+	itemAddr        int // account address
+	itemBalance     int // account balance
 	semantics       Semantics // hardcode as SET
 	types           Types  // producing/consuming  adding/subtracting
 	//invocation      int64
@@ -74,12 +74,12 @@ type Method struct {
 	requestAmnt     int
 }
 
-func (m *Method) setMethod(id int, itemKey int, itemVal int, semantics Semantics,
+func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int) {
 	m.id = id
 	//m.process = process
-	m.itemKey = itemKey
-	m.itemVal = itemVal
+	m.itemAddr = itemAddr
+	m.itemBalance = itemBalance
 	m.semantics = semantics
 	m.types = types
 	//m.invocation = invocation
@@ -141,7 +141,7 @@ func (i *Item) setItem(key int) {
 	i.exponentR = 0
 }
 
-func (i *Item) setItemKV(key, value int) {
+func (i *Item) setItemKV(key int, value int) {
 	i.key = key
 	i.value = value
 	i.sum = 0
@@ -439,94 +439,82 @@ func maxOf(vars []int) int {
 	return max
 }
 
-func findMethodKey(m map[int64]*Method, position string) (int64, error) {
-	keys := make([]int, 0)
-	for k := range m {
-		keys = append(keys, int(k))
-	}
-	sort.Ints(keys)
-
-	begin := minOf(keys)
-	end   := maxOf(keys)
-
-	if position == "begin" {
-		return int64(keys[begin]), nil
-	} else if position == "end" {
-		return int64(keys[end]), nil
-	} else {
-		return -1, fmt.Errorf("the map key could not be found")
-	}
-}
-
-func reslice(s []*Method, index int) []*Method {
-	return append(s[:index], s[index+1:]...)
-}
-
-func findItemKey(m map[int64]*Item, position string) (int64, error){
-	keys := make([]int, 0)
-	for k := range m {
-		keys = append(keys, int(k))
-	}
-	sort.Ints(keys)
-
-	begin := minOf(keys)
-	end   := maxOf(keys)
-
-	if position == "begin" {
-		return int64(keys[begin]), nil
-	} else if position == "end" {
-		return int64(keys[end]), nil
-	} else {
-		return -1, fmt.Errorf("the map key could not be found")
-	}
-}
-
-func findBlockKey(m map[int64]Block, position string) (int64, error){
-	keys := make([]int, 0)
-	for k := range m {
-		keys = append(keys, int(k))
-	}
-	sort.Ints(keys)
-
-	begin := minOf(keys)
-	end   := maxOf(keys)
-
-	if position == "begin" {
-		return int64(keys[begin]), nil
-	} else if position == "end" {
-		return int64(keys[end]), nil
-	} else {
-		return -1, fmt.Errorf("the map key could not be found")
-	}
-}
+//func findMethodKey(m map[string]*Method, position string) (int64, error) {
+//	keys := make([]string, 0)
+//	for k := range m {
+//		keys = append(keys, k)
+//	}
+//	sort.
+//
+//	begin := minOf(keys)
+//	end   := maxOf(keys)
+//
+//	if position == "begin" {
+//		return int64(keys[begin]), nil
+//	} else if position == "end" {
+//		return int64(keys[end]), nil
+//	} else {
+//		return -1, fmt.Errorf("the map key could not be found")
+//	}
+//}
+//
+//func reslice(s []*Method, index int) []*Method {
+//	return append(s[:index], s[index+1:]...)
+//}
+//
+//func findItemKey(m map[int64]*Item, position string) (int64, error){
+//	keys := make([]int, 0)
+//	for k := range m {
+//		keys = append(keys, int(k))
+//	}
+//	sort.Ints(keys)
+//
+//	begin := minOf(keys)
+//	end   := maxOf(keys)
+//
+//	if position == "begin" {
+//		return int64(keys[begin]), nil
+//	} else if position == "end" {
+//		return int64(keys[end]), nil
+//	} else {
+//		return -1, fmt.Errorf("the map key could not be found")
+//	}
+//}
+//
+//func findBlockKey(m map[int64]Block, position string) (int64, error){
+//	keys := make([]int, 0)
+//	for k := range m {
+//		keys = append(keys, int(k))
+//	}
+//	sort.Ints(keys)
+//
+//	begin := minOf(keys)
+//	end   := maxOf(keys)
+//
+//	if position == "begin" {
+//		return int64(keys[begin]), nil
+//	} else if position == "end" {
+//		return int64(keys[end]), nil
+//	} else {
+//		return -1, fmt.Errorf("the map key could not be found")
+//	}
+//}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed stack.Stack){
+func handleFailedConsumer(methods []*Method, items []*Item, mk int64, it int, stackFailed stack.Stack){
 
-	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
-		if err != nil {
-			break
-		}
-
-		// linearizability
-		// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
-
-		// sequential consistency
-		// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-		//     methodMap[methItr0].process == methodMap[methodMapKey].process
-
+	for it0 := 0; it0 != it; it0++ {
 		// serializability
-		if methodMap[mk0].response < methodMap[mk].invocation &&
-			methodMap[mk0].txnID == methodMap[mk].txnID ||
-			methodMap[mk0].txnID < methodMap[mk].txnID{
+		if methods[it0].senderID == methods[it].senderID &&
+			methods[it0].requestAmnt > methods[mk].requestAmnt{
 
-			itemItr0 := methodMap[mk0].itemKey
+			itemItr0 := methods[it0].itemAddr
 
-			if methodMap[mk0].types == PRODUCER &&
-				itemMap[ik].status == PRESENT &&
-				methodMap[mk0].semantics == FIFO ||
-				methodMap[mk0].semantics == LIFO ||
-				methodMap[mk].itemKey == methodMap[mk0].itemKey{
+			if methods[it0].types == PRODUCER &&
+				items[it].status == PRESENT &&
+				methods[it0].semantics == FIFO ||
+				methods[it0].semantics == LIFO ||
+				methods[mk].itemAddr == methods[it0].itemAddr{
 
 				stackFailed.Push(itemItr0)
 			}
@@ -534,44 +522,32 @@ func handleFailedConsumer(methodMap map[int64]*Method, itemMap map[int64]*Item, 
 	}
 }
 
-func handleFailedReader(methodMap map[int64]*Method, itemMap map[int64]*Item, mk int64, ik int64, stackFailed *stack.Stack){
+func handleFailedReader(methods []*Method, items []*Item, mk int64, ik int, stackFailed *stack.Stack){
 
-	for mk0, err := findMethodKey(methodMap, "begin"); mk0 != mk; mk0++{
-		if err != nil {
-			break
-		}
-
-		// linearizability
-		// #if methodMap[methItr0].response < methodMap[methodMapKey].invocation
-
-		// sequential consistency
-		// #elif methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-		//     methodMap[methItr0].process == methodMap[methodMapKey].process
-
+	for it0 := 0; it0 != ik; it0++ {
 		// serializability
-		if methodMap[mk0].response < methodMap[mk].invocation &&
-			methodMap[mk0].txnID == methodMap[mk].txnID ||
-			methodMap[mk0].txnID < methodMap[mk].txnID{
+		if methods[it0].senderID == methods[mk].senderID &&
+			methods[it0].requestAmnt > methods[mk].requestAmnt{
 
-			itemItr0 := int64(methodMap[mk0].itemKey)
+			itemItr0 := methods[it0].itemAddr
 
-			if methodMap[mk0].types == PRODUCER &&
-				itemMap[ik].status == PRESENT &&
-				methodMap[mk].itemKey == methodMap[mk0].itemKey{
+			if methods[it0].types == PRODUCER &&
+				items[ik].status == PRESENT &&
+				methods[it0].itemAddr == methods[it0].itemAddr{
 
-				stackFailed.Push(itemItr0)
+				stackFailed.Push(items[itemItr0])
 			}
 		}
 	}
 }
 
-func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
+func verifyCheckpoint(methods []*Method, items []*Item, itStart int64, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
 	var stackConsumer  = stack.New()        // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
 	var stackFailed stack.Stack           // stack of map[int64]*Item
 
-	if len(mapMethods) != 0 {
+	if len(methods) != 0 {
 
 		it, err := findMethodKey(mapMethods, "begin")
 		end, err2 := findMethodKey(mapMethods, "end")
@@ -586,8 +562,8 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 		}
 
 		// TODO: needed ? prob not
-		for ; it != end; it++{
-			if mapMethods[it].response > min{
+		for ; it != len(methods) - 1; it++{
+			if methods[it].response > min{
 				break
 			}
 
@@ -600,7 +576,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 			resetItStart = false
 			countIterated = countIterated + 1
 
-			itItems := int64(mapMethods[it].itemKey)
+			itItems := methods[it].itemAddr
 
 			// #if DEBUG_
 			/// if mapItems[itItems].status != PRESENT{
@@ -616,19 +592,19 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 			// }
 			// #endif
 
-			if mapMethods[it].types == PRODUCER {
-				mapItems[itItems].producer = it
+			if methods[it].types == PRODUCER {
+				items[itItems].producer = it
 
-				if mapItems[itItems].status == ABSENT {
+				if items[itItems].status == ABSENT {
 
 					// reset item parameters
-					mapItems[itItems].status = PRESENT
-					mapItems[itItems].demoteMethods = nil
+					items[itItems].status = PRESENT
+					items[itItems].demoteMethods = nil
 				}
 
-				mapItems[itItems].addInt(1)
+				items[itItems].addInt(1)
 
-				if mapMethods[it].semantics == FIFO || mapMethods[it].semantics == LIFO {
+				if methods[it].semantics == FIFO || methods[it].semantics == LIFO {
 					it0, err := findMethodKey(mapMethods, "begin")
 					if  err != nil{
 						return
@@ -645,7 +621,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 						if mapMethods[it0].senderID == mapMethods[it].senderID &&
 							mapMethods[it0].requestAmnt > mapMethods[it].requestAmnt{
 							// #endif
-							itItems0 := int64(mapMethods[it0].itemKey)
+							itItems0 := mapMethods[it0].itemAddr
 
 							// Demotion
 							// FIFO Semantics
@@ -853,29 +829,29 @@ func work(id int) {
 	wallTime += float64(tod.Sec)
 	wallTime += float64(tod.Usec) * 1e-6
 
-	var randomGenOp rand.Rand
-	randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
-	s := rand.NewSource(time.Now().UnixNano())
-	randDistOp := rand.New(s)
-
-	// TODO: I'm 84% sure this is correct
-	startTime := time.Unix(0, start.UnixNano())
-	startTimeEpoch := time.Since(startTime)
-
+	//var randomGenOp rand.Rand
+	//randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
+	//s := rand.NewSource(time.Now().UnixNano())
+	//randDistOp := rand.New(s)
+	//
+	//// TODO: I'm 84% sure this is correct
+	//startTime := time.Unix(0, start.UnixNano())
+	//startTimeEpoch := time.Since(startTime)
+	//
 	mId := id + 1
-
-	var end time.Time
+	//
+	//var end time.Time
 
 	wait()
 
 	for i := uint32(0); i < testSize; i++ {
 
-		var types Types
 		var res bool
-		itemKey := -1
-		opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
+		itemAddr1 := "0x981ab8471d"
+		itemAddr2 := "0x834abc3498"
+		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
-		end = time.Now()
+		//end = time.Now()
 
 		//preFunction := time.Unix(0, end.UnixNano())
 		//preFunctionEpoch := time.Since(preFunction)
@@ -895,48 +871,52 @@ func work(id int) {
 			// break
 		// }
 
-		if opDist <= 50 {
-			types = CONSUMER
-			var itemPop int
-			// var itemPopPtr *uint64
-
-			val := q.Dequeue()
-			if val != nil{
-				res = true
-			} else {
-				res = false
-			}
-			if res {
-				q.Dequeue()  // try_pop(item_pop)
-				itemKey = itemPop
-			}else {
-				itemKey = math.MaxInt32
-			}
-		} else {
-			types = PRODUCER
-			itemKey = mId
-			q.Enqueue(itemKey)
-		}
+		//if opDist <= 50 {
+		//	types = CONSUMER
+		//	var itemPop int
+		//	// var itemPopPtr *uint64
+		//
+		//	val := q.Dequeue()
+		//	if val != nil{
+		//		res = true
+		//	} else {
+		//		res = false
+		//	}
+		//	if res {
+		//		q.Dequeue()  // try_pop(item_pop)
+		//		itemKey = itemPop
+		//	}else {
+		//		itemKey = math.MaxInt32
+		//	}
+		//} else {
+		//	types = PRODUCER
+		//	itemKey = mId
+		//	q.Enqueue(itemKey)
+		//}
 
 		// line 890
 		// end = std::chrono::high_resolution_clock::now();
-		end := time.Now().UnixNano()
+		//end := time.Now().UnixNano()
 
 		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		postFunction := end
+		//postFunction := end
 
 		// Is this right??
 		// auto post_function_epoch = post_function.time_since_epoch();
-		postFunctionEpoch := time.Now().UnixNano() - postFunction
+		//postFunctionEpoch := time.Now().UnixNano() - postFunction
 
 		//response := post_function_epoch.count() - start_time_epoch.count()
-		response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
+		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
-		// TODO: create 2 Methods: 1 for add, 1 for subtract
+		// TODO: create 2 Methods: 1 for add, 1 for subtract ??
+
+		// requesting account
 		var m1 Method
-		setMethod(id int, itemKey int, itemVal int, semantics Semantics,
-			types Types, status bool, senderID int, requestAmnt int)
-		m1.setMethod(id, itemKey, 2000, SET, PRODUCER, res, mId, 1000)
+		m1.setMethod(id, itemAddr1, 2000, SET, PRODUCER, res, mId, 1000)
+
+		//
+		var m2 Method
+		m2.setMethod(id + 1, itemAddr2, 2000, SET, CONSUMER, res, mId, -1000)
 
 		// mId += numThreads
 
