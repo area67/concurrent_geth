@@ -480,7 +480,7 @@ func maxOf(vars []int) int {
 //}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stackFailed stack.Stack){
+func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack){
 
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
@@ -501,7 +501,7 @@ func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stac
 	}
 }
 
-func handleFailedReader(methods []*Method, items []*Item, mk int, ik int, stackFailed *stack.Stack){
+/*func handleFailedReader(methods []*Method, items []*Item, mk int, ik int, stackFailed *stack.Stack){
 
 	for it0 := 0; it0 != ik; it0++ {
 		// serializability
@@ -518,9 +518,9 @@ func handleFailedReader(methods []*Method, items []*Item, mk int, ik int, stackF
 			}
 		}
 	}
-}
+}*/
 
-func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
+func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
 
 	var stackConsumer  = stack.New()        // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
@@ -535,7 +535,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 			resetItStart = false
 		} else if it != end {
 			itStart = itStart + 1
-			it = itStart
+			it = int(itStart)
 		}
 
 		// TODO: needed ? prob not
@@ -583,13 +583,13 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 				items[itItems].addInt(1)
 			}
 
-			if methods[it].types == READER {
+			/*if methods[it].types == READER {
 				if methods[it].status == true {
 					items[itItems].demoteReader()
 				} else{
 					handleFailedReader(methods, items, it, itItems, &stackFailed)
 				}
-			}
+			}*/
 
 			if methods[it].types	== CONSUMER {
 
@@ -664,13 +664,13 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		//NEED TO FLAG ITEMS ASSOCIATED WITH CONSUMER METHODS AS ABSENT
 		for stackConsumer.Len() != 0 {
 
-			itTop, ok := stackConsumer.Peek().(int64)
+			itTop, ok := stackConsumer.Peek().(int)
 			if !ok {
 				return
 			}
 
 			for items[itTop].promoteItems.Len() != 0 {
-				itemPromote := items[itTop].promoteItems.Peek().(int64)
+				itemPromote := items[itTop].promoteItems.Peek().(int)
 				itPromoteItem := itemPromote
 				items[itPromoteItem].promote()
 				items[itTop].promoteItems.Pop()
@@ -679,7 +679,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		}
 
 		for stackFailed.Len() != 0 {
-			itTop := stackFailed.Peek().(int64)
+			itTop := stackFailed.Peek().(int)
 
 			if items[itTop].status == PRESENT {
 				items[itTop].demoteFailed()
@@ -881,11 +881,11 @@ func verify() {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
-	mapMethods := make(map[int64]*Method, 0)
-	mapBlock   := make(map[int64]Block, 0)
-	mapItems    := make(map[int64]*Item, 0)
+	mapMethods := make(map[int]*Method, 0)
+	mapBlock   := make(map[int]Block, 0)
+	mapItems    := make(map[int]*Item, 0)
 	it         := make([]int, 0, numThreads)
-	var itStart int64
+	var itStart int
 
 
 	// How to??? lines 1201 - 1209
@@ -922,7 +922,8 @@ func verify() {
 				stop = false
 			}
 
-			var responseTime int64 = 0
+			// TODO: Correctness not based on time any more, so do we still need response field?
+			//var responseTime int64 = 0
 
 			for {
 				if itCount[i] >= threadListsSize[i].Load() {
@@ -936,14 +937,17 @@ func verify() {
 
 				m := threadLists[it[i]].Back().Value.(Method)
 
-				mapMethodsEnd, err := findMethodKey(mapMethods, "end")
+
+				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
 					return
 				}
+				 */
 
-				itMethod := m.response
+				// TODO: Correctness not based on time any more, so do we still need response field?
+				/*itMethod := m.response
 				for {
-					if itMethod == mapMethodsEnd { //
+					if itMethod == mapMethodsEnd {
 						break
 					}
 					m.response++
@@ -952,11 +956,13 @@ func verify() {
 				responseTime = m.response
 
 				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
+				 */
 
 				itCount[i]++
 				countOverall++
 
-				itItem := m.itemKey // it_item = map_items.find(m.item_key);
+				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
+				itItem := m.itemAddr
 
 				mapItemsEnd, err := findItemKey(mapItems, "end")
 				if err != nil {
@@ -965,7 +971,7 @@ func verify() {
 
 				if int64(itItem) == mapItemsEnd {
 					var item Item
-					item.key = m.itemKey
+					item.key = m.itemAddr
 
 
 
@@ -973,14 +979,15 @@ func verify() {
 
 					// How to??? line 1288
 					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
-					mapItems[int64(m.itemKey)] = &item
-					itItem = m.itemKey
+					mapItems[m.itemAddr] = &item
+					itItem = m.itemAddr
 				}
 			}
 
-			if responseTime < min {
+			/*if responseTime < min {
 				min = responseTime
 			}
+			 */
 		}
 
 		verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), int64(min), true, mapBlock)
