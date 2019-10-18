@@ -539,10 +539,11 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		}
 
 		// TODO: needed ? prob not
-		for ; it != len(methods) - 1; it++{
+		/*for ; it != len(methods) - 1; it++{
 			if methods[it].response > min{
 				break
 			}
+		 */
 
 			if methodCount % 5000 == 0 {
 				fmt.Printf("methodCount = %d\n", methodCount)
@@ -570,7 +571,7 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 			// #endif
 
 			if methods[it].types == PRODUCER {
-				items[itItems].producer = int64(it)
+				items[itItems].producer = it
 
 				if items[itItems].status == ABSENT {
 
@@ -687,9 +688,10 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		}
 
 		// remove methods that are no longer active
+		//TODO: DANGER, this is the removal optimization that can cause segfaults, commented out the dangerous contents for now.
 		for stackFinishedMethods.Len() != 0 {
-			itTop := stackFinishedMethods.Peek().(int64)
-			delete(methods, itTop)
+			//itTop := stackFinishedMethods.Peek().(int64)
+			//delete(methods, itTop)
 			stackFinishedMethods.Pop()
 		}
 
