@@ -59,33 +59,35 @@ const (
 )
 
 type Method struct {
-	id              int
-	process         int
+	id              int // atomic var
+	//process         int
 	itemKey         int
 	itemVal         int
-	semantics       Semantics
-	types           Types
-	invocation      int64
-	response        int64
-	quiescentPeriod int
+	semantics       Semantics // hardcode as SET
+	types           Types  // producing/consuming  adding/subtracting
+	//invocation      int64
+	//response        int64
+	//quiescentPeriod int
 	status          bool
-	txnID           int
+	//txnID           int
 	senderID        int
 	requestAmnt     int
 }
 
-func (m *Method) setMethod(id int, process int, itemKey int, itemVal int, semantics Semantics,
-	types Types, invocation int64, response int64, status bool, txnID int) {
+func (m *Method) setMethod(id int, itemKey int, itemVal int, semantics Semantics,
+	types Types, status bool, senderID int, requestAmnt int) {
 	m.id = id
-	m.process = process
+	//m.process = process
 	m.itemKey = itemKey
 	m.itemVal = itemVal
 	m.semantics = semantics
 	m.types = types
-	m.invocation = invocation
-	m.response = response
+	//m.invocation = invocation
+	//m.response = response
 	m.status = status
-	m.txnID = txnID
+	//m.txnID = txnID
+	m.senderID = senderID
+	m.requestAmnt = requestAmnt
 }
 
 type Item struct {
@@ -583,6 +585,7 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 			it = itStart
 		}
 
+		// TODO: needed ? prob not
 		for ; it != end; it++{
 			if mapMethods[it].response > min{
 				break
@@ -868,37 +871,42 @@ func work(id int) {
 	for i := uint32(0); i < testSize; i++ {
 
 		var types Types
+		var res bool
 		itemKey := -1
-		res := true
 		opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		end = time.Now()
 
-		preFunction := time.Unix(0, end.UnixNano())
-		preFunctionEpoch := time.Since(preFunction)
+		//preFunction := time.Unix(0, end.UnixNano())
+		//preFunctionEpoch := time.Since(preFunction)
 
 
 		// Hmm, do we need .count()??
 		//invocation := pre_function_epoch.count() - start_time_epoch.count()
-		invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
+		// invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
-		if invocation > (math.MaxInt64 - 10000000000) {
+		// if invocation > (math.MaxInt64 - 10000000000) {
 			//PREPROCESSOR DIRECTIVE lines 864 - 866:
 			/*
 			 * #if DEBUG_
 			 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
 			 * #endif
 			 */
-			break
-		}
+			// break
+		// }
 
 		if opDist <= 50 {
 			types = CONSUMER
 			var itemPop int
 			// var itemPopPtr *uint64
 
-			res := q.Peek()
-			if res != 0 {
+			val := q.Dequeue()
+			if val != nil{
+				res = true
+			} else {
+				res = false
+			}
+			if res {
 				q.Dequeue()  // try_pop(item_pop)
 				itemKey = itemPop
 			}else {
@@ -926,7 +934,9 @@ func work(id int) {
 
 		// TODO: create 2 Methods: 1 for add, 1 for subtract
 		var m1 Method
-		m1.setMethod(mId, id, itemKey, math.MinInt64, FIFO, types, invocation, response, res, mId)
+		setMethod(id int, itemKey int, itemVal int, semantics Semantics,
+			types Types, status bool, senderID int, requestAmnt int)
+		m1.setMethod(id, itemKey, 2000, SET, PRODUCER, res, mId, 1000)
 
 		// mId += numThreads
 
@@ -979,7 +989,6 @@ func verify() {
 	//var oldMin int64
 	var itCount[numThreads] int32
 
-	// How to??? line 1225
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
 
 	for {
