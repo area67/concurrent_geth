@@ -698,37 +698,37 @@ func verifyCheckpoint(mapMethods map[int64]*Method, mapItems map[int64]*Item, it
 					mapItems[itItems].subInt(1)
 					mapItems[itItems].status = ABSENT
 
-					if mapItems[itItems].sum < 0 {
-
-						for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
-
-							if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
-								mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
-								// Methods do not overlap
-								// fmt.Println("NOTE: Methods do not overlap")
-							} else {
-								mapItems[itItems].promote()
-
-								// need to remove from promote list
-								itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
-								var temp stack.Stack
-
-								for mapItems[itMthdItem].promoteItems.Peek() != nil{
-
-									top := mapItems[itMthdItem].promoteItems.Peek()
-									if top != mapMethods[it].itemKey {
-										temp.Push(top)
-									}
-									mapItems[itMthdItem].promoteItems.Pop()
-									fmt.Println("stuck here?")
-								}
-								// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
-
-								//
-								mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
-							}
-						}
-					}
+					//if mapItems[itItems].sum < 0 {
+					//
+					//	for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
+					//
+					//		if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
+					//			mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
+					//			// Methods do not overlap
+					//			// fmt.Println("NOTE: Methods do not overlap")
+					//		} else {
+					//			mapItems[itItems].promote()
+					//
+					//			// need to remove from promote list
+					//			itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
+					//			var temp stack.Stack
+					//
+					//			for mapItems[itMthdItem].promoteItems.Peek() != nil{
+					//
+					//				top := mapItems[itMthdItem].promoteItems.Peek()
+					//				if top != mapMethods[it].itemKey {
+					//					temp.Push(top)
+					//				}
+					//				mapItems[itMthdItem].promoteItems.Pop()
+					//				fmt.Println("stuck here?")
+					//			}
+					//			// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
+					//
+					//			//
+					//			mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
+					//		}
+					//	}
+					//}
 					stackConsumer.Push(itItems)
 					stackFinishedMethods.Push(it)
 
