@@ -8,6 +8,7 @@ import (
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
 	"math"
+	"sort"
 	Atomic "sync/atomic"
 	"syscall"
 	"time"
@@ -418,47 +419,47 @@ func maxOf(vars []int) int {
 	return max
 }
 
-//func findMethodKey(m map[string]*Method, position string) (int64, error) {
-//	keys := make([]string, 0)
-//	for k := range m {
-//		keys = append(keys, k)
-//	}
-//	sort.
-//
-//	begin := minOf(keys)
-//	end   := maxOf(keys)
-//
-//	if position == "begin" {
-//		return int64(keys[begin]), nil
-//	} else if position == "end" {
-//		return int64(keys[end]), nil
-//	} else {
-//		return -1, fmt.Errorf("the map key could not be found")
-//	}
-//}
+func findMethodKey(m map[int]*Method, position string) (int, error) {
+	keys := make([]int, 0)
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	begin := minOf(keys)
+	end   := maxOf(keys)
+
+	if position == "begin" {
+		return keys[begin], nil
+	} else if position == "end" {
+		return keys[end], nil
+	} else {
+		return -1, fmt.Errorf("the map key could not be found")
+	}
+}
 //
 //func reslice(s []*Method, index int) []*Method {
 //	return append(s[:index], s[index+1:]...)
 //}
 //
-//func findItemKey(m map[int64]*Item, position string) (int64, error){
-//	keys := make([]int, 0)
-//	for k := range m {
-//		keys = append(keys, int(k))
-//	}
-//	sort.Ints(keys)
-//
-//	begin := minOf(keys)
-//	end   := maxOf(keys)
-//
-//	if position == "begin" {
-//		return int64(keys[begin]), nil
-//	} else if position == "end" {
-//		return int64(keys[end]), nil
-//	} else {
-//		return -1, fmt.Errorf("the map key could not be found")
-//	}
-//}
+func findItemKey(m map[int]*Item, position string) (int64, error){
+	keys := make([]int, 0)
+	for k := range m {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+
+	begin := minOf(keys)
+	end   := maxOf(keys)
+
+	if position == "begin" {
+		return int64(keys[begin]), nil
+	} else if position == "end" {
+		return int64(keys[end]), nil
+	} else {
+		return -1, fmt.Errorf("the map key could not be found")
+	}
+}
 //
 //func findBlockKey(m map[int64]Block, position string) (int64, error){
 //	keys := make([]int, 0)
@@ -520,7 +521,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 	}
 }*/
 
-func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int64]Block){
+func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block){
 
 	var stackConsumer  = stack.New()        // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
@@ -697,12 +698,8 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 
 		// verify sums
 		outcome := true
-		itVerify, err := findItemKey(mapItems, "begin")
-		end, endErr := findItemKey(mapItems, "end")
-
-		if err != nil || endErr != nil {
-			return
-		}
+		itVerify := 0
+		end := len(items) - 1
 
 		for ; itVerify != end; itVerify++ {
 
@@ -714,7 +711,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			}
 			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
 
-			if (math.Ceil(mapItems[itVerify].sum) + mapItems[itVerify].sumR) < 0 {
+			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
 				outcome = false
 
 				// #if DEBUG_
@@ -723,13 +720,13 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			}
 
 			var n float64
-			if mapItems[itVerify].sumF == 0 {
+			if items[itVerify].sumF == 0 {
 				n = 0
 			} else {
 				n = -1
 			}
 
-			if (math.Ceil(mapItems[itVerify].sum) + mapItems[itVerify].sumF) * n < 0 {
+			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumF) * n < 0 {
 				outcome = false
 				// #if DEBUG_
 				// fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumF)
@@ -785,8 +782,8 @@ func work(id int) {
 	for i := uint32(0); i < testSize; i++ {
 
 		var res bool
-		itemAddr1 := "0x981ab8471d"
-		itemAddr2 := "0x834abc3498"
+		itemAddr1 := 1928374
+		itemAddr2 := 5239487
 		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		//end = time.Now()
@@ -998,7 +995,7 @@ func verify() {
 
 	/*
 			#if DEBUG_
-				printf("Count overall = %lu, count iterated = %lu, map_methods.size() = %lu\n", count_overall, count_iterated, map_methods.size());
+				printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", count_overall, count_iterated, map_methods.size());
 			#endif
 
 		#if DEBUG_
