@@ -657,7 +657,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 					handleFailedConsumer(methods, items, it, itItems, stackFailed)
 				}
 			}
-		}
+		//}
 		if resetItStart {
 			itStart--
 		}
@@ -699,9 +699,9 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 		// verify sums
 		outcome := true
 		itVerify := 0
-		end := len(items) - 1
+		itEnd := len(items) - 1
 
-		for ; itVerify != end; itVerify++ {
+		for ; itVerify != itEnd; itVerify++ {
 
 			if items[itVerify].sum < 0 {
 				outcome = false
@@ -845,11 +845,11 @@ func work(id int) {
 
 		// TODO: create 2 Methods: 1 for add, 1 for subtract ??
 
-		// requesting account
+		// account being added to
 		var m1 Method
 		m1.setMethod(id, itemAddr1, 2000, SET, PRODUCER, res, mId, 1000)
 
-		//
+		// account being subtracted from
 		var m2 Method
 		m2.setMethod(id + 1, itemAddr2, 2000, SET, CONSUMER, res, mId, -1000)
 
