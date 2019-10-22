@@ -54,6 +54,16 @@ type Method struct {
 	senderID        int // same as itemAddr ??
 	requestAmnt     int
 }
+type TransactionData struct {
+	addrSender string
+	addrReceiver string
+	amount int32
+}
+
+func VerifierData(t *TransactionData){
+
+
+}
 
 func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int) {
