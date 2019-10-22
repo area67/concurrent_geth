@@ -1093,6 +1093,6 @@ func main() {
 
 	elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
 
-	fmt.Printf("Total Verification Time: %.15lf seconds\n", elapsedTimeVerifyDouble)
+	fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
 
 }
