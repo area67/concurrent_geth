@@ -18,17 +18,6 @@ const numThreads = 32
 
 var testSize uint32
 
-// MyHashCompare are blah, blah, blah
-type MyHashCompare struct{}
-
-func (mhc MyHashCompare) hash(x int) C.size_t {
-	return C.size_t(x)
-}
-
-func (mhc MyHashCompare) equal(x int, y int) bool {
-	return x == y
-}
-
 type Status int
 
 const (
@@ -773,7 +762,7 @@ func work(id int) {
 	//startTime := time.Unix(0, start.UnixNano())
 	//startTimeEpoch := time.Since(startTime)
 	//
-	mId := id + 1
+	mId := int32(id + 1)
 	//
 	//var end time.Time
 
@@ -847,11 +836,12 @@ func work(id int) {
 
 		// account being added to
 		var m1 Method
-		m1.setMethod(id, itemAddr1, 2000, SET, PRODUCER, res, mId, 1000)
+		m1.setMethod(int(mId), itemAddr1, 2000, SET, PRODUCER, res, int(mId), 1000)
 
 		// account being subtracted from
+		Atomic.AddInt32(&mId, 1)
 		var m2 Method
-		m2.setMethod(id + 1, itemAddr2, 2000, SET, CONSUMER, res, mId, -1000)
+		m2.setMethod(int(mId), itemAddr2, 2000, SET, CONSUMER, res, int(mId), -1000)
 
 		// mId += numThreads
 
