@@ -1,4 +1,4 @@
-package verifier
+package main
 
 import (
 	"C"
@@ -8,7 +8,9 @@ import (
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
 	"math"
+	"math/rand"
 	"sort"
+	"sync"
 	Atomic "sync/atomic"
 	"syscall"
 	"time"
@@ -19,6 +21,8 @@ const numThreads = 32
 var testSize uint32
 
 type Status int
+
+var txnCtr atomicTxnCtr
 
 const (
 	PRESENT Status = iota
@@ -45,24 +49,29 @@ const (
 )
 
 type Method struct {
-	id              int // atomic var
-	itemAddr        int // account address
-	itemBalance     int // account balance
-	semantics       Semantics // hardcode as SET
-	types           Types  // producing/consuming  adding/subtracting
-	status          bool
-	senderID        int // same as itemAddr ??
-	requestAmnt     int
+	id          int       // atomic var
+	itemAddr    int       // account address
+	itemBalance int       // account balance
+	semantics   Semantics // hardcode as SET
+	types       Types     // producing/consuming  adding/subtracting
+	status      bool
+	senderID    int // same as itemAddr ??
+	requestAmnt int
 }
 
 type TransactionData struct {
-	addrSender string
+	addrSender   string
 	addrReceiver string
-	amount int32
+	amount       int
+	tId          int32
 }
 
-func VerifierData(t *TransactionData){
+type atomicTxnCtr struct {
+	val int32
+	lock sync.Mutex
+}
 
+func VerifierData(t *TransactionData) {
 
 }
 
@@ -79,16 +88,16 @@ func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Sema
 }
 
 type Item struct {
-	key   int    // Account Hash ???
-	value int    // Account Balance ???
-	sum float64
-	numerator   int64
-	denominator int64
-	exponent float64
-	status Status
-	promoteItems stack.Stack
+	key           int // Account Hash ???
+	value         int // Account Balance ???
+	sum           float64
+	numerator     int64
+	denominator   int64
+	exponent      float64
+	status        Status
+	promoteItems  stack.Stack
 	demoteMethods []*Method
-	producer int // map iterator
+	producer      int // map iterator
 
 	// Failed Consumer
 	sumF         float64
@@ -176,13 +185,13 @@ func (i *Item) addFrac(num int64, den int64) {
 	// }
 	// #endif
 
-	if i.denominator % den == 0 {
-		i.numerator = i.numerator + num * i.denominator / den
-	} else if den % i.denominator == 0 {
-		i.numerator = i.numerator * den / i.denominator + num
+	if i.denominator%den == 0 {
+		i.numerator = i.numerator + num*i.denominator/den
+	} else if den%i.denominator == 0 {
+		i.numerator = i.numerator*den/i.denominator + num
 		i.denominator = den
 	} else {
-		i.numerator = i.numerator * den + num * i.denominator
+		i.numerator = i.numerator*den + num*i.denominator
 		i.denominator = i.denominator * den
 	}
 
@@ -204,13 +213,13 @@ func (i *Item) subFrac(num, den int64) {
 	//	 C.printf("WARNING: subFrac: 1. denominator = 0\n");
 	// #endif
 
-	if i.denominator % den == 0 {
-		i.numerator = i.numerator - num * i.denominator / den
-	} else if den % i.denominator == 0 {
-		i.numerator = i.numerator * den / i.denominator - num
+	if i.denominator%den == 0 {
+		i.numerator = i.numerator - num*i.denominator/den
+	} else if den%i.denominator == 0 {
+		i.numerator = i.numerator*den/i.denominator - num
 		i.denominator = den
 	} else {
-		i.numerator = i.numerator * den - num * i.denominator
+		i.numerator = i.numerator*den - num*i.denominator
 		i.denominator = i.denominator * den
 	}
 
@@ -257,13 +266,13 @@ func (i *Item) addFracFailed(num int64, den int64) {
 	//   C.printf("WARNING: addFracFailed: 1. denominatorF = 0\n")
 	// #endif
 
-	if i.denominatorF % den == 0 {
-		i.numeratorF = i.numeratorF + num * i.denominatorF / den
-	} else if den % i.denominatorF == 0 {
-		i.numeratorF = i.numeratorF * den / i.denominatorF + num
+	if i.denominatorF%den == 0 {
+		i.numeratorF = i.numeratorF + num*i.denominatorF/den
+	} else if den%i.denominatorF == 0 {
+		i.numeratorF = i.numeratorF*den/i.denominatorF + num
 		i.denominatorF = den
 	} else {
-		i.numeratorF = i.numeratorF * den + num * i.denominatorF
+		i.numeratorF = i.numeratorF*den + num*i.denominatorF
 		i.denominatorF = i.denominatorF * den
 	}
 
@@ -282,13 +291,13 @@ func (i *Item) subFracFailed(num int64, den int64) {
 	// if(denominator_f == 0)
 	// C.printf("WARNING: sub_frac_f: 1. denominator_f = 0\n");
 	// #endif
-	if i.denominatorF % den == 0 {
-		i.numeratorF = i.numeratorF - num * i.denominatorF / den
-	} else if den % i.denominatorF == 0 {
-		i.numeratorF = i.numeratorF * den / i.denominatorF - num
+	if i.denominatorF%den == 0 {
+		i.numeratorF = i.numeratorF - num*i.denominatorF/den
+	} else if den%i.denominatorF == 0 {
+		i.numeratorF = i.numeratorF*den/i.denominatorF - num
 		i.denominatorF = den
 	} else {
-		i.numeratorF = i.numeratorF * den - num * i.denominatorF
+		i.numeratorF = i.numeratorF*den - num*i.denominatorF
 		i.denominatorF = i.denominatorF * den
 	}
 	// #if DEBUG_
@@ -314,13 +323,13 @@ func (i *Item) promoteFailed() {
 
 //Reader
 func (i *Item) addFracReader(num int64, den int64) {
-	if i.denominatorR % den == 0 {
-		i.numeratorR = i.numeratorR + num * i.denominatorR / den
-	} else if den % i.denominatorR == 0 {
-		i.numeratorR = i.numeratorR * den / i.denominatorR + num
+	if i.denominatorR%den == 0 {
+		i.numeratorR = i.numeratorR + num*i.denominatorR/den
+	} else if den%i.denominatorR == 0 {
+		i.numeratorR = i.numeratorR*den/i.denominatorR + num
 		i.denominatorR = den
 	} else {
-		i.numeratorR = i.numeratorR * den + num * i.denominatorR
+		i.numeratorR = i.numeratorR*den + num*i.denominatorR
 		i.denominatorR = i.denominatorR * den
 	}
 
@@ -328,13 +337,13 @@ func (i *Item) addFracReader(num int64, den int64) {
 }
 
 func (i *Item) subFracReader(num int64, den int64) {
-	if i.denominatorR % den == 0 {
-		i.numeratorR = i.numeratorR - num * i.denominatorR / den
-	} else if den % i.denominatorR == 0 {
-		i.denominatorR = i.numeratorR * den / i.denominatorR - num
+	if i.denominatorR%den == 0 {
+		i.numeratorR = i.numeratorR - num*i.denominatorR/den
+	} else if den%i.denominatorR == 0 {
+		i.denominatorR = i.numeratorR*den/i.denominatorR - num
 		i.denominatorR = den
 	} else {
-		i.numeratorR = i.numeratorR * den - num * i.denominatorR
+		i.numeratorR = i.numeratorR*den - num*i.denominatorR
 		i.denominatorR = i.denominatorR * den
 	}
 
@@ -349,11 +358,12 @@ func (i *Item) demoteReader() {
 }
 
 func (i *Item) promoteReader() {
-	var den= int64(math.Exp2(i.exponentR))
+	var den = int64(math.Exp2(i.exponentR))
 	// C.printf("denominator = %ld\n", den);
 	i.addFracReader(1, den)
 	i.exponentR = i.exponentR - 1
 }
+
 // End of Item struct
 
 type Block struct {
@@ -361,34 +371,35 @@ type Block struct {
 	finish int64
 }
 
-func (b *Block) setBlock(){
+func (b *Block) setBlock() {
 	b.start = 0
 	b.finish = 0
 }
+
 // End of Block struct
 
 var finalOutcome bool
-var methodCount  uint32
+var methodCount uint32
 
-func fncomp (lhs, rhs int64) bool{
+func fncomp(lhs, rhs int64) bool {
 	return lhs < rhs
 }
 
 var q queue.Queue
 var s stack.Stack
 
-var threadLists     = make([]list.List, 0, numThreads)// empty slice with capacity numThreads
-var threadListsSize = make([]atomic.Int32, 0, numThreads)    // atomic ops only
-var done            = make([]atomic.Bool, 0, numThreads)     // atomic ops only
-var barrier int32                                            // atomic int
+var threadLists = make([]list.List, 0, numThreads)        // empty slice with capacity numThreads
+var threadListsSize = make([]atomic.Int32, 0, numThreads) // atomic ops only
+var done = make([]atomic.Bool, 0, numThreads)             // atomic ops only
+var barrier int32                                         // atomic int
 
-
-func wait(){
+func wait() {
 	Atomic.AddInt32(&barrier, 1)
-	for Atomic.LoadInt32(&barrier) < numThreads {}
+	for Atomic.LoadInt32(&barrier) < numThreads {
+	}
 }
 
-var methodTime   [numThreads]int64
+var methodTime [numThreads]int64
 var overheadTime [numThreads]int64
 
 var start time.Time
@@ -427,7 +438,7 @@ func findMethodKey(m map[int]*Method, position string) (int, error) {
 	sort.Ints(keys)
 
 	begin := minOf(keys)
-	end   := maxOf(keys)
+	end := maxOf(keys)
 
 	if position == "begin" {
 		return keys[begin], nil
@@ -437,12 +448,13 @@ func findMethodKey(m map[int]*Method, position string) (int, error) {
 		return -1, fmt.Errorf("the map key could not be found")
 	}
 }
+
 //
 //func reslice(s []*Method, index int) []*Method {
 //	return append(s[:index], s[index+1:]...)
 //}
 //
-func findItemKey(m map[int]*Item, position string) (int64, error){
+func findItemKey(m map[int]*Item, position string) (int64, error) {
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, int(k))
@@ -450,7 +462,7 @@ func findItemKey(m map[int]*Item, position string) (int64, error){
 	sort.Ints(keys)
 
 	begin := minOf(keys)
-	end   := maxOf(keys)
+	end := maxOf(keys)
 
 	if position == "begin" {
 		return int64(keys[begin]), nil
@@ -460,6 +472,7 @@ func findItemKey(m map[int]*Item, position string) (int64, error){
 		return -1, fmt.Errorf("the map key could not be found")
 	}
 }
+
 //
 //func findBlockKey(m map[int64]Block, position string) (int64, error){
 //	keys := make([]int, 0)
@@ -481,7 +494,7 @@ func findItemKey(m map[int]*Item, position string) (int64, error){
 //}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack){
+func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack) {
 
 	begin, err := findMethodKey(methods, "begin")
 	if err != nil {
@@ -490,7 +503,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
 		if methods[it0].senderID == methods[it].senderID &&
-			methods[it0].requestAmnt > methods[mk].requestAmnt{
+			methods[it0].requestAmnt > methods[mk].requestAmnt {
 
 			itemItr0 := methods[it0].itemAddr
 
@@ -498,7 +511,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 				items[it].status == PRESENT &&
 				methods[it0].semantics == FIFO ||
 				methods[it0].semantics == LIFO ||
-				methods[mk].itemAddr == methods[it0].itemAddr{
+				methods[mk].itemAddr == methods[it0].itemAddr {
 
 				stackFailed.Push(itemItr0)
 			}
@@ -525,11 +538,11 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 	}
 }*/
 
-func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block){
+func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block) {
 
-	var stackConsumer  = stack.New()        // stack of map[int64]*Item
-	var stackFinishedMethods stack.Stack  // stack of map[int64]*Method
-	var stackFailed stack.Stack           // stack of map[int64]*Item
+	var stackConsumer = stack.New()      // stack of map[int64]*Item
+	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
+	var stackFailed stack.Stack          // stack of map[int64]*Item
 
 	if len(methods) != 0 {
 
@@ -545,122 +558,122 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 
 		// TODO: needed ? prob not
 		/*for ; it != len(methods) - 1; it++{
-			if methods[it].response > min{
-				break
-			}
-		 */
+		if methods[it].response > min{
+			break
+		}
+		*/
 
-			if methodCount % 5000 == 0 {
-				fmt.Printf("methodCount = %d\n", methodCount)
-			}
-			methodCount = methodCount + 1
+		if methodCount%5000 == 0 {
+			fmt.Printf("methodCount = %d\n", methodCount)
+		}
+		methodCount = methodCount + 1
 
-			itStart = it
-			resetItStart = false
-			countIterated = countIterated + 1
+		itStart = it
+		resetItStart = false
+		countIterated = countIterated + 1
 
-			itItems := methods[it].itemAddr
+		itItems := methods[it].itemAddr
 
-			// #if DEBUG_
-			/// if mapItems[itItems].status != PRESENT{
-			//  	fmt.Println("WARNING: Current item not present!")
-			//} }
+		// #if DEBUG_
+		/// if mapItems[itItems].status != PRESENT{
+		//  	fmt.Println("WARNING: Current item not present!")
+		//} }
 
-			// if mapMethods[it].types == PRODUCER{
-			// fmt.Printf("PRODUCER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
-			// }
+		// if mapMethods[it].types == PRODUCER{
+		// fmt.Printf("PRODUCER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+		// }
 
-			// else if mapMethods[it].types == CONSUMER {
-			// fmt.Printf("CONSUMER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
-			// }
-			// #endif
+		// else if mapMethods[it].types == CONSUMER {
+		// fmt.Printf("CONSUMER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+		// }
+		// #endif
 
-			if methods[it].types == PRODUCER {
-				items[itItems].producer = it
+		if methods[it].types == PRODUCER {
+			items[itItems].producer = it
 
-				if items[itItems].status == ABSENT {
+			if items[itItems].status == ABSENT {
 
-					// reset item parameters
-					items[itItems].status = PRESENT
-					items[itItems].demoteMethods = nil
-				}
-
-				items[itItems].addInt(1)
+				// reset item parameters
+				items[itItems].status = PRESENT
+				items[itItems].demoteMethods = nil
 			}
 
-			/*if methods[it].types == READER {
-				if methods[it].status == true {
-					items[itItems].demoteReader()
-				} else{
-					handleFailedReader(methods, items, it, itItems, &stackFailed)
-				}
+			items[itItems].addInt(1)
+		}
+
+		/*if methods[it].types == READER {
+			if methods[it].status == true {
+				items[itItems].demoteReader()
+			} else{
+				handleFailedReader(methods, items, it, itItems, &stackFailed)
+			}
+		}*/
+
+		if methods[it].types == CONSUMER {
+
+			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
+			it_consumer = map_consumer.find((it->second).key);
+			if(it_consumer == map_consumer.end())
+			{
+				std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
+				//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
+				map_consumer.insert(entry);
+			} else {
+				it_consumer->second = it_item_0;
 			}*/
 
-			if methods[it].types	== CONSUMER {
+			if methods[it].status == true {
 
-				/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
-				it_consumer = map_consumer.find((it->second).key);
-				if(it_consumer == map_consumer.end())
-				{
-					std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
-					//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
-					map_consumer.insert(entry);
-				} else {
-					it_consumer->second = it_item_0;
-				}*/
-
-				if methods[it].status == true {
-
-					// promote reads
-					if items[itItems].sum > 0 {
-						items[itItems].sumR = 0
-					}
-
-					items[itItems].subInt(1)
-					items[itItems].status = ABSENT
-
-					//if mapItems[itItems].sum < 0 {
-					//
-					//	for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
-					//
-					//		if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
-					//			mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
-					//			// Methods do not overlap
-					//			// fmt.Println("NOTE: Methods do not overlap")
-					//		} else {
-					//			mapItems[itItems].promote()
-					//
-					//			// need to remove from promote list
-					//			itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
-					//			var temp stack.Stack
-					//
-					//			for mapItems[itMthdItem].promoteItems.Peek() != nil{
-					//
-					//				top := mapItems[itMthdItem].promoteItems.Peek()
-					//				if top != mapMethods[it].itemKey {
-					//					temp.Push(top)
-					//				}
-					//				mapItems[itMthdItem].promoteItems.Pop()
-					//				fmt.Println("stuck here?")
-					//			}
-					//			// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
-					//
-					//			//
-					//			mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
-					//		}
-					//	}
-					//}
-					stackConsumer.Push(itItems)
-					stackFinishedMethods.Push(it)
-
-					end = len(methods) - 1
-					if items[itItems].producer != end {
-						stackFinishedMethods.Push(items[itItems].producer)
-					}
-				} else {
-					handleFailedConsumer(methods, items, it, itItems, stackFailed)
+				// promote reads
+				if items[itItems].sum > 0 {
+					items[itItems].sumR = 0
 				}
+
+				items[itItems].subInt(1)
+				items[itItems].status = ABSENT
+
+				//if mapItems[itItems].sum < 0 {
+				//
+				//	for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
+				//
+				//		if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
+				//			mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
+				//			// Methods do not overlap
+				//			// fmt.Println("NOTE: Methods do not overlap")
+				//		} else {
+				//			mapItems[itItems].promote()
+				//
+				//			// need to remove from promote list
+				//			itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
+				//			var temp stack.Stack
+				//
+				//			for mapItems[itMthdItem].promoteItems.Peek() != nil{
+				//
+				//				top := mapItems[itMthdItem].promoteItems.Peek()
+				//				if top != mapMethods[it].itemKey {
+				//					temp.Push(top)
+				//				}
+				//				mapItems[itMthdItem].promoteItems.Pop()
+				//				fmt.Println("stuck here?")
+				//			}
+				//			// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
+				//
+				//			//
+				//			mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
+				//		}
+				//	}
+				//}
+				stackConsumer.Push(itItems)
+				stackFinishedMethods.Push(it)
+
+				end = len(methods) - 1
+				if items[itItems].producer != end {
+					stackFinishedMethods.Push(items[itItems].producer)
+				}
+			} else {
+				handleFailedConsumer(methods, items, it, itItems, stackFailed)
 			}
+		}
 		//}
 		if resetItStart {
 			itStart--
@@ -730,7 +743,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 				n = -1
 			}
 
-			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumF) * n < 0 {
+			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
 				// fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumF)
@@ -752,10 +765,6 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 		}
 	}
 }
-
-
-
-
 
 func work(id int) {
 
@@ -794,7 +803,6 @@ func work(id int) {
 
 		//preFunction := time.Unix(0, end.UnixNano())
 		//preFunctionEpoch := time.Since(preFunction)
-
 
 		// Hmm, do we need .count()??
 		//invocation := pre_function_epoch.count() - start_time_epoch.count()
@@ -879,16 +887,14 @@ func verify() {
 	preVerify := time.Unix(0, end.UnixNano())
 	preVerifyEpoch := time.Since(preVerify)
 
-
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
 	mapMethods := make(map[int]*Method, 0)
-	mapBlock   := make(map[int]Block, 0)
-	mapItems    := make(map[int]*Item, 0)
-	it         := make([]int, 0, numThreads)
+	mapBlock := make(map[int]Block, 0)
+	mapItems := make(map[int]*Item, 0)
+	it := make([]int, 0, numThreads)
 	var itStart int
-
 
 	// How to??? lines 1201 - 1209
 	/*
@@ -907,7 +913,7 @@ func verify() {
 
 	var min int64
 	//var oldMin int64
-	var itCount[numThreads] int32
+	var itCount [numThreads]int32
 
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
 
@@ -939,12 +945,11 @@ func verify() {
 
 				m := threadLists[it[i]].Back().Value.(Method)
 
-
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
 					return
 				}
-				 */
+				*/
 
 				// TODO: Correctness not based on time any more, so do we still need response field?
 				/*itMethod := m.response
@@ -958,7 +963,7 @@ func verify() {
 				responseTime = m.response
 
 				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
-				 */
+				*/
 
 				itCount[i]++
 				countOverall++
@@ -975,8 +980,6 @@ func verify() {
 					var item Item
 					item.key = m.itemAddr
 
-
-
 					item.producer, err = findMethodKey(mapMethods, "end")
 
 					// How to??? line 1288
@@ -989,7 +992,7 @@ func verify() {
 			/*if responseTime < min {
 				min = responseTime
 			}
-			 */
+			*/
 		}
 
 		verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), int64(min), true, mapBlock)
@@ -1053,6 +1056,29 @@ func main() {
 
 	finalOutcome = true
 
+
+// Generating 50 random transactions
+	var hexRunes = []rune("123456789abcdef")
+	var transactionSenders = make([]rune,16)
+	var transactionReceivers = make([]rune,16)
+	var transactions [100]TransactionData
+
+	for i := 0; i < 100; i++ {
+		txnCtr.lock.Lock()
+		for j := 0; j < 16; j++ {
+			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
+			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
+		}
+		transactions[i].addrSender = string(transactionSenders)
+		transactions[i].addrReceiver = string(transactionReceivers)
+		transactions[i].amount = rand.Intn(50)
+		transactions[i].tId = txnCtr.val
+		Atomic.AddInt32(&txnCtr.val, 1)
+		txnCtr.lock.Unlock()
+	}
+
+	fmt.Print(transactions)
+
 	// std::thread t[NUM_THRDS];
 
 	start := time.Now()
@@ -1071,8 +1097,8 @@ func main() {
 		fmt.Printf("-------------Program Not Correct-------------\n")
 	}
 
-	finish      := time.Now()                            //auto finish = std::chrono::high_resolution_clock::now();
-	elapsedTime := finish.UnixNano() - start.UnixNano()  //auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
+	finish := time.Now()                                //auto finish = std::chrono::high_resolution_clock::now();
+	elapsedTime := finish.UnixNano() - start.UnixNano() //auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
 
 	var elapsedTimeDouble float64 = float64(elapsedTime) * 0.000000001
 	fmt.Printf("Total Time: %.15f seconds\n", elapsedTimeDouble)
@@ -1090,7 +1116,7 @@ func main() {
 	}
 
 	var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
-	var elapsedOverheadTimeDouble float64= elapsedOverheadTime * 0.000000001
+	var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
 	var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
 
 	fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
