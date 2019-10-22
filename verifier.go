@@ -1,4 +1,4 @@
-package main
+package verifier
 
 import (
 	"C"
@@ -54,6 +54,7 @@ type Method struct {
 	senderID        int // same as itemAddr ??
 	requestAmnt     int
 }
+
 type TransactionData struct {
 	addrSender string
 	addrReceiver string
