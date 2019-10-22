@@ -472,7 +472,11 @@ func findItemKey(m map[int]*Item, position string) (int64, error){
 // methodMapKey and itemMapKey are meant to serve in place of iterators
 func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack){
 
-	for it0 := 0; it0 != it; it0++ {
+	begin, err := findMethodKey(methods, "begin")
+	if err != nil {
+		return
+	}
+	for it0 := begin; it0 != it; it0++ {
 		// serializability
 		if methods[it0].senderID == methods[it].senderID &&
 			methods[it0].requestAmnt > methods[mk].requestAmnt{
