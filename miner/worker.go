@@ -724,6 +724,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	workerTxnsLock.Lock()
 	w.current.txs = append(w.current.txs, tx)
 	workerTxnsLock.Unlock()
+
 	workerRecieptsLock.Lock()
 	w.current.receipts = append(w.current.receipts, receipt)
 	workerRecieptsLock.Unlock()
