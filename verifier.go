@@ -392,8 +392,8 @@ var q queue.Queue
 var s stack.Stack
 
 var threadLists = make([][]Method, numThreads, numThreads)        // empty slice with capacity numThreads
-var threadListsSize = make([]atomic.Int32, 0, numThreads) // atomic ops only
-var done = make([]atomic.Bool, 0, numThreads)             // atomic ops only
+var threadListsSize = make([]atomic.Int32, numThreads, numThreads) // atomic ops only
+var done = make([]atomic.Bool, 32, numThreads)             // atomic ops only
 var barrier int32                                         // atomic int
 
 func wait() {
@@ -899,7 +899,7 @@ func verify() {
 	mapMethods := make(map[int]*Method, 0)
 	mapBlock := make(map[int]Block, 0)
 	mapItems := make(map[int]*Item, 0)
-	it := make([]int, 0, numThreads)
+	it := make([]int, numThreads, numThreads)
 	var itStart int
 
 	// How to??? lines 1201 - 1209
