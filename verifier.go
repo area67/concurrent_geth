@@ -977,7 +977,7 @@ func verify() {
 				countOverall++
 
 				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
-				itItem := m.itemAddr
+				itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
 				mapItemsEnd, err := findItemKey(mapItems, "end")
 				if err != nil {
@@ -986,14 +986,14 @@ func verify() {
 
 				if int64(itItem) == mapItemsEnd {
 					var item Item
-					item.key = m.itemAddr
+					item.key = itItem
 
 					item.producer, err = findMethodKey(mapMethods, "end")
 
 					// How to??? line 1288
 					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
-					mapItems[m.itemAddr] = &item
-					itItem = m.itemAddr
+					mapItems[item.key] = &item
+					itItem, _ = findMethodKey(mapMethods, m.itemAddr)
 				}
 			}
 
