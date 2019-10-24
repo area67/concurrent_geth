@@ -50,13 +50,14 @@ const (
 
 type Method struct {
 	id          int       // atomic var
-	itemAddr    int       // account address
+	itemAddr    string       // account address
 	itemBalance int       // account balance
 	semantics   Semantics // hardcode as SET
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
 	senderID    int // same as itemAddr ??
 	requestAmnt int
+	txnCtr      int32
 }
 
 type TransactionData struct {
@@ -75,8 +76,8 @@ func VerifierData(t *TransactionData) {
 
 }
 
-func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
-	types Types, status bool, senderID int, requestAmnt int) {
+func (m *Method) setMethod(id int, itemAddr string, itemBalance int, semantics Semantics,
+	types Types, status bool, senderID int, requestAmnt int, txnCtr int32) {
 	m.id = id
 	m.itemAddr = itemAddr
 	m.itemBalance = itemBalance
@@ -85,6 +86,7 @@ func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Sema
 	m.status = status
 	m.senderID = senderID
 	m.requestAmnt = requestAmnt
+	m.txnCtr = txnCtr
 }
 
 type Item struct {
@@ -495,7 +497,7 @@ func findItemKey(m map[int]*Item, position string) (int64, error) {
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
 func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack) {
-
+	fmt.Println("Handling failed consumer...")
 	begin, err := findMethodKey(methods, "begin")
 	if err != nil {
 		return
@@ -539,6 +541,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 }*/
 
 func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block) {
+	fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
@@ -572,7 +575,8 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 		resetItStart = false
 		countIterated = countIterated + 1
 
-		itItems := methods[it].itemAddr
+		//itItems := methods[it].itemAddr
+		itItems := int(methods[it].txnCtr)
 
 		// #if DEBUG_
 		/// if mapItems[itItems].status != PRESENT{
@@ -723,7 +727,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			if items[itVerify].sum < 0 {
 				outcome = false
 				// #if DEBUG_
-				// fmt.Printf("WARNING: Item %d, sum %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sum)
+				fmt.Printf("WARNING: Item %d, sum %.2lf\n", items[itVerify].key, items[itVerify].sum)
 				// #endif
 			}
 			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
@@ -732,7 +736,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 				outcome = false
 
 				// #if DEBUG_
-				// fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumR)
+				fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", items[itVerify].key, items[itVerify].sumR)
 				// #endif
 			}
 
@@ -746,7 +750,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
-				// fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", mapItems[itVerify].key, mapItems[itVerify].sumF)
+				fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", items[itVerify].key, items[itVerify].sumF)
 				// #endif
 			}
 
@@ -754,24 +758,25 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 		if outcome == true {
 			finalOutcome = true
 			// #if DEBUG_
-			// fmt.Println("-------------Program Correct Up To This Point-------------")
+			 fmt.Println("-------------Program Correct Up To This Point-------------")
 			// #endif
 		} else {
 			finalOutcome = false
 
 			// #if DEBUG_
-			// fmt.Println("-------------Program Not Correct-------------")
+			 fmt.Println("-------------Program Not Correct-------------")
 			// #endif
 		}
 	}
 }
 
-func work(id int) {
-
-	testSize := testSize
+func work(id int, doneWG *sync.WaitGroup) {
+	fmt.Printf("%d is working!!", id)
+	testSize := int32(1)
 	wallTime := 0.0
 	var tod syscall.Timeval
 	if err := syscall.Gettimeofday(&tod); err != nil {
+		fmt.Println("Error: get time of day")
 		return
 	}
 	wallTime += float64(tod.Sec)
@@ -792,11 +797,11 @@ func work(id int) {
 
 	wait()
 
-	for i := uint32(0); i < testSize; i++ {
+	for i := int32(0); i < testSize; i++ {
 
 		var res bool
-		itemAddr1 := 1928374
-		itemAddr2 := 5239487
+		itemAddr1 := transactions[id].addrSender
+		itemAddr2 := transactions[id].addrReceiver
 		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		//end = time.Now()
@@ -859,12 +864,12 @@ func work(id int) {
 
 		// account being added to
 		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, 2000, SET, PRODUCER, res, int(mId), 1000)
+		m1.setMethod(int(mId), itemAddr1, 2000, SET, PRODUCER, res, int(mId), 1000, transactions[id].tId)
 
 		// account being subtracted from
 		Atomic.AddInt32(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId), itemAddr2, 2000, SET, CONSUMER, res, int(mId), -1000)
+		m2.setMethod(int(mId), itemAddr2, 2000, SET, CONSUMER, res, int(mId), -1000, transactions[id].tId)
 
 		// mId += numThreads
 
@@ -874,9 +879,11 @@ func work(id int) {
 	}
 
 	done[id].Store(true)
+	doneWG.Done()
 }
 
 func verify() {
+	fmt.Println("Verifying...")
 	wait()
 
 	startTime := time.Unix(0, start.UnixNano())
@@ -927,6 +934,7 @@ func verify() {
 
 		for i := 0; i < numThreads; i++ {
 			if done[i].Load() == false {
+
 				stop = false
 			}
 
@@ -1001,15 +1009,14 @@ func verify() {
 
 	verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), math.MaxInt64, false, mapBlock)
 
-	/*
-			#if DEBUG_
-				printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", count_overall, count_iterated, map_methods.size());
-			#endif
+			//#if DEBUG_
+				fmt.Printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", countOverall, countIterated, len(mapMethods));
+			//#endif
 
-		#if DEBUG_
-			printf("All threads finished!\n");
+		//#if DEBUG_
+			fmt.Printf("All threads finished!\n");
 
-
+/*
 		itB, err := findBlockKey(mapBlock, "begin")
 		itBEnd, err2 := findBlockKey(mapBlock, "end")
 		if err != nil || err2 != nil {
@@ -1051,17 +1058,19 @@ func verify() {
 	elapsedTimeVerify = verifyFinish - verifyStart
 }
 
+var transactions [100]TransactionData
+
 func main() {
 	methodCount = 0
 
 	finalOutcome = true
 
+	var doneWG sync.WaitGroup
 
 // Generating 50 random transactions
 	var hexRunes = []rune("123456789abcdef")
 	var transactionSenders = make([]rune,16)
 	var transactionReceivers = make([]rune,16)
-	var transactions [100]TransactionData
 
 	for i := 0; i < 100; i++ {
 		txnCtr.lock.Lock()
@@ -1077,7 +1086,7 @@ func main() {
 		txnCtr.lock.Unlock()
 	}
 
-	fmt.Print(transactions)
+	//fmt.Print(transactions)
 
 	// std::thread t[NUM_THRDS];
 
@@ -1086,8 +1095,11 @@ func main() {
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		go work(i) // ???
+		doneWG.Add(1)
+		go work(i, &doneWG) // ???
 	}
+
+	doneWG.Wait()
 
 	go verify() // v = std::thread(verify) ???
 
