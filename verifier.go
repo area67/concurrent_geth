@@ -410,27 +410,19 @@ var start time.Time
 var elapsedTimeVerify int64
 
 func minOf(vars []int) int {
-	min := vars[0]
-
-	for _, i := range vars {
-		if min > i {
-			min = i
-		}
+	if len(vars) == 0 {
+		return -1
 	}
-
-	return min
+	sort.Ints(vars)
+	return vars[0]
 }
 
 func maxOf(vars []int) int {
-	max := vars[0]
-
-	for _, i := range vars {
-		if max < i {
-			max = i
-		}
+	if len(vars) == 0 {
+		return -1
 	}
-
-	return max
+	sort.Ints(vars)
+	return vars[len(vars) - 1]
 }
 
 func findMethodKey(m map[int]*Method, position string) (int, error) {
@@ -439,9 +431,12 @@ func findMethodKey(m map[int]*Method, position string) (int, error) {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
-
 	begin := minOf(keys)
 	end := maxOf(keys)
+
+	if begin < 0 || end < 0{
+		return -1, fmt.Errorf("empty map")
+	}
 
 	if position == "begin" {
 		return keys[begin], nil
@@ -466,6 +461,10 @@ func findItemKey(m map[int]*Item, position string) (int64, error) {
 
 	begin := minOf(keys)
 	end := maxOf(keys)
+
+	if begin < 0 || end < 0{
+		return -1, fmt.Errorf("empty map")
+	}
 
 	if position == "begin" {
 		return int64(keys[begin]), nil
