@@ -392,7 +392,7 @@ func fncomp(lhs, rhs int64) bool {
 var q queue.Queue
 var s stack.Stack
 
-var threadLists = make([]list.List, 0, numThreads)        // empty slice with capacity numThreads
+var threadLists = make([][]Method, 0, numThreads)        // empty slice with capacity numThreads
 var threadListsSize = make([]atomic.Int32, 0, numThreads) // atomic ops only
 var done = make([]atomic.Bool, 0, numThreads)             // atomic ops only
 var barrier int32                                         // atomic int
@@ -797,7 +797,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//
 	//var end time.Time
 
-	wait()
+	//wait()
 
 	for i := int32(0); i < testSize; i++ {
 
@@ -873,7 +873,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// mId += numThreads
 
-		threadLists[id].PushBack(m1)
+		threadLists[id] = append(threadLists[id], m1)
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 	}
@@ -884,7 +884,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 func verify() {
 	fmt.Println("Verifying...")
-	wait()
+	//wait()
 
 	startTime := time.Unix(0, start.UnixNano())
 	startTimeEpoch := time.Since(startTime)
@@ -1093,10 +1093,10 @@ func main() {
 	// std::thread t[NUM_THRDS];
 
 	start := time.Now()
-	// var wg sync.WaitGroup
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
+		threadLists[i] = make([]Method, 10)
 		doneWG.Add(1)
 		go work(i, &doneWG) // ???
 	}
