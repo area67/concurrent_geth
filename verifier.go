@@ -63,6 +63,8 @@ type Method struct {
 type TransactionData struct {
 	addrSender   string
 	addrReceiver string
+	balanceSender int
+	balanceReceiver int
 	amount       int
 	tId          int32
 }
@@ -772,7 +774,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 
 func work(id int, doneWG *sync.WaitGroup) {
 	fmt.Printf("%d is working!!", id)
-	testSize := int32(1)
+	testSize := int32(2)
 	wallTime := 0.0
 	var tod syscall.Timeval
 	if err := syscall.Gettimeofday(&tod); err != nil {
@@ -860,16 +862,14 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//response := post_function_epoch.count() - start_time_epoch.count()
 		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
-		// TODO: create 2 Methods: 1 for add, 1 for subtract ??
-
 		// account being added to
 		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, 2000, SET, PRODUCER, res, int(mId), 1000, transactions[id].tId)
+		m1.setMethod(int(mId), itemAddr1, transactions[id].balanceSender, SET, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
 
 		// account being subtracted from
 		Atomic.AddInt32(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId), itemAddr2, 2000, SET, CONSUMER, res, int(mId), -1000, transactions[id].tId)
+		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, SET, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
 		// mId += numThreads
 
@@ -1073,7 +1073,7 @@ func main() {
 	var transactionReceivers = make([]rune,16)
 
 	for i := 0; i < 100; i++ {
-		txnCtr.lock.Lock()
+		//txnCtr.lock.Lock()
 		for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
@@ -1081,9 +1081,11 @@ func main() {
 		transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
 		transactions[i].amount = rand.Intn(50)
+		transactions[i].balanceSender = rand.Intn(50)
+		transactions[i].balanceReceiver = rand.Intn(50)
 		transactions[i].tId = txnCtr.val
 		Atomic.AddInt32(&txnCtr.val, 1)
-		txnCtr.lock.Unlock()
+		//txnCtr.lock.Unlock()
 	}
 
 	//fmt.Print(transactions)
@@ -1100,7 +1102,7 @@ func main() {
 	}
 
 	doneWG.Wait()
-
+	fmt.Println("finished working!")
 	go verify() // v = std::thread(verify) ???
 
 	if finalOutcome == true {
