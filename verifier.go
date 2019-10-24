@@ -2,7 +2,6 @@ package main
 
 import (
 	"C"
-	"container/list"
 	"fmt"
 	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
@@ -392,7 +391,7 @@ func fncomp(lhs, rhs int64) bool {
 var q queue.Queue
 var s stack.Stack
 
-var threadLists = make([][]Method, 0, numThreads)        // empty slice with capacity numThreads
+var threadLists = make([][]Method, numThreads, numThreads)        // empty slice with capacity numThreads
 var threadListsSize = make([]atomic.Int32, 0, numThreads) // atomic ops only
 var done = make([]atomic.Bool, 0, numThreads)             // atomic ops only
 var barrier int32                                         // atomic int
@@ -951,7 +950,8 @@ func verify() {
 					it[i]++
 				}
 
-				m := threadLists[it[i]].Back().Value.(Method)
+				//m := threadLists[it[i]].Back().Value.(Method)
+				m := threadLists[it[i]][len(threadLists[it[i]]) - 1]
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
@@ -1096,7 +1096,7 @@ func main() {
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		threadLists[i] = make([]Method, 10)
+		threadLists[i] = make([]Method, 0)
 		doneWG.Add(1)
 		go work(i, &doneWG) // ???
 	}
