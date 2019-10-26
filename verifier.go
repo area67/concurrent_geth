@@ -604,6 +604,49 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 
 			items[itItems].addInt(1)
 		}
+		if methods[it].semantics == FIFO || methods[it].semantics == LIFO {
+			it0, err := findMethodKey(methods, "begin")
+			if  err != nil{
+				return
+			}
+			for ; it0 != it; it0++{
+				// #if linearizability
+				// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
+
+				// #elif sequential consistency
+				// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+				//     methodMap[methItr0].process == methodMap[methodMapKey].process
+
+				// #elif serializability
+				if methods[it0].senderID == methods[it].senderID &&
+					methods[it0].requestAmnt > methods[it].requestAmnt{
+					// #endif
+					itItems0 := methods[it0].itemAddr
+
+					// Demotion
+					// FIFO Semantics
+					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+						(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+
+						items[itItems0].promoteItems.Push(items[itItems].key)
+						items[itItems].demote()
+						items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
+					}
+
+					// LIFO Semantics
+					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+						(methods[it].types == PRODUCER && methods[it0].semantics == LIFO) {
+
+						items[itItems].promoteItems.Push(items[itItems].key)
+						items[itItems0].demote()
+						items[itItems0].demoteMethods = append(items[itItems0].demoteMethods, methods[it])
+					}
+				}
+			}
+		}
+
+
+
 
 		/*if methods[it].types == READER {
 			if methods[it].status == true {
@@ -727,7 +770,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			if items[itVerify].sum < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum %.2lf\n", items[itVerify].key, items[itVerify].sum)
+				fmt.Printf("WARNING: Item %d, sum %.2f\n", items[itVerify].key, items[itVerify].sum)
 				// #endif
 			}
 			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
