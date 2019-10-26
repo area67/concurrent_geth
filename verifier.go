@@ -49,12 +49,12 @@ const (
 
 type Method struct {
 	id          int       // atomic var
-	itemAddr    string       // account address
+	itemAddr    int       // account address
 	itemBalance int       // account balance
 	semantics   Semantics // hardcode as FIFO per last email
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
-	//senderID    int // same as itemAddr ??
+	senderID    int       // same as itemAddr ??
 	requestAmnt int
 	txnCtr      int32
 }
@@ -77,7 +77,7 @@ func VerifierData(t *TransactionData) {
 
 }
 
-func (m *Method) setMethod(id int, itemAddr string, itemBalance int, semantics Semantics,
+func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int, txnCtr int32) {
 	m.id = id
 	m.itemAddr = itemAddr
@@ -621,7 +621,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 					if methods[it0].itemAddr == methods[it].itemAddr &&
 						methods[it0].requestAmnt > methods[it].requestAmnt {
 						// #endif
-						itItems0, err := findItemKey(items, methods[it0].itemAddr)
+						itItems0, err := findItemKey(items, "begin")
 
 						if err != nil {
 							fmt.Print("Could not find item key in verifyCheckpoint")
@@ -640,20 +640,13 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 				}
 			}
 		}
-		if methods[it].semantics == FIFO || methods[it].semantics == LIFO {
+		if methods[it].semantics == FIFO{
 			it0, err := findMethodKey(methods, "begin")
 			if  err != nil{
 				return
 			}
 			for ; it0 != it; it0++{
-				// #if linearizability
-				// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
-
-				// #elif sequential consistency
-				// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-				//     methodMap[methItr0].process == methodMap[methodMapKey].process
-
-				// #elif serializability
+				// serializability
 				if methods[it0].senderID == methods[it].senderID &&
 					methods[it0].requestAmnt > methods[it].requestAmnt{
 					// #endif
@@ -668,29 +661,9 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 						items[itItems].demote()
 						items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
 					}
-
-					// LIFO Semantics
-					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
-						(methods[it].types == PRODUCER && methods[it0].semantics == LIFO) {
-
-						items[itItems].promoteItems.Push(items[itItems].key)
-						items[itItems0].demote()
-						items[itItems0].demoteMethods = append(items[itItems0].demoteMethods, methods[it])
-					}
 				}
 			}
 		}
-
-
-
-
-		/*if methods[it].types == READER {
-			if methods[it].status == true {
-				items[itItems].demoteReader()
-			} else{
-				handleFailedReader(methods, items, it, itItems, &stackFailed)
-			}
-		}*/
 
 		if methods[it].types == CONSUMER {
 
