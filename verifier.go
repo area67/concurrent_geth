@@ -551,14 +551,8 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 
 			if methods[it].semantics == FIFO {
 				for it0 := 0; it0 != it; it0++ {
-					// #if linearizability
-					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
 
-					// #elif sequential consistency
-					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
-					//     methodMap[methItr0].process == methodMap[methodMapKey].process
-
-					// #elif serializability
+					// serializability
 					if methods[it0].itemAddr == methods[it].itemAddr &&
 						methods[it0].requestAmnt > methods[it].requestAmnt {
 						// #endif
@@ -600,17 +594,6 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		}
 
 		if methods[it].types == CONSUMER {
-
-			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
-			it_consumer = map_consumer.find((it->second).key);
-			if(it_consumer == map_consumer.end())
-			{
-				std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
-				//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
-				map_consumer.insert(entry);
-			} else {
-				it_consumer->second = it_item_0;
-			}*/
 
 			if methods[it].status == true {
 
@@ -799,13 +782,6 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//invocation := pre_function_epoch.count() - start_time_epoch.count()
 		// invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
-		// if invocation > (math.MaxInt64 - 10000000000) {
-		//PREPROCESSOR DIRECTIVE lines 864 - 866:
-		/*
-		 * #if DEBUG_
-		 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
-		 * #endif
-		 */
 		// break
 		// }
 
@@ -832,15 +808,10 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//	q.Enqueue(itemKey)
 		//}
 
-		// line 890
-		// end = std::chrono::high_resolution_clock::now();
 		//end := time.Now().UnixNano()
 
-		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
 		//postFunction := end
 
-		// Is this right??
-		// auto post_function_epoch = post_function.time_since_epoch();
 		//postFunctionEpoch := time.Now().UnixNano() - postFunction
 
 		//response := post_function_epoch.count() - start_time_epoch.count()
