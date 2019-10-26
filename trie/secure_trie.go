@@ -113,8 +113,8 @@ func (t *SecureTrie) TryUpdate(key, value []byte) error {
 		return err
 	}
 	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)
-	secureTrieLock.Unlock()
 	return nil
 }
 
@@ -129,6 +129,8 @@ func (t *SecureTrie) Delete(key []byte) {
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryDelete(key []byte) error {
 	hk := t.hashKey(key)
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	delete(t.getSecKeyCache(), string(hk))
 	return t.trie.TryDelete(hk)
 }

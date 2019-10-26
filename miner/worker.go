@@ -115,7 +115,7 @@ const (
 )
 
 var (
-	workerRecieptsLock    = &sync.Mutex{}
+	workerRecieptsLock = &sync.Mutex{}
 	workerLogsLock = &sync.Mutex{}
 	workerTxnsLock = &sync.Mutex{}
 

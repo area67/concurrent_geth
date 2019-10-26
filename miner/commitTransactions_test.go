@@ -66,16 +66,6 @@ func init() {
 	pendingTxs = append(pendingTxs, tx1)
 	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
 	newTxs = append(newTxs, tx2)
-
-	// generate account keys and transactions
-
-
-	// need map of transactions for txn by price an nonce
-	/*
-	for each transaction{
-		txsMap[account] = append(txsMap[account],txs)
-	}
-	*/
 }
 
 
