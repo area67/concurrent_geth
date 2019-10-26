@@ -21,7 +21,7 @@ var testSize uint32
 
 type Status int
 
-var txnCtr atomicTxnCtr
+var txnCtr AtomicTxnCtr
 
 const (
 	PRESENT Status = iota
@@ -68,7 +68,7 @@ type TransactionData struct {
 	tId          int32
 }
 
-type atomicTxnCtr struct {
+type AtomicTxnCtr struct {
 	val int32
 	lock sync.Mutex
 }
@@ -76,6 +76,7 @@ type atomicTxnCtr struct {
 type ConcurrentSlice struct {
 	sync.RWMutex
 	items []interface{}
+	//items []interface{}
 }
 
 // Concurrent slice item
@@ -84,7 +85,15 @@ type ConcurrentSliceItem struct {
 	Value interface{}
 }
 
-func (cs *ConcurrentSlice) Append(item interface{}) {
+func NewConcurrentSlice() *ConcurrentSlice {
+	cs := &ConcurrentSlice{
+		items: make([]interface{}, 0),
+	}
+
+	return cs
+}
+
+func (cs *ConcurrentSlice) Append(item ConcurrentSliceItem) {
 	cs.Lock()
 	defer cs.Unlock()
 
@@ -421,8 +430,8 @@ func fncomp(lhs, rhs int64) bool {
 var q queue.Queue
 var s stack.Stack
 
-var threadLists = make([][]Method, numThreads, numThreads)        // empty slice with capacity numThreads
-var threadListsSize = make([]atomic.Int32, numThreads, numThreads) // atomic ops only
+var threadLists ConcurrentSlice // empty slice with capacity numThreads
+var threadListsSize= make([]atomic.Int32, numThreads, numThreads) // atomic ops only
 var done = make([]atomic.Bool, 32, numThreads)             // atomic ops only
 var barrier int32                                         // atomic int
 
@@ -887,7 +896,10 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// mId += numThreads
 
-		threadLists[id] = append(threadLists[id], m1)
+		//TODO: do we need to append m2 also?
+		//threadLists[id] = append(threadLists[id], m1)
+		csi := ConcurrentSliceItem{int(i), m1}
+		threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 	}
@@ -911,9 +923,12 @@ func verify() {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
-	methods := make([]*Method, 0)
+	//TODO: Either need to make these concurrent slices, or if easier just start slapping RWlocks around the use of them.
+	//methods := make([]*Method, 0)
+	methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
-	items := make([]*Item, 0)
+	//items := make([]*Item, 0)
+	items := NewConcurrentSlice()
 	it := make([]int, numThreads, numThreads)
 	var itStart int
 
@@ -966,7 +981,9 @@ func verify() {
 				}
 
 				//m := threadLists[it[i]].Back().Value.(Method)
-				m := threadLists[it[i]][len(threadLists[it[i]]) - 1]
+				//m := threadLists[it[i]][len(threadLists[it[i]]) - 1]
+				// Holy shit
+				m := threadLists.items[i].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).items[it[i]].(*ConcurrentSliceItem).Value.(*Method)
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
@@ -992,19 +1009,39 @@ func verify() {
 				countOverall++
 
 				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
-				itItem := findIndexForMethod(methods, m, "itemAddr")
+				//itItem := findIndexForMethod(methods, m, "itemAddr")
 				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
+				itItem := 0
+				for j := range items.Iter() {
+					if j.Value.(Method).itemAddr == m.itemAddr {
+						break
+					}
+					itItem++
+				}
 
-				mapItemsEnd := len(items) - 1
+				//mapItemsEnd := len(items) - 1
+				mapItemsEnd := 0
+				for range items.Iter() {
+					mapItemsEnd++
+				}
+				mapMethodsEnd := 0
+				for range items.Iter() {
+					mapMethodsEnd++
+				}
 
 				if itItem == mapItemsEnd {
 					var item Item
 
 					item.key = itItem
-					item.producer = len(methods) - 1
+					item.producer = mapMethodsEnd
 
-					items[item.key] = &item
-					itItem, _ = findMethodKey(mapMethods, m.itemAddr)
+					items.items[item.key] = &item
+					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
+					for i := range methods.Iter() {
+						if(i.Value.(Method).itemAddr == m.itemAddr) {
+							itItem = i.Index
+						}
+					}
 				}
 			}
 
@@ -1014,11 +1051,11 @@ func verify() {
 			*/
 		}
 
-		verifyCheckpoint(methods, items, itStart, uint64(countIterated), int64(min), true, blocks)
+		verifyCheckpoint(methods.items.([]*Method), items, itStart, uint64(countIterated), int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(methods, items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
+	verifyCheckpoint(methods.items.([]*Method), items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", countOverall, countIterated, len(mapMethods));
@@ -1072,9 +1109,15 @@ func verify() {
 var transactions [100]TransactionData
 
 func main() {
+	// Notes: Need to USE THE CHANNELS.
+	// will use for i:= range threadLists.iter() in place of findMethodKey.
+	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
+	// Whats the deal with the separate items slice?
 	methodCount = 0
 
 	finalOutcome = true
+
+	threadLists := NewConcurrentSlice()
 
 	var doneWG sync.WaitGroup
 
@@ -1089,7 +1132,7 @@ func main() {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
 		}
-		transactions[i].addrSender = transactionSenders
+		transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
 		transactions[i].amount = rand.Intn(50)
 		transactions[i].balanceSender = rand.Intn(50)
@@ -1107,7 +1150,9 @@ func main() {
 
 	//TODO: thread/ channel stuff
 	for i := 0; i < numThreads; i++ {
-		threadLists[i] = make([]Method, 0)
+		csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
+		//threadLists.items[i].Value = NewConcurrentSlice(int(testSize))
+		threadLists.Append(csi)
 		doneWG.Add(1)
 		go work(i, &doneWG) // ???
 	}
