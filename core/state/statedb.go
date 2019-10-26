@@ -196,18 +196,24 @@ func (self *StateDB) SubRefund(gas uint64) {
 // Exist reports whether the given account address exists in the state.
 // Notably this also returns true for suicided accounts.
 func (self *StateDB) Exist(addr common.Address) bool {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	return self.getStateObject(addr) != nil
 }
 
 // Empty returns whether the state object is either non-existent
 // or empty according to the EIP161 specification (balance = nonce = code = 0)
 func (self *StateDB) Empty(addr common.Address) bool {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	so := self.getStateObject(addr)
 	return so == nil || so.empty()
 }
 
 // Retrieve the balance from the given address or 0 if object not found
 func (self *StateDB) GetBalance(addr common.Address) *big.Int {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Balance()
@@ -216,6 +222,8 @@ func (self *StateDB) GetBalance(addr common.Address) *big.Int {
 }
 
 func (self *StateDB) GetNonce(addr common.Address) uint64 {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Nonce()
@@ -225,6 +233,8 @@ func (self *StateDB) GetNonce(addr common.Address) uint64 {
 }
 
 func (self *StateDB) GetCode(addr common.Address) []byte {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Code(self.db)
@@ -233,6 +243,8 @@ func (self *StateDB) GetCode(addr common.Address) []byte {
 }
 
 func (self *StateDB) GetCodeSize(addr common.Address) int {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject == nil {
 		return 0
@@ -248,6 +260,8 @@ func (self *StateDB) GetCodeSize(addr common.Address) int {
 }
 
 func (self *StateDB) GetCodeHash(addr common.Address) common.Hash {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject == nil {
 		return common.Hash{}
@@ -257,6 +271,8 @@ func (self *StateDB) GetCodeHash(addr common.Address) common.Hash {
 
 // GetState retrieves a value from the given account's storage trie.
 func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetState(self.db, hash)
@@ -266,6 +282,8 @@ func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash
 
 // GetProof returns the MerkleProof for a given Account
 func (self *StateDB) GetProof(a common.Address) ([][]byte, error) {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	var proof proofList
 	err := self.trie.Prove(crypto.Keccak256(a.Bytes()), 0, &proof)
 	return [][]byte(proof), err
@@ -273,6 +291,8 @@ func (self *StateDB) GetProof(a common.Address) ([][]byte, error) {
 
 // GetProof returns the StorageProof for given key
 func (self *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, error) {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	var proof proofList
 	trie := self.StorageTrie(a)
 	if trie == nil {
@@ -284,6 +304,8 @@ func (self *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byt
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
 func (self *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetCommittedState(self.db, hash)
@@ -589,6 +611,9 @@ func (self *StateDB) GetRefund() uint64 {
 // Finalise finalises the state by removing the self destructed objects
 // and clears the journal as well as the refunds.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+	stateObjectsLock.Lock()
+	defer stateObjectsLock.Unlock()
+
 	for addr := range s.journal.dirties {
 		stateObject, exist := s.stateObjects[addr]
 		if !exist {
@@ -602,9 +627,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 		}
 
 		if stateObject.suicided || (deleteEmptyObjects && stateObject.empty()) {
-			stateObjectsLock.Lock()
 			s.deleteStateObject(stateObject)
-			stateObjectsLock.Unlock()
 		} else {
 			stateObject.updateRoot(s.db)
 			s.updateStateObject(stateObject)

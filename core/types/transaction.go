@@ -444,12 +444,14 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
 		// fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 
-
 	} else {
 		//heap.Remove(&t.heads, index)
 		t.Remove(sender)
 
 	}
+
+	// if (tx == 0)
+	// actualtxs ;= txs.(transactions)
 
 }
 
