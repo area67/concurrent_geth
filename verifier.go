@@ -51,10 +51,10 @@ type Method struct {
 	id          int       // atomic var
 	itemAddr    string       // account address
 	itemBalance int       // account balance
-	semantics   Semantics // hardcode as SET
+	semantics   Semantics // hardcode as FIFO per last email
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
-	senderID    int // same as itemAddr ??
+	//senderID    int // same as itemAddr ??
 	requestAmnt int
 	txnCtr      int32
 }
@@ -85,7 +85,7 @@ func (m *Method) setMethod(id int, itemAddr string, itemBalance int, semantics S
 	m.semantics = semantics
 	m.types = types
 	m.status = status
-	m.senderID = senderID
+	//m.senderID = senderID
 	m.requestAmnt = requestAmnt
 	m.txnCtr = txnCtr
 }
@@ -504,7 +504,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 	}
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
-		if methods[it0].senderID == methods[it].senderID &&
+		if methods[it0].itemAddr == methods[it].itemAddr &&
 			methods[it0].requestAmnt > methods[mk].requestAmnt {
 
 			itemItr0 := methods[it0].itemAddr
@@ -603,6 +603,42 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			}
 
 			items[itItems].addInt(1)
+
+			if methods[it].semantics == FIFO {
+				it0, err := findMethodKey(methods, "begin")
+				if err != nil {
+					return
+				}
+				for ; it0 != it; it0++ {
+					// #if linearizability
+					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
+
+					// #elif sequential consistency
+					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation &&
+					//     methodMap[methItr0].process == methodMap[methodMapKey].process
+
+					// #elif serializability
+					if methods[it0].itemAddr == methods[it].itemAddr &&
+						methods[it0].requestAmnt > methods[it].requestAmnt {
+						// #endif
+						itItems0, err := findItemKey(items, methods[it0].itemAddr)
+
+						if err != nil {
+							fmt.Print("Could not find item key in verifyCheckpoint")
+						}
+
+						// Demotion
+						// FIFO Semantics
+						if (methods[it0].types == PRODUCER && items[int(itItems0)].status == PRESENT) &&
+							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+
+							items[int(itItems0)].promoteItems.Push(items[itItems].key)
+							items[itItems].demote()
+							items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
+						}
+					}
+				}
+			}
 		}
 		if methods[it].semantics == FIFO || methods[it].semantics == LIFO {
 			it0, err := findMethodKey(methods, "begin")
@@ -905,12 +941,12 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// account being added to
 		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, transactions[id].balanceSender, SET, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
+		m1.setMethod(int(mId), itemAddr1, transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
 
 		// account being subtracted from
 		Atomic.AddInt32(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, SET, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
+		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
 		// mId += numThreads
 
