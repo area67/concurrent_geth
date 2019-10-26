@@ -18,9 +18,15 @@ package trie
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+)
+
+// Try and remove the need for this lock
+var (
+	secureTrieLock = &sync.Mutex{}
 )
 
 // SecureTrie wraps a trie with key hashing. In a secure trie, all
@@ -106,7 +112,9 @@ func (t *SecureTrie) TryUpdate(key, value []byte) error {
 	if err != nil {
 		return err
 	}
+	secureTrieLock.Lock()
 	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)
+	secureTrieLock.Unlock()
 	return nil
 }
 
@@ -128,6 +136,8 @@ func (t *SecureTrie) TryDelete(key []byte) error {
 // GetKey returns the sha3 preimage of a hashed key that was
 // previously used to store a value.
 func (t *SecureTrie) GetKey(shaKey []byte) []byte {
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	if key, ok := t.getSecKeyCache()[string(shaKey)]; ok {
 		return key
 	}

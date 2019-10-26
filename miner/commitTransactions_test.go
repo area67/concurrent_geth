@@ -9,8 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"testing"
@@ -24,6 +26,7 @@ var(
 	keys = make([]*ecdsa.PrivateKey,numAccounts)
 	addresses = make([]common.Address,numAccounts)
 	initBalance = big.NewInt(100000000000) // inital balance for all accounts
+	allTxs []*types.Transaction
 	)
 
 func init() {
@@ -41,8 +44,6 @@ func init() {
 	for i := 0; i<numAccounts; i++{
 		keys[i],_ = crypto.GenerateKey()
 		addresses[i] = crypto.PubkeyToAddress(keys[i].PublicKey)
-
-		fmt.Println("")
 	}
 
 	//nonce := uint64(0)
@@ -53,9 +54,12 @@ func init() {
 			t , _ := types.SignTx(types.NewTransaction(uint64(i), addresses[recipientIndex], big.NewInt(1), params.TxGas, nil, nil), types.HomesteadSigner{}, keys[a])
 			//nonce++
 			txs = append(txs, t )
+			allTxs = append(allTxs, t )
+			fmt.Println()
 		}
 		txsMap[addresses[a]] = txs
 	}
+	fmt.Println(len(allTxs))
 
 
 	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
@@ -75,6 +79,79 @@ func init() {
 }
 
 
+func newConcurrentTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
+	var (
+		db    = ethdb.NewMemDatabase()
+		gspec = core.Genesis{
+			Config: chainConfig,
+			Alloc:  core.GenesisAlloc{
+						testBankAddress: {Balance: testBankFunds},
+						addresses[0]: {Balance: initBalance},
+						addresses[1]: {Balance: initBalance},
+						addresses[2]: {Balance: initBalance},
+						addresses[3]: {Balance: initBalance},
+						addresses[4]: {Balance: initBalance},
+						addresses[5]: {Balance: initBalance},
+						addresses[6]: {Balance: initBalance},
+						addresses[7]: {Balance: initBalance},
+						addresses[8]: {Balance: initBalance},
+						addresses[9]: {Balance: initBalance},
+						addresses[10]: {Balance: initBalance},
+						addresses[11]: {Balance: initBalance},
+						addresses[12]: {Balance: initBalance},
+						addresses[13]: {Balance: initBalance},
+						addresses[14]: {Balance: initBalance},
+				},
+		}
+	)
+
+	switch engine.(type) {
+	case *clique.Clique:
+		gspec.ExtraData = make([]byte, 32+common.AddressLength+65)
+		copy(gspec.ExtraData[32:], testBankAddress[:])
+	case *ethash.Ethash:
+	default:
+		t.Fatalf("unexpected consensus engine type: %T", engine)
+	}
+	genesis := gspec.MustCommit(db)
+
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
+
+	// Generate a small n-block chain and an uncle block for it
+	if n > 0 {
+		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
+			gen.SetCoinbase(testBankAddress)
+		})
+		if _, err := chain.InsertChain(blocks); err != nil {
+			t.Fatalf("failed to insert origin chain: %v", err)
+		}
+	}
+	parent := genesis
+	if n > 0 {
+		parent = chain.GetBlockByHash(chain.CurrentBlock().ParentHash())
+	}
+	blocks, _ := core.GenerateChain(chainConfig, parent, engine, db, 1, func(i int, gen *core.BlockGen) {
+		gen.SetCoinbase(testUserAddress)
+	})
+
+	return &testWorkerBackend{
+		db:         db,
+		chain:      chain,
+		txPool:     txpool,
+		uncleBlock: blocks[0],
+	}
+}
+
+func newConcurrentTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
+	backend := newConcurrentTestWorkerBackend(t, chainConfig, engine, blocks)
+	backend.txPool.AddLocals(allTxs)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil)
+	w.setEtherbase(testBankAddress)
+	return w, backend
+}
+
+
 func TestEmptyWorkEthashConcurrent(t *testing.T) {
 	testEmptyWorkConcurrent(t, ethashChainConfig, ethash.NewFaker())
 }
@@ -85,7 +162,7 @@ func TestEmptyWorkCliqueConcurrent(t *testing.T) {
 func testEmptyWorkConcurrent(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	w, _ := newConcurrentTestWorker(t, chainConfig, engine, 0)
 	defer w.close()
 
 	var (
@@ -141,13 +218,13 @@ func TestCommitTransactionsPerformance(t *testing.T){
 
 func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine){
 	// need worker
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	w, _ := newConcurrentTestWorker(t, chainConfig, engine, 0)
 	defer w.close()
 
 	var (
 		taskCh    = make(chan struct{}, 2)
 		taskIndex int
-		interrupt int32 = 0
+		//interrupt int32 = 0
 	)
 
 	checkEqual := func(t *testing.T, task *task, index int) {
@@ -172,7 +249,7 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 		}
 	}
 	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 	}
 
 	// Ensure worker has finished initialization
@@ -185,11 +262,19 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 
 	w.start()
 
+
+	for i := 0; i < 2; i += 1 {
+		select {
+		case <-taskCh:
+		case <-time.NewTimer(4 * time.Second).C:
+			t.Error("new task timeout")
+		}
+	}
 	//tem := w.current
 	//print(tem)
-	testTxs:=types.NewTransactionsByPriceAndNonce(w.current.signer, txsMap)
+	//testTxs:=types.NewTransactionsByPriceAndNonce(w.current.signer, txsMap)
 
 	// start time
-	w.commitTransactions(testTxs, w.coinbase, &interrupt)
+	//w.commitTransactions(testTxs, w.coinbase, &interrupt)
 	// end time
 }
