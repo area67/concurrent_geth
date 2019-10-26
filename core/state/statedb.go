@@ -420,8 +420,8 @@ func (self *StateDB) deleteStateObject(stateObject *stateObject) {
 // Retrieve a state object given by the address. Returns nil if not found.
 func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObject) {
 	// Prefer 'live' objects.
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	// stateObjectsLock.Lock()
+	// defer stateObjectsLock.Unlock()
 
 	if obj := self.stateObjects[addr]; obj != nil {
 		if obj.deleted {
