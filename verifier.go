@@ -425,26 +425,15 @@ func maxOf(vars []int) int {
 	return vars[len(vars) - 1]
 }
 
-func findMethodKey(m map[int]*Method, position string) (int, error) {
-	keys := make([]int, 0)
-	for k := range m {
-		keys = append(keys, k)
+func findIndexForMethod(methods []*Method, method Method, field string) int {
+	if field == "itemAddr" {
+		for i, m := range methods {
+			if m.itemAddr == method.itemAddr{
+				return i
+			}
+		}
 	}
-	sort.Ints(keys)
-	begin := minOf(keys)
-	end := maxOf(keys)
-
-	if begin < 0 || end < 0{
-		return -1, fmt.Errorf("empty map")
-	}
-
-	if position == "begin" {
-		return keys[begin], nil
-	} else if position == "end" {
-		return keys[end], nil
-	} else {
-		return -1, fmt.Errorf("the map key could not be found")
-	}
+	return -1
 }
 
 //
@@ -452,48 +441,7 @@ func findMethodKey(m map[int]*Method, position string) (int, error) {
 //	return append(s[:index], s[index+1:]...)
 //}
 //
-func findItemKey(m map[string]*Item, position string) (string, error) {
-	keys := make([]string, 0)
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 
-	begin := keys[0]
-	end := keys[0]
-
-	if begin == "" || end == ""{
-		return "", fmt.Errorf("empty map")
-	}
-
-	if position == "begin" {
-		return begin, nil
-	} else if position == "end" {
-		return end, nil
-	} else {
-		return "", fmt.Errorf("the map key could not be found")
-	}
-}
-
-//
-//func findBlockKey(m map[int64]Block, position string) (int64, error){
-//	keys := make([]int, 0)
-//	for k := range m {
-//		keys = append(keys, int(k))
-//	}
-//	sort.Ints(keys)
-//
-//	begin := minOf(keys)
-//	end   := maxOf(keys)
-//
-//	if position == "begin" {
-//		return int64(keys[begin]), nil
-//	} else if position == "end" {
-//		return int64(keys[end]), nil
-//	} else {
-//		return -1, fmt.Errorf("the map key could not be found")
-//	}
-//}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
 func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stackFailed stack.Stack) {
@@ -537,7 +485,7 @@ func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stac
 	}
 }*/
 
-func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block) {
+func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -933,9 +881,9 @@ func verify() {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
-	mapMethods := make([]*Method, 0)
-	mapBlock := make([]Block, 0)
-	mapItems := make([]*Item, 0)
+	methods := make([]*Method, 0)
+	blocks := make([]Block, 0)
+	items := make([]*Item, 0)
 	it := make([]int, numThreads, numThreads)
 	var itStart int
 
@@ -1014,26 +962,18 @@ func verify() {
 				countOverall++
 
 				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
-				var itItem int
-				for i, method := range mapMethods {
-					if method.itemAddr == m.itemAddr{
-						itItem = i
-						break
-					}
-				}
+				itItem := findIndexForMethod(methods, m, "itemAddr")
 				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
-				mapItemsEnd := len(mapItems) - 1
+				mapItemsEnd := len(items) - 1
 
 				if itItem == mapItemsEnd {
 					var item Item
 
 					item.key = itItem
-					item.producer = len(mapMethods) - 1
+					item.producer = len(methods) - 1
 
-					// How to??? line 1288
-					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
-					mapItems[item.key] = &item
+					items[item.key] = &item
 					itItem, _ = findMethodKey(mapMethods, m.itemAddr)
 				}
 			}
@@ -1044,11 +984,11 @@ func verify() {
 			*/
 		}
 
-		verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), int64(min), true, mapBlock)
+		verifyCheckpoint(methods, items, itStart, uint64(countIterated), int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(mapMethods, mapItems, itStart, uint64(countIterated), math.MaxInt64, false, mapBlock)
+	verifyCheckpoint(methods, items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", countOverall, countIterated, len(mapMethods));
