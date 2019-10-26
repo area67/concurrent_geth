@@ -80,28 +80,22 @@ func init() {
 
 
 func newConcurrentTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
+
+	var genesisAccount core.GenesisAccount
+
+	genesisAccount.Balance = initBalance
+
+	initMap := make(map[common.Address] core.GenesisAccount)
+
+	for a := range addresses{
+		initMap[addresses[a]] = genesisAccount
+	}
+
 	var (
 		db    = ethdb.NewMemDatabase()
 		gspec = core.Genesis{
 			Config: chainConfig,
-			Alloc:  core.GenesisAlloc{
-						testBankAddress: {Balance: testBankFunds},
-						addresses[0]: {Balance: initBalance},
-						addresses[1]: {Balance: initBalance},
-						addresses[2]: {Balance: initBalance},
-						addresses[3]: {Balance: initBalance},
-						addresses[4]: {Balance: initBalance},
-						addresses[5]: {Balance: initBalance},
-						addresses[6]: {Balance: initBalance},
-						addresses[7]: {Balance: initBalance},
-						addresses[8]: {Balance: initBalance},
-						addresses[9]: {Balance: initBalance},
-						addresses[10]: {Balance: initBalance},
-						addresses[11]: {Balance: initBalance},
-						addresses[12]: {Balance: initBalance},
-						addresses[13]: {Balance: initBalance},
-						addresses[14]: {Balance: initBalance},
-				},
+			Alloc:  initMap,
 		}
 	)
 
