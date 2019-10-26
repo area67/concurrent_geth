@@ -49,7 +49,7 @@ const (
 
 type Method struct {
 	id          int       // atomic var
-	itemAddr    int       // account address
+	itemAddr    string       // account address
 	itemBalance int       // account balance
 	semantics   Semantics // hardcode as FIFO per last email
 	types       Types     // producing/consuming  adding/subtracting
@@ -77,7 +77,7 @@ func VerifierData(t *TransactionData) {
 
 }
 
-func (m *Method) setMethod(id int, itemAddr int, itemBalance int, semantics Semantics,
+func (m *Method) setMethod(id int, itemAddr string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int, txnCtr int32) {
 	m.id = id
 	m.itemAddr = itemAddr
@@ -452,26 +452,26 @@ func findMethodKey(m map[int]*Method, position string) (int, error) {
 //	return append(s[:index], s[index+1:]...)
 //}
 //
-func findItemKey(m map[int]*Item, position string) (int64, error) {
-	keys := make([]int, 0)
+func findItemKey(m map[string]*Item, position string) (string, error) {
+	keys := make([]string, 0)
 	for k := range m {
-		keys = append(keys, int(k))
+		keys = append(keys, k)
 	}
-	sort.Ints(keys)
+	sort.Strings(keys)
 
-	begin := minOf(keys)
-	end := maxOf(keys)
+	begin := keys[0]
+	end := keys[0]
 
-	if begin < 0 || end < 0{
-		return -1, fmt.Errorf("empty map")
+	if begin == "" || end == ""{
+		return "", fmt.Errorf("empty map")
 	}
 
 	if position == "begin" {
-		return int64(keys[begin]), nil
+		return begin, nil
 	} else if position == "end" {
-		return int64(keys[end]), nil
+		return end, nil
 	} else {
-		return -1, fmt.Errorf("the map key could not be found")
+		return "", fmt.Errorf("the map key could not be found")
 	}
 }
 
@@ -496,12 +496,9 @@ func findItemKey(m map[int]*Item, position string) (int64, error) {
 //}
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, it int, stackFailed stack.Stack) {
+func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stackFailed stack.Stack) {
 	fmt.Println("Handling failed consumer...")
-	begin, err := findMethodKey(methods, "begin")
-	if err != nil {
-		return
-	}
+	begin := 0
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
 		if methods[it0].itemAddr == methods[it].itemAddr &&
@@ -540,7 +537,7 @@ func handleFailedConsumer(methods map[int]*Method, items map[int]*Item, mk int, 
 	}
 }*/
 
-func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block) {
+func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks map[int]Block) {
 	fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -556,7 +553,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			resetItStart = false
 		} else if it != end {
 			itStart = itStart + 1
-			it = int(itStart)
+			it = itStart
 		}
 
 		// TODO: needed ? prob not
@@ -575,8 +572,8 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 		resetItStart = false
 		countIterated = countIterated + 1
 
-		//itItems := methods[it].itemAddr
-		itItems := int(methods[it].txnCtr)
+		itItems := it //methods[it].itemAddr
+		//itItems := int(methods[it].txnCtr)
 
 		// #if DEBUG_
 		/// if mapItems[itItems].status != PRESENT{
@@ -605,11 +602,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			items[itItems].addInt(1)
 
 			if methods[it].semantics == FIFO {
-				it0, err := findMethodKey(methods, "begin")
-				if err != nil {
-					return
-				}
-				for ; it0 != it; it0++ {
+				for it0 := 0; it0 != it; it0++ {
 					// #if linearizability
 					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
 
@@ -621,18 +614,14 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 					if methods[it0].itemAddr == methods[it].itemAddr &&
 						methods[it0].requestAmnt > methods[it].requestAmnt {
 						// #endif
-						itItems0, err := findItemKey(items, "begin")
-
-						if err != nil {
-							fmt.Print("Could not find item key in verifyCheckpoint")
-						}
+						itItems0 := 0
 
 						// Demotion
 						// FIFO Semantics
 						if (methods[it0].types == PRODUCER && items[int(itItems0)].status == PRESENT) &&
 							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
-							items[int(itItems0)].promoteItems.Push(items[itItems].key)
+							items[itItems].promoteItems.Push(items[itItems].key)
 							items[itItems].demote()
 							items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
 						}
@@ -640,17 +629,14 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 				}
 			}
 		}
-		if methods[it].semantics == FIFO{
-			it0, err := findMethodKey(methods, "begin")
-			if  err != nil{
-				return
-			}
-			for ; it0 != it; it0++{
+		if methods[it].semantics == FIFO {
+
+			for it0 := 0; it0 != it; it0++{
 				// serializability
 				if methods[it0].senderID == methods[it].senderID &&
 					methods[it0].requestAmnt > methods[it].requestAmnt{
 					// #endif
-					itItems0 := methods[it0].itemAddr
+					itItems0 := it0 //methods[it0].itemAddr
 
 					// Demotion
 					// FIFO Semantics
@@ -788,7 +774,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 				outcome = false
 
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_r %.2lf\n", items[itVerify].key, items[itVerify].sumR)
+				fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items[itVerify].key, items[itVerify].sumR)
 				// #endif
 			}
 
@@ -802,7 +788,7 @@ func verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart int,
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_f %.2lf\n", items[itVerify].key, items[itVerify].sumF)
+				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].key, items[itVerify].sumF)
 				// #endif
 			}
 
@@ -947,9 +933,9 @@ func verify() {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
-	mapMethods := make(map[int]*Method, 0)
-	mapBlock := make(map[int]Block, 0)
-	mapItems := make(map[int]*Item, 0)
+	mapMethods := make([]*Method, 0)
+	mapBlock := make([]Block, 0)
+	mapItems := make([]*Item, 0)
 	it := make([]int, numThreads, numThreads)
 	var itStart int
 
@@ -1028,18 +1014,22 @@ func verify() {
 				countOverall++
 
 				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
-				itItem, _ := findMethodKey(mapMethods, m.itemAddr)
-
-				mapItemsEnd, err := findItemKey(mapItems, "end")
-				if err != nil {
-					return
+				var itItem int
+				for i, method := range mapMethods {
+					if method.itemAddr == m.itemAddr{
+						itItem = i
+						break
+					}
 				}
+				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
-				if int64(itItem) == mapItemsEnd {
+				mapItemsEnd := len(mapItems) - 1
+
+				if itItem == mapItemsEnd {
 					var item Item
-					item.key = itItem
 
-					item.producer, err = findMethodKey(mapMethods, "end")
+					item.key = itItem
+					item.producer = len(mapMethods) - 1
 
 					// How to??? line 1288
 					// map_items.insert(std::pair<int,Item>(m.item_key,item) );
@@ -1119,7 +1109,7 @@ func main() {
 	var doneWG sync.WaitGroup
 
 // Generating 50 random transactions
-	var hexRunes = []rune("123456789abcdef")
+	var hexRunes = []rune("0123456789abcdef")
 	var transactionSenders = make([]rune,16)
 	var transactionReceivers = make([]rune,16)
 
@@ -1129,7 +1119,7 @@ func main() {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
 		}
-		transactions[i].addrSender = string(transactionSenders)
+		transactions[i].addrSender = transactionSenders
 		transactions[i].addrReceiver = string(transactionReceivers)
 		transactions[i].amount = rand.Intn(50)
 		transactions[i].balanceSender = rand.Intn(50)
