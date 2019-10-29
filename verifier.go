@@ -792,8 +792,8 @@ func verifyCheckpoint(methods []interface{}, items []interface{}, itStart int, c
 }
 
 func work(id int, doneWG *sync.WaitGroup) {
-	fmt.Printf("%d is working!!", id)
-	testSize := int32(2)
+	//fmt.Printf("%d is working!!", id)
+	testSize := int32(1)
 	wallTime := 0.0
 	var tod syscall.Timeval
 	if err := syscall.Gettimeofday(&tod); err != nil {
@@ -972,7 +972,17 @@ func verify() {
 				//m := threadLists[it[i]].Back().Value.(Method)
 				//m := threadLists[it[i]][len(threadLists[it[i]]) - 1]
 				// Holy shit
-				m := threadLists.items[i].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).items[it[i]].(*ConcurrentSliceItem).Value.(*Method)
+				//m := threadLists.items[i].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).items[it[i]].(*ConcurrentSliceItem).Value.(*Method)
+				var m *Method = nil
+				for ti := range threadLists.Iter() {
+					if ti.Index == i {
+						for tj := range ti.Value.(*ConcurrentSlice).Iter() {
+							if tj.Index == it[i] {
+								m = tj.Value.(*Method)
+							}
+						}
+					}
+				}
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
@@ -1116,7 +1126,6 @@ func main() {
 	var transactionReceivers = make([]rune,16)
 
 	for i := 0; i < 100; i++ {
-		//txnCtr.lock.Lock()
 		for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
@@ -1128,36 +1137,17 @@ func main() {
 		transactions[i].balanceReceiver = rand.Intn(50)
 		transactions[i].tId = txnCtr.val
 		Atomic.AddInt32(&txnCtr.val, 1)
-		//txnCtr.lock.Unlock()
 	}
-
-	//fmt.Print(transactions)
-
-	// std::thread t[NUM_THRDS];
 
 	start := time.Now()
 
-	//initiate threadLists
-	/*
-	threadLists.Lock()
-	for i := 0; i < numThreads; i++ {
-		csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
-		threadLists.Append(csi)
-	}
-	threadLists.Unlock()
-
-	 */
-
 	//TODO: thread/ channel stuff
-	//threadLists.RLock()
 	for i := 0; i < numThreads; i++ {
 		csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
-		//threadLists.items[i].Value = NewConcurrentSlice(int(testSize))
 		threadLists.Append(csi)
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
-	//threadLists.RUnlock()
 
 	doneWG.Wait()
 	fmt.Println("finished working!")
