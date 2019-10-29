@@ -233,7 +233,7 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 		}
 	}
 	w.fullTaskHook = func() {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Ensure worker has finished initialization
@@ -245,8 +245,6 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 	}
 
 	w.start()
-
-
 	for i := 0; i < 2; i += 1 {
 		select {
 		case <-taskCh:

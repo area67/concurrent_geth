@@ -43,8 +43,8 @@ var (
 
 	// emptyCode is the known hash of the empty EVM bytecode.
 	emptyCode = crypto.Keccak256Hash(nil)
-	stateObjectsLock =  &sync.Mutex{}
-	stateObjectsDirtyLock = &sync.Mutex{}
+	//stateObjectsLock =  &sync.Mutex{}
+	//stateObjectsDirtyLock = &sync.Mutex{}
 )
 
 type proofList [][]byte
@@ -64,6 +64,7 @@ type StateDB struct {
 	trie Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
+	stateObjectsLock        sync.Mutex
 	stateObjects      		map[common.Address]*stateObject
 	stateObjectsDirty 		map[common.Address]struct{}
 
@@ -196,24 +197,24 @@ func (self *StateDB) SubRefund(gas uint64) {
 // Exist reports whether the given account address exists in the state.
 // Notably this also returns true for suicided accounts.
 func (self *StateDB) Exist(addr common.Address) bool {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	return self.getStateObject(addr) != nil
 }
 
 // Empty returns whether the state object is either non-existent
 // or empty according to the EIP161 specification (balance = nonce = code = 0)
 func (self *StateDB) Empty(addr common.Address) bool {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	so := self.getStateObject(addr)
 	return so == nil || so.empty()
 }
 
 // Retrieve the balance from the given address or 0 if object not found
 func (self *StateDB) GetBalance(addr common.Address) *big.Int {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Balance()
@@ -222,8 +223,8 @@ func (self *StateDB) GetBalance(addr common.Address) *big.Int {
 }
 
 func (self *StateDB) GetNonce(addr common.Address) uint64 {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Nonce()
@@ -233,8 +234,8 @@ func (self *StateDB) GetNonce(addr common.Address) uint64 {
 }
 
 func (self *StateDB) GetCode(addr common.Address) []byte {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Code(self.db)
@@ -243,8 +244,8 @@ func (self *StateDB) GetCode(addr common.Address) []byte {
 }
 
 func (self *StateDB) GetCodeSize(addr common.Address) int {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject == nil {
 		return 0
@@ -260,8 +261,8 @@ func (self *StateDB) GetCodeSize(addr common.Address) int {
 }
 
 func (self *StateDB) GetCodeHash(addr common.Address) common.Hash {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject == nil {
 		return common.Hash{}
@@ -271,8 +272,8 @@ func (self *StateDB) GetCodeHash(addr common.Address) common.Hash {
 
 // GetState retrieves a value from the given account's storage trie.
 func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetState(self.db, hash)
@@ -282,8 +283,8 @@ func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash
 
 // GetProof returns the MerkleProof for a given Account
 func (self *StateDB) GetProof(a common.Address) ([][]byte, error) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	var proof proofList
 	err := self.trie.Prove(crypto.Keccak256(a.Bytes()), 0, &proof)
 	return [][]byte(proof), err
@@ -291,8 +292,8 @@ func (self *StateDB) GetProof(a common.Address) ([][]byte, error) {
 
 // GetProof returns the StorageProof for given key
 func (self *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, error) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	var proof proofList
 	trie := self.StorageTrie(a)
 	if trie == nil {
@@ -304,8 +305,8 @@ func (self *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byt
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
 func (self *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetCommittedState(self.db, hash)
@@ -343,8 +344,8 @@ func (self *StateDB) HasSuicided(addr common.Address) bool {
 
 // AddBalance adds amount to the account associated with addr.
 func (self *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
@@ -353,8 +354,8 @@ func (self *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 
 // SubBalance subtracts amount from the account associated with addr.
 func (self *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalance(amount)
@@ -362,8 +363,8 @@ func (self *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 }
 
 func (self *StateDB) SetBalance(addr common.Address, amount *big.Int) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalance(amount)
@@ -371,8 +372,8 @@ func (self *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 }
 
 func (self *StateDB) SetNonce(addr common.Address, nonce uint64) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
@@ -380,8 +381,8 @@ func (self *StateDB) SetNonce(addr common.Address, nonce uint64) {
 }
 
 func (self *StateDB) SetCode(addr common.Address, code []byte) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetCode(crypto.Keccak256Hash(code), code)
@@ -389,8 +390,8 @@ func (self *StateDB) SetCode(addr common.Address, code []byte) {
 }
 
 func (self *StateDB) SetState(addr common.Address, key, value common.Hash) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetState(self.db, key, value)
@@ -611,8 +612,8 @@ func (self *StateDB) GetRefund() uint64 {
 // Finalise finalises the state by removing the self destructed objects
 // and clears the journal as well as the refunds.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
-	stateObjectsLock.Lock()
-	defer stateObjectsLock.Unlock()
+	s.stateObjectsLock.Lock()
+	defer s.stateObjectsLock.Unlock()
 
 	for addr := range s.journal.dirties {
 		stateObject, exist := s.stateObjects[addr]
@@ -632,9 +633,9 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			stateObject.updateRoot(s.db)
 			s.updateStateObject(stateObject)
 		}
-		stateObjectsDirtyLock.Lock()
+		//stateObjectsDirtyLock.Lock()
 		s.stateObjectsDirty[addr] = struct{}{}
-		stateObjectsDirtyLock.Unlock()
+		//stateObjectsDirtyLock.Unlock()
 	}
 	// Invalidate journal because reverting across transactions is not allowed.
 	s.clearJournalAndRefund()
