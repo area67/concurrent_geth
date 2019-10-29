@@ -21,8 +21,8 @@ import (
 
 var(
 	txsMap = make(map[common.Address]types.Transactions)
-	numAccounts = 5
-	txsPerAccount = 3
+	numAccounts = 10
+	txsPerAccount = 5
 	keys = make([]*ecdsa.PrivateKey,numAccounts)
 	addresses = make([]common.Address,numAccounts)
 	initBalance = big.NewInt(100000000000) // inital balance for all accounts
@@ -55,7 +55,7 @@ func init() {
 			//nonce++
 			txs = append(txs, t )
 			allTxs = append(allTxs, t )
-			fmt.Println()
+			//fmt.Println()
 		}
 		txsMap[addresses[a]] = txs
 	}

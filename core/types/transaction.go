@@ -439,9 +439,10 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
 		// fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
 		// relinquish control of sender so other threads my pick it up
+		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
 		t.accountLock.Del(sender.String())
 
-		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
+
 		// fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 
 	} else {

@@ -898,7 +898,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					workerLogsLock.Unlock()
 					atomic.AddInt32(&w.current.tcount, 1)
 					txs.Shift(from)
-					fmt.Printf("Txn from sender %s sucessfull\n", from.String())
+					fmt.Printf("Txn from sender %s successful\n", from.String())
 				default:
 					// Strange error, discard the transaction and get the next in line (note, the
 					// nonce-too-high clause will prevent us from executing in vain).
@@ -916,6 +916,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			return returnValue
 		}
 	}
+
+
+	print("Out of commit loop\n")
 
 	for i := 0; i < common.NumThreads; i++ {
 		<-sem
