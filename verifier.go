@@ -1050,10 +1050,15 @@ func verify() {
 					item.key = itItem
 					item.producer = mapMethodsEnd
 
-					items.items[item.key] = &item
+					//items.items[item.key] = &item
+					for i := range items.Iter() {
+						if i.Index == item.key {
+							items.Append(ConcurrentSliceItem{item.key, &item})
+						}
+					}
 					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
 					for i := range methods.Iter() {
-						if(i.Value.(Method).itemAddr == m.itemAddr) {
+						if i.Value.(Method).itemAddr == m.itemAddr {
 							itItem = i.Index
 						}
 					}
@@ -1164,10 +1169,9 @@ func main() {
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
-
+	go verify()
 	doneWG.Wait()
-	fmt.Println("finished working!")
-	go verify() // v = std::thread(verify) ???
+	fmt.Println("finished working and verifying!")
 
 	if finalOutcome == true {
 		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
