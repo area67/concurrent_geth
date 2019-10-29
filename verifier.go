@@ -483,21 +483,21 @@ func findIndexForMethod(methods []*Method, method Method, field string) int {
 
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stackFailed stack.Stack) {
+func handleFailedConsumer(methods []interface{}, items []interface{}, mk int, it int, stackFailed stack.Stack) {
 	fmt.Println("Handling failed consumer...")
 	begin := 0
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
-		if methods[it0].itemAddr == methods[it].itemAddr &&
-			methods[it0].requestAmnt > methods[mk].requestAmnt {
+		if methods[it0].(*Method).itemAddr == methods[it].(*Method).itemAddr &&
+			methods[it0].(*Method).requestAmnt > methods[mk].(*Method).requestAmnt {
 
-			itemItr0 := methods[it0].itemAddr
+			itemItr0 := methods[it0].(*Method).itemAddr
 
-			if methods[it0].types == PRODUCER &&
-				items[it].status == PRESENT &&
-				methods[it0].semantics == FIFO ||
-				methods[it0].semantics == LIFO ||
-				methods[mk].itemAddr == methods[it0].itemAddr {
+			if methods[it0].(*Method).types == PRODUCER &&
+				items[it].(*Item).status == PRESENT &&
+				methods[it0].(*Method).semantics == FIFO ||
+				methods[it0].(*Method).semantics == LIFO ||
+				methods[mk].(*Method).itemAddr == methods[it0].(*Method).itemAddr {
 
 				stackFailed.Push(itemItr0)
 			}
@@ -524,7 +524,7 @@ func handleFailedConsumer(methods []*Method, items []*Item, mk int, it int, stac
 	}
 }*/
 
-func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func verifyCheckpoint(methods []interface{}, items []interface{}, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -576,19 +576,19 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		// }
 		// #endif
 
-		if methods[it].types == PRODUCER {
-			items[itItems].producer = it
+		if methods[it].(*Method).types == PRODUCER {
+			items[itItems].(*Item).producer = it
 
-			if items[itItems].status == ABSENT {
+			if items[itItems].(*Item).status == ABSENT {
 
 				// reset item parameters
-				items[itItems].status = PRESENT
-				items[itItems].demoteMethods = nil
+				items[itItems].(*Item).status = PRESENT
+				items[itItems].(*Item).demoteMethods = nil
 			}
 
-			items[itItems].addInt(1)
+			items[itItems].(*Item).addInt(1)
 
-			if methods[it].semantics == FIFO {
+			if methods[it].(*Method).semantics == FIFO {
 				for it0 := 0; it0 != it; it0++ {
 					// #if linearizability
 					// if methodMap[methItr0].response < methodMap[methodMapKey].invocation
@@ -598,47 +598,47 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 					//     methodMap[methItr0].process == methodMap[methodMapKey].process
 
 					// #elif serializability
-					if methods[it0].itemAddr == methods[it].itemAddr &&
-						methods[it0].requestAmnt > methods[it].requestAmnt {
+					if methods[it0].(*Method).itemAddr == methods[it].(*Method).itemAddr &&
+						methods[it0].(*Method).requestAmnt > methods[it].(*Method).requestAmnt {
 						// #endif
 						itItems0 := 0
 
 						// Demotion
 						// FIFO Semantics
-						if (methods[it0].types == PRODUCER && items[int(itItems0)].status == PRESENT) &&
-							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+						if (methods[it0].(*Method).types == PRODUCER && items[int(itItems0)].(*Item).status == PRESENT) &&
+							(methods[it].(*Method).types == PRODUCER && methods[it0].(*Method).semantics == FIFO) {
 
-							items[itItems].promoteItems.Push(items[itItems].key)
-							items[itItems].demote()
-							items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
+							items[itItems].(*Item).promoteItems.Push(items[itItems].(*Item).key)
+							items[itItems].(*Item).demote()
+							items[itItems].(*Item).demoteMethods = append(items[itItems].(*Item).demoteMethods, methods[it0].(*Method))
 						}
 					}
 				}
 			}
 		}
-		if methods[it].semantics == FIFO {
+		if methods[it].(*Method).semantics == FIFO {
 
 			for it0 := 0; it0 != it; it0++{
 				// serializability
-				if methods[it0].senderID == methods[it].senderID &&
-					methods[it0].requestAmnt > methods[it].requestAmnt{
+				if methods[it0].(*Method).senderID == methods[it].(*Method).senderID &&
+					methods[it0].(*Method).requestAmnt > methods[it].(*Method).requestAmnt{
 					// #endif
 					itItems0 := it0 //methods[it0].itemAddr
 
 					// Demotion
 					// FIFO Semantics
-					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
-						(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+					if (methods[it0].(*Method).types == PRODUCER && items[itItems0].(*Item).status == PRESENT) &&
+						(methods[it].(*Method).types == PRODUCER && methods[it0].(*Method).semantics == FIFO) {
 
-						items[itItems0].promoteItems.Push(items[itItems].key)
-						items[itItems].demote()
-						items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
+						items[itItems0].(*Item).promoteItems.Push(items[itItems].(*Item).key)
+						items[itItems].(*Item).demote()
+						items[itItems].(*Item).demoteMethods = append(items[itItems].(*Item).demoteMethods, methods[it0].(*Method))
 					}
 				}
 			}
 		}
 
-		if methods[it].types == CONSUMER {
+		if methods[it].(*Method).types == CONSUMER {
 
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
@@ -651,15 +651,15 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 				it_consumer->second = it_item_0;
 			}*/
 
-			if methods[it].status == true {
+			if methods[it].(*Method).status == true {
 
 				// promote reads
-				if items[itItems].sum > 0 {
-					items[itItems].sumR = 0
+				if items[itItems].(*Item).sum > 0 {
+					items[itItems].(*Item).sumR = 0
 				}
 
-				items[itItems].subInt(1)
-				items[itItems].status = ABSENT
+				items[itItems].(*Item).subInt(1)
+				items[itItems].(*Item).status = ABSENT
 
 				//if mapItems[itItems].sum < 0 {
 				//
@@ -696,8 +696,8 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 				stackFinishedMethods.Push(it)
 
 				end = len(methods) - 1
-				if items[itItems].producer != end {
-					stackFinishedMethods.Push(items[itItems].producer)
+				if items[itItems].(*Item).producer != end {
+					stackFinishedMethods.Push(items[itItems].(*Item).producer)
 				}
 			} else {
 				handleFailedConsumer(methods, items, it, itItems, stackFailed)
@@ -716,11 +716,11 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 				return
 			}
 
-			for items[itTop].promoteItems.Len() != 0 {
-				itemPromote := items[itTop].promoteItems.Peek().(int)
+			for items[itTop].(*Item).promoteItems.Len() != 0 {
+				itemPromote := items[itTop].(*Item).promoteItems.Peek().(int)
 				itPromoteItem := itemPromote
-				items[itPromoteItem].promote()
-				items[itTop].promoteItems.Pop()
+				items[itPromoteItem].(*Item).promote()
+				items[itTop].(*Item).promoteItems.Pop()
 			}
 			stackConsumer.Pop()
 		}
@@ -728,8 +728,8 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 		for stackFailed.Len() != 0 {
 			itTop := stackFailed.Peek().(int)
 
-			if items[itTop].status == PRESENT {
-				items[itTop].demoteFailed()
+			if items[itTop].(*Item).status == PRESENT {
+				items[itTop].(*Item).demoteFailed()
 			}
 			stackFailed.Pop()
 		}
@@ -749,33 +749,33 @@ func verifyCheckpoint(methods []*Method, items []*Item, itStart int, countIterat
 
 		for ; itVerify != itEnd; itVerify++ {
 
-			if items[itVerify].sum < 0 {
+			if items[itVerify].(*Item).sum < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum %.2f\n", items[itVerify].key, items[itVerify].sum)
+				fmt.Printf("WARNING: Item %d, sum %.2f\n", items[itVerify].(*Item).key, items[itVerify].(*Item).sum)
 				// #endif
 			}
 			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
 
-			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
+			if (math.Ceil(items[itVerify].(*Item).sum) + items[itVerify].(*Item).sumR) < 0 {
 				outcome = false
 
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items[itVerify].key, items[itVerify].sumR)
+				fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items[itVerify].(*Item).key, items[itVerify].(*Item).sumR)
 				// #endif
 			}
 
 			var n float64
-			if items[itVerify].sumF == 0 {
+			if items[itVerify].(*Item).sumF == 0 {
 				n = 0
 			} else {
 				n = -1
 			}
 
-			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
+			if (math.Ceil(items[itVerify].(*Item).sum)+items[itVerify].(*Item).sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].key, items[itVerify].sumF)
+				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].(*Item).key, items[itVerify].(*Item).sumF)
 				// #endif
 			}
 
@@ -896,10 +896,15 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// mId += numThreads
 
-		//TODO: do we need to append m2 also?
+		//TODO: make threadListsSize atomic
 		//threadLists[id] = append(threadLists[id], m1)
 		csi := ConcurrentSliceItem{int(i), m1}
-		threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
+		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
+		for i := range threadLists.Iter() {
+			if i.Index == id {
+				i.Value.(*ConcurrentSlice).Append(csi)
+			}
+		}
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 	}
@@ -1051,18 +1056,18 @@ func verify() {
 			*/
 		}
 
-		verifyCheckpoint(methods.items.([]*Method), items, itStart, uint64(countIterated), int64(min), true, blocks)
+		verifyCheckpoint(methods.items, items.items, itStart, uint64(countIterated), int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(methods.items.([]*Method), items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
+	verifyCheckpoint(methods.items, items.items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
-				fmt.Printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", countOverall, countIterated, len(mapMethods));
+				fmt.Printf("Count overall = %lu, count iterated = %lu, map_methods.size(1) = %lu\n", countOverall, countIterated, len(methods.items));
 			//#endif
 
 		//#if DEBUG_
-			fmt.Printf("All threads finished!\n");
+			fmt.Printf("All threads finished!\n")
 
 /*
 		itB, err := findBlockKey(mapBlock, "begin")
@@ -1148,14 +1153,27 @@ func main() {
 
 	start := time.Now()
 
+	//initiate threadLists
+	/*
+	threadLists.Lock()
+	for i := 0; i < numThreads; i++ {
+		csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
+		threadLists.Append(csi)
+	}
+	threadLists.Unlock()
+
+	 */
+
 	//TODO: thread/ channel stuff
+	//threadLists.RLock()
 	for i := 0; i < numThreads; i++ {
 		csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
 		//threadLists.items[i].Value = NewConcurrentSlice(int(testSize))
 		threadLists.Append(csi)
 		doneWG.Add(1)
-		go work(i, &doneWG) // ???
+		go work(i, &doneWG)
 	}
+	//threadLists.RUnlock()
 
 	doneWG.Wait()
 	fmt.Println("finished working!")
