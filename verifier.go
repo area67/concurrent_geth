@@ -76,7 +76,6 @@ type AtomicTxnCtr struct {
 type ConcurrentSlice struct {
 	sync.RWMutex
 	items []interface{}
-	//items []interface{}
 }
 
 // Concurrent slice item
@@ -531,6 +530,7 @@ func verifyCheckpoint(methods []interface{}, items []interface{}, itStart int, c
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
 	var stackFailed stack.Stack          // stack of map[int64]*Item
 
+	fmt.Printf("length of methods: %d\n", len(methods))
 	if len(methods) != 0 {
 
 		it := 0
@@ -709,6 +709,7 @@ func verifyCheckpoint(methods []interface{}, items []interface{}, itStart int, c
 
 			itTop, ok := stackConsumer.Peek().(int)
 			if !ok {
+				//fmt.Println("WHOOPSY")
 				return
 			}
 
@@ -776,6 +777,7 @@ func verifyCheckpoint(methods []interface{}, items []interface{}, itStart int, c
 			}
 
 		}
+		fmt.Println("testy, testy, testy")
 		if outcome == true {
 			finalOutcome = true
 			// #if DEBUG_
