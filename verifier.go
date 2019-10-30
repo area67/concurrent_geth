@@ -880,7 +880,6 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// mId += numThreads
 
-		//TODO: make threadListsSize atomic
 		//threadLists[id] = append(threadLists[id], m1)
 		csi := ConcurrentSliceItem{int(i), m1}
 		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
@@ -897,7 +896,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 	doneWG.Done()
 }
 
-func verify() {
+func verify(doneWG *sync.WaitGroup) {
 	fmt.Println("Verifying...")
 	//wait()
 
@@ -1034,10 +1033,15 @@ func verify() {
 					item.key = itItem
 					item.producer = mapMethodsEnd
 
-					items.items[item.key] = &item
+					//items.items[item.key] = &item
+					for i := range items.Iter() {
+						if i.Index == item.key {
+							items.Append(ConcurrentSliceItem{item.key, &item})
+						}
+					}
 					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
 					for i := range methods.Iter() {
-						if(i.Value.(Method).itemAddr == m.itemAddr) {
+						if i.Value.(Method).itemAddr == m.itemAddr {
 							itItem = i.Index
 						}
 					}
@@ -1103,6 +1107,8 @@ func verify() {
 	verifyFinish := postVerifyEpoch - startTimeEpoch.Nanoseconds()
 
 	elapsedTimeVerify = verifyFinish - verifyStart
+
+	doneWG.Done()
 }
 
 var transactions [100]TransactionData
@@ -1148,10 +1154,10 @@ func main() {
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
-
+	doneWG.Add(1)
+	go verify(&doneWG)
 	doneWG.Wait()
-	fmt.Println("finished working!")
-	go verify() // v = std::thread(verify) ???
+	fmt.Println("finished working and verifying!")
 
 	if finalOutcome == true {
 		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
@@ -1172,20 +1178,20 @@ func main() {
 		if methodTime[i] > elapsedTimeMethod {
 			elapsedTimeMethod = methodTime[i]
 		}
+		//we don't change overheadTime[i] anywhere, neither did Christina by the looks of it
 		if float64(overheadTime[i]) > elapsedOverheadTime {
 			elapsedOverheadTime = float64(overheadTime[i])
 		}
 	}
 
 	var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
-	var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
+	//var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
 	var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
 
 	fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
-	fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
+	//fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
 
 	elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
 
 	fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
-
 }
