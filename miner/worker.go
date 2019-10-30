@@ -731,6 +731,8 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+	defer func(start time.Time) { elapsed := time.Since(start); fmt.Println(elapsed) }(time.Now())
+
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
