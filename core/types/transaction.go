@@ -440,7 +440,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		// fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
 		// relinquish control of sender so other threads my pick it up
 		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
-		fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
+		//fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 		t.accountLock.Del(sender.String())
 
 	} else {
@@ -489,7 +489,7 @@ func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
 	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
 	//t.accountLock.Del(sender.String())
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Remove()", sender.String()))
-	fmt.Printf("Finished with sender %s in Remove()\n", sender.String())
+	//fmt.Printf("Finished with sender %s in Remove()\n", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {

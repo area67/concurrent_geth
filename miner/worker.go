@@ -731,8 +731,13 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
-	defer func(start time.Time) { elapsed := time.Since(start).Nanoseconds(); fmt.Println(elapsed) }(time.Now())
-
+	var counter int64 = 0
+	defer func(start time.Time, txCount *int64) {
+		nanoseconds := time.Since(start).Nanoseconds()
+		seconds := float64(nanoseconds) / 1e9
+		throughput := float64(*txCount) / seconds
+		fmt.Println("txns per second ", throughput)
+	}(time.Now(), &counter)
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -832,9 +837,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					atomic.CompareAndSwapInt32(&loopStatus, OK, BREAK)
 					log.Debug(fmt.Sprintf("Break signal sent in commitTransactions() thread %d", threadID))
 				}
-
 				return
-
 			}
 
 			// txn start
@@ -895,7 +898,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					w.workerLogsLock.Unlock()
 					atomic.AddInt32(&w.current.tcount, 1)
 					txs.Shift(from)
-					fmt.Printf("Txn from sender %s successful\n", from.String())
+					atomic.AddInt64(&counter, 1);
+					//fmt.Printf("Txn from sender %s successful\n", from.String())
 
 				default:
 					// Strange error, discard the transaction and get the next in line (note, the
