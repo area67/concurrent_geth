@@ -20,8 +20,8 @@ import (
 
 var(
 	txsMap = make(map[common.Address]types.Transactions)
-	numAccounts = 10
-	txsPerAccount = 5
+	numAccounts = 50
+	txsPerAccount = 4
 	keys = make([]*ecdsa.PrivateKey,numAccounts)
 	addresses = make([]common.Address,numAccounts)
 	initBalance = big.NewInt(100000000000) // inital balance for all accounts
@@ -50,6 +50,10 @@ func init() {
 		txs := types.Transactions{}
 		for i:=0; i < txsPerAccount; i++{
 			recipientIndex := (a+i+1)% len(addresses)
+			if recipientIndex == a{
+				// dont send to self
+				recipientIndex =(recipientIndex+1)% len(addresses)
+			}
 			t , _ := types.SignTx(types.NewTransaction(uint64(i), addresses[recipientIndex], big.NewInt(1), params.TxGas, nil, nil), types.HomesteadSigner{}, keys[a])
 			//nonce++
 			txs = append(txs, t )
