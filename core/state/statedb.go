@@ -180,6 +180,8 @@ func (self *StateDB) Preimages() map[common.Hash][]byte {
 
 // AddRefund adds gas to the refund counter
 func (self *StateDB) AddRefund(gas uint64) {
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	self.journal.append(refundChange{prev: self.refund})
 	self.refund += gas
 }
@@ -187,6 +189,8 @@ func (self *StateDB) AddRefund(gas uint64) {
 // SubRefund removes gas from the refund counter.
 // This method will panic if the refund counter goes below zero
 func (self *StateDB) SubRefund(gas uint64) {
+	self.stateObjectsLock.Lock()
+	defer self.stateObjectsLock.Unlock()
 	self.journal.append(refundChange{prev: self.refund})
 	if gas > self.refund {
 		panic("Refund counter below zero")

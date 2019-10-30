@@ -114,13 +114,6 @@ const (
 	commitInterruptResubmit
 )
 
-var (
-	workerRecieptsLock = &sync.Mutex{}
-	workerLogsLock = &sync.Mutex{}
-	workerTxnsLock = &sync.Mutex{}
-
-)
-
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
 	interrupt *int32
@@ -191,6 +184,10 @@ type worker struct {
 	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
+
+	workerRecieptsLock sync.Mutex
+	workerLogsLock sync.Mutex
+	workerTxnsLock sync.Mutex
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool) *worker {
@@ -711,7 +708,6 @@ func (w *worker) updateSnapshot() {
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 
-
 	snap := w.current.state.Snapshot()
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
@@ -723,14 +719,13 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 		return nil, err
 	}
 
-	workerTxnsLock.Lock()
+	w.workerTxnsLock.Lock()
 	w.current.txs = append(w.current.txs, tx)
-	workerTxnsLock.Unlock()
+	w.workerTxnsLock.Unlock()
 
-	workerRecieptsLock.Lock()
+	w.workerRecieptsLock.Lock()
 	w.current.receipts = append(w.current.receipts, receipt)
-	workerRecieptsLock.Unlock()
-
+	w.workerRecieptsLock.Unlock()
 
 	return receipt.Logs, nil
 }
@@ -850,7 +845,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			// We use the eip155 signer regardless of the current hf.
 			from, _ := types.Sender(w.current.signer, tx)
 			log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
-			fmt.Printf("Attempting commit of transaction from sender %s in thread %d\n",from.String(), threadID)
+			//fmt.Printf("Attempting commit of transaction from sender %s in thread %d\n",from.String(), threadID)
 			defer func() {
 				log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s in thread %d", from.String(), threadID))
 			}()
@@ -869,8 +864,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-
 			logs, err := w.commitTransaction(tx, coinbase)
+
 			//commitTxnsLock.Unlock()
 			// where transaction iteration happens
 			switch err {
@@ -882,28 +877,28 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				case core.ErrNonceTooLow:
 					// New head notification data race between the transaction pool and miner, shift
 					log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
-					fmt.Printf("Skipping account: %s with low nonce\n", from.String())
+					//fmt.Printf("Skipping account: %s with low nonce\n", from.String())
 					txs.Shift(from)
 
 				case core.ErrNonceTooHigh:
 					// Reorg notification data race between the transaction pool and miner, skip account =
 					log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
-					fmt.Printf("Skipping account: %s with high nonce\n", from.String())
+					//fmt.Printf("Skipping account: %s with high nonce\n", from.String())
 					txs.Remove(from)
 
 				case nil:
 					// Everything ok, collect the logs and shift in the next transaction from the same account
-					workerLogsLock.Lock()
+					w.workerLogsLock.Lock()
 					coalescedLogs = append(coalescedLogs, logs...)
-					workerLogsLock.Unlock()
+					w.workerLogsLock.Unlock()
 					atomic.AddInt32(&w.current.tcount, 1)
 					txs.Shift(from)
-					fmt.Printf("Txn from sender %s sucessfull\n", from.String())
+					//fmt.Printf("Txn from sender %s sucessfull\n", from.String())
 				default:
 					// Strange error, discard the transaction and get the next in line (note, the
 					// nonce-too-high clause will prevent us from executing in vain).
 					log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-					fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
+					//fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
 					txs.Shift(from)
 			}
 		}(threadID)

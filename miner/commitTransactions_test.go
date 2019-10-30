@@ -2,7 +2,6 @@ package miner
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
@@ -55,12 +54,9 @@ func init() {
 			//nonce++
 			txs = append(txs, t )
 			allTxs = append(allTxs, t )
-			fmt.Println()
 		}
 		txsMap[addresses[a]] = txs
 	}
-	fmt.Println(len(allTxs))
-
 
 	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
@@ -136,7 +132,7 @@ func newConcurrentTestWorker(t *testing.T, chainConfig *params.ChainConfig, engi
 }
 
 
-func TestEmptyWorkEthashConcurrent(t *testing.T) {
+func TestConcurrentEmptyWorkEthash(t *testing.T) {
 	testEmptyWorkConcurrent(t, ethashChainConfig, ethash.NewFaker())
 }
 func TestEmptyWorkCliqueConcurrent(t *testing.T) {
