@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 
 	"math/big"
 	"sync"
@@ -730,13 +732,29 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
+func WriteToFile(filename string, data string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.WriteString(file, data)
+	if err != nil {
+		return err
+	}
+	return file.Sync()
+}
+
+
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	var counter int64 = 0
 	defer func(start time.Time, txCount *int64) {
 		nanoseconds := time.Since(start).Nanoseconds()
 		seconds := float64(nanoseconds) / 1e9
 		throughput := float64(*txCount) / seconds
-		fmt.Println("txns per second ", throughput)
+		s := fmt.Sprintf("%d, %f", common.NumThreads, throughput)
+		WriteToFile("performanceEval.txt", s)
 	}(time.Now(), &counter)
 	// Short circuit if current is nil
 	if w.current == nil {
@@ -918,9 +936,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			return returnValue
 		}
 	}
-
-
-	print("Out of commit loop\n")
 
 	for i := 0; i < common.NumThreads; i++ {
 		<-sem
