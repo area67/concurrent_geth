@@ -639,7 +639,7 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 
 			for it0 := 0; it0 != it; it0++{
 				// serializability
-				if methods.items[it0].(*Method).senderID == methods.items[it].(*Method).senderID &&
+				if methods.items[it0].(*Method).itemAddr == methods.items[it].(*Method).itemAddr &&
 					methods.items[it0].(*Method).requestAmnt > methods.items[it].(*Method).requestAmnt{
 					// #endif
 					itItems0 := it0 //methods[it0].itemAddr
@@ -917,6 +917,8 @@ func work(id int, doneWG *sync.WaitGroup) {
 		var m2 Method
 		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
+		fmt.Printf("%v\n", m1.itemAddr)
+
 		// mId += numThreads
 
 		//threadLists[id] = append(threadLists[id], m1)
@@ -931,12 +933,16 @@ func work(id int, doneWG *sync.WaitGroup) {
 				}
 			}
 		}*/
-		if(int32(id) >= threadListsSize[id].Load()) {
-			fmt.Printf("ERROR IN THREADLIST SIZE, size is %d\n", threadListsSize[id].Load())
-		}
-		threadLists.items[id].(*ConcurrentSlice).Append(m1)
+		threadLists.Lock()
+		fmt.Printf("threadList len = %d and id = %d\n", len(threadLists.items), id)
+		//temp := threadLists.items[id].(ConcurrentSliceItem).Value.([]Method)
+		//threadLists.items[id].(ConcurrentSliceItem).Value.([]Method).Append(m1)
+		//temp := threadLists.items[id].([]Method)
+		threadLists.items[id] = append(threadLists.items[id].([]Method), m1)
+		fmt.Print("appended address: %v\n", threadLists.items[id].(*ConcurrentSlice).items[0].(Method).itemAddr)
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
+		threadLists.Unlock()
 	}
 
 	done[id].Store(true)
@@ -1008,6 +1014,7 @@ func verify(doneWG *sync.WaitGroup) {
 			//var responseTime int64 = 0
 
 			for {
+				threadLists.Lock()
 				if itCount[i] >= threadListsSize[i].Load() {
 					break
 				} else if itCount[i] == 0 {
@@ -1016,7 +1023,7 @@ func verify(doneWG *sync.WaitGroup) {
 					//++it[i]
 					it[i]++
 				}
-
+				threadLists.Unlock()
 				fmt.Printf("it[i] = %v", it[i])
 
 				//m := threadLists[it[i]].Back().Value.(Method)
@@ -1033,7 +1040,12 @@ func verify(doneWG *sync.WaitGroup) {
 						}
 					}
 				}*/
-				m = threadLists.items[tId].(*ConcurrentSlice).items[it[i]].(Method)
+				//temp := threadLists.items[tId].(*ConcurrentSlice)
+				//m = temp.items[it[i]].(Method)
+				threadLists.Lock()
+				temp := threadLists.items[tId].(*ConcurrentSliceItem).Value.([]Method)
+				m = temp[it[i]]
+				threadLists.Unlock()
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
@@ -1183,7 +1195,8 @@ func main() {
 
 	finalOutcome = true
 
-	threadLists := NewConcurrentSlice()
+	//threadLists := NewConcurrentSlice()
+	threadLists = ConcurrentSlice{items: make([]interface{}, 0, numThreads),}
 
 	var doneWG sync.WaitGroup
 
@@ -1212,9 +1225,15 @@ func main() {
 
 	for i := 0; i < numThreads; i++ {
 		//csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
-		cs := &ConcurrentSlice{items: make([]interface{}, numThreads),}
-		threadLists.items[i] = cs
-		//threadLists.items[i].(*ConcurrentSlice).Append(cs)
+		//cs := &ConcurrentSlice{items: make([], numThreads),}
+		//threadLists.items[i] = cs
+		//threadLists.RLock()
+		//threadLists.Append(ConcurrentSliceItem{i, make([]Method, 0)})
+		//threadLists.Append(NewConcurrentSlice())
+		threadLists.Append(make([]Method, 0))
+		threadListsSize[i].Store(0)
+		//threadLists.RUnlock()
+		//threadLists.items[i].(*ConcurrentSlice).Append()
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
