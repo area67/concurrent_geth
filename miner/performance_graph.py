@@ -6,11 +6,17 @@ import matplotlib.pyplot as plt
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-if len(sys.argv) == 1 :
-    print("Expected python <script>.py <filename>")
+if len(sys.argv) < 4 :
+    print("Expected python <script>.py <filename> <path> <graphname>")
     sys.exit()
 
 filename = sys.argv[1]
+path = sys.argv[2]
+
+if path[-1] != '/' :
+    path += '/'
+
+graphname = sys.argv[3]
 df = pd.read_csv(filename,sep="\t")
 
 threadVals = df.sort_values(by=['Threads']).Threads.unique()
@@ -35,7 +41,7 @@ ax.yaxis.grid(True)
 # Save the figure and show
 fig.set_tight_layout(True)
 
-plt.savefig('/Users/admin/Desktop/test.png')
+plt.savefig(path + graphname +'.png')
 
 
 #ax = averages.plot.bar(x='Threads', y='Txs/Sec', rot=0)
