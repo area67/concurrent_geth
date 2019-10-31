@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 
 	"math/big"
@@ -733,29 +732,28 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 }
 
 func WriteToFile(filename string, data string) error {
-	file, err := os.Create(filename)
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	defer file.Close()
 
-	_, err = io.WriteString(file, data)
-	if err != nil {
-		return err
-	}
-	return file.Sync()
+	defer f.Close()
+	fmt.Fprintf(f, "%s", data)
+	return  err
 }
 
+func processTimer(start time.Time, txCount *int64) {
+	nanoseconds := time.Since(start).Nanoseconds()
+	seconds := float64(nanoseconds) / 1e9
+	throughput := float64(*txCount) / seconds
+	s := fmt.Sprintf("%d, %f\n", common.NumThreads, throughput)
+	_ = WriteToFile("performanceEval.txt", s)
+}
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	var counter int64 = 0
-	defer func(start time.Time, txCount *int64) {
-		nanoseconds := time.Since(start).Nanoseconds()
-		seconds := float64(nanoseconds) / 1e9
-		throughput := float64(*txCount) / seconds
-		s := fmt.Sprintf("%d, %f", common.NumThreads, throughput)
-		WriteToFile("performanceEval.txt", s)
-	}(time.Now(), &counter)
+	defer processTimer(time.Now(), &counter)
+
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
