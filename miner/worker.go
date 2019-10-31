@@ -746,6 +746,11 @@ func processTimer(start time.Time, txCount *int64) {
 	nanoseconds := time.Since(start).Nanoseconds()
 	seconds := float64(nanoseconds) / 1e9
 	throughput := float64(*txCount) / seconds
+	if _, err := os.Stat("performanceEval.txt"); os.IsNotExist(err) {
+		// "performanceEval.txt" does not exist
+		// create file
+		os.Create("performanceEval.txt")
+	}
 	s := fmt.Sprintf("%d, %f\n", common.NumThreads, throughput)
 	_ = WriteToFile("performanceEval.txt", s)
 }
