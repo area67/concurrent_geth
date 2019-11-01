@@ -738,7 +738,7 @@ func WriteToFile(filename string, data string) error {
 	}
 
 	defer f.Close()
-	fmt.Fprintf(f, "%s", data)
+	_, err = fmt.Fprintf(f, "%s", data)
 	return  err
 }
 

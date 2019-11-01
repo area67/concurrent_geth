@@ -219,7 +219,6 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 	var (
 		taskCh    = make(chan struct{}, 2)
 		taskIndex int
-		//interrupt int32 = 0
 	)
 
 	checkEqual := func(t *testing.T, task *task, index int) {
@@ -230,10 +229,6 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 		if len(task.receipts) != receiptLen {
 			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
 		}
-		/*
-		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
-		}*/
 	}
 
 	w.newTaskHook = func(task *task) {
@@ -263,11 +258,4 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 			t.Error("new task timeout")
 		}
 	}
-	//tem := w.current
-	//print(tem)
-	//testTxs:=types.NewTransactionsByPriceAndNonce(w.current.signer, txsMap)
-
-	// start time
-	//w.commitTransactions(testTxs, w.coinbase, &interrupt)
-	// end time
 }
