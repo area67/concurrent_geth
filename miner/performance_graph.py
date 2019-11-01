@@ -18,7 +18,7 @@ if path[-1] != '/' :
 graphname = sys.argv[3]
 
 # Parse the given csv
-df = pd.read_csv(filename,sep="\t")
+df = pd.read_csv(filename,sep="\t", names=['Threads','Throughput'])
 
 # An array of threadcount values
 threadVals = df.sort_values(by=['Threads']).Threads.unique()
