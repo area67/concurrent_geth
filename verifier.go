@@ -486,12 +486,13 @@ func findIndexForMethod(methods []*Method, method Method, field string) int {
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
 func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed stack.Stack) {
-	fmt.Println("Handling failed consumer...")
+	fmt.Printf("Handling failed consumer...\n")
 	begin := 0
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
+		//todo: > or <
 		if methods[it0].itemAddr == methods[it].itemAddr &&
-			methods[it0].requestAmnt > methods[mk].requestAmnt {
+			methods[it0].requestAmnt < methods[mk].requestAmnt {
 
 			itemItr0 := methods[it0].itemAddr
 
@@ -610,7 +611,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 					fmt.Println("MADE IT in 1")
 					// serializability
 					if methods[it0].itemAddr == methods[it].itemAddr &&
-						methods[it0].requestAmnt > methods[it].requestAmnt {
+						methods[it0].requestAmnt < methods[it].requestAmnt {
 						fmt.Println("MADE IT in 2")
 						// #endif
 						itItems0 := 0
@@ -1219,14 +1220,24 @@ func main() {
 	var transactionSenders = make([]rune,16)
 	var transactionReceivers = make([]rune,16)
 
-	for i := 0; i < 100; i++ {
-		for j := 0; j < 16; j++ {
+	for j := 0; j < 16; j++ {
+		transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
+		transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
+	}
+
+	for i := 0; i < 2; i++ {
+		/*for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
-		}
+		}*/
 		transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
-		transactions[i].amount = rand.Intn(50)
+		//transactions[i].amount = rand.Intn(50)
+		if(i == 0) {
+			transactions[i].amount = 100
+		} else {
+			transactions[i].amount = 200
+		}
 		transactions[i].balanceSender = rand.Intn(50)
 		transactions[i].balanceReceiver = rand.Intn(50)
 		transactions[i].tId = txnCtr.val
