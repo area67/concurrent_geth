@@ -23,6 +23,8 @@ type Status int
 
 var txnCtr AtomicTxnCtr
 
+var countIterated uint32 = 0
+
 const (
 	PRESENT Status = iota
 	ABSENT
@@ -483,21 +485,22 @@ func findIndexForMethod(methods []*Method, method Method, field string) int {
 
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods *ConcurrentSlice, items *ConcurrentSlice, mk int, it int, stackFailed stack.Stack) {
+func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed stack.Stack) {
 	fmt.Println("Handling failed consumer...")
 	begin := 0
 	for it0 := begin; it0 != it; it0++ {
 		// serializability
-		if methods.items[it0].(*Method).itemAddr == methods.items[it].(*Method).itemAddr &&
-			methods.items[it0].(*Method).requestAmnt > methods.items[mk].(*Method).requestAmnt {
+		if methods[it0].itemAddr == methods[it].itemAddr &&
+			methods[it0].requestAmnt > methods[mk].requestAmnt {
 
-			itemItr0 := methods.items[it0].(*Method).itemAddr
+			itemItr0 := methods[it0].itemAddr
 
-			if methods.items[it0].(*Method).types == PRODUCER &&
-				items.items[it].(*Item).status == PRESENT &&
-				methods.items[it0].(*Method).semantics == FIFO ||
-				methods.items[it0].(*Method).semantics == LIFO ||
-				methods.items[mk].(*Method).itemAddr == methods.items[it0].(*Method).itemAddr {
+			if methods[it0].types == PRODUCER &&
+				//items.items[it].(*Item).status == PRESENT &&
+				items[it].status == PRESENT &&
+				methods[it0].semantics == FIFO ||
+				methods[it0].semantics == LIFO ||
+				methods[mk].itemAddr == methods[it0].itemAddr {
 
 				stackFailed.Push(itemItr0)
 			}
@@ -524,30 +527,33 @@ func handleFailedConsumer(methods *ConcurrentSlice, items *ConcurrentSlice, mk i
 	}
 }*/
 
-func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
 	var stackFailed stack.Stack          // stack of map[int64]*Item
 
-	methodCount = int32(len(methods.items))
+	methodCount = int32(len(methods))
 	//for i := range methods.Iter() {
 		//fmt.Printf("methods.items[0].semantics = %v\n", methods.items[0].(Method).semantics)
 	//}
 	if methodCount != 0 {
 
 		it := 0
-		end := len(methods.items) - 1
+		end := len(methods) - 1
 
+		//fmt.Printf("end = %d\n", end)
+
+		//TODO: corner case
 		if countIterated == 0 {
 			resetItStart = false
 		} else if it != end {
 			itStart = itStart + 1
 			it = itStart
 		}
+		fmt.Printf("it = %d\n", it)
 
-		// TODO: needed ? prob not
 		/*for ; it != len(methods) - 1; it++{
 		if methods[it].response > min{
 			break
@@ -561,7 +567,9 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 
 		itStart = it
 		resetItStart = false
-		countIterated = countIterated + 1
+		countIterated++
+
+		//fmt.Printf("Do we even get here? %d", countIterated)
 
 		itItems := it //methods[it].itemAddr
 		//itItems := int(methods[it].txnCtr)
@@ -580,85 +588,76 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 		// }
 		// #endif
 
-		//tempMethods := methods.items[it].(ConcurrentSliceItem).Value.(Method)
-		tempMethods := methods.items[it].(Method)
-		//tempItems := items.items[itItems].(ConcurrentSliceItem).Value.(Item)
 
-		if methods.items[it].(Method).types == PRODUCER {
-			for i := range items.Iter() {
-				j:= i.Value.(ConcurrentSliceItem)
-				if j.Index == it {
-					k := j.Value.(Item)
-					k.producer = it
-					//j.Value.(*Item).producer = it
-				}
-			}
-			//items.items[itItems].(ConcurrentSliceItem).Value.(Item).producer = it
+		if methods[it].types == PRODUCER {
 
-			if items.items[itItems].(ConcurrentSliceItem).Value.(Item).status == ABSENT {
+			items[it].producer = it
+
+			if items[itItems].status == ABSENT {
 
 				// reset item parameters
-				temp := items.items[itItems].(ConcurrentSliceItem).Value
-				temp.(*Item).status = PRESENT
-				temp.(*Item).demoteMethods = nil
-				//items.items[itItems].(*Item).status = PRESENT
-				//items.items[itItems].(*Item).demoteMethods = nil
+				items[it].status = PRESENT
+				items[it].demoteMethods = nil
 			}
 
-			tempItems := items.items[itItems].(ConcurrentSliceItem).Value.(Item)
-			tempItems.addInt(1)
-			//temp.(Item).addInt(1)
-			//items.items[itItems].(*Item).addInt(1)
+			items[it].addInt(1)
 
-			tempMethods = methods.items[it].(Method)
-			//if methods.items[it].(*Method).semantics == FIFO {
-			//if tempMethods.semantics == FIFO {
-			if methods.items[it].(Method).semantics == FIFO {
+			if methods[it].semantics == FIFO {
 				for it0 := 0; it0 != it; it0++ {
 					// serializability
-					fmt.Println("MADE IT")
-					if methods.items[it0].(Method).itemAddr == methods.items[it].(Method).itemAddr &&
-						methods.items[it0].(Method).requestAmnt > methods.items[it].(Method).requestAmnt {
+					//fmt.Println("MADE IT")
+					if methods[it0].itemAddr == methods[it].itemAddr &&
+						methods[it0].requestAmnt > methods[it].requestAmnt {
+						fmt.Println("MADE IT in 1")
 						// #endif
 						itItems0 := 0
 
 						// Demotion
 						// FIFO Semantics
-						if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
-							(methods.items[it].(Method).types == PRODUCER && methods.items[it0].(Method).semantics == FIFO) {
+						//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
+						if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
-							items.items[itItems].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
-							items.items[itItems].(*Item).demote()
-							items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+
+							//items.items[itItems].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
+							//items.items[itItems].(*Item).demote()
+							//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+							items[itItems0].promoteItems.Push(items[itItems].key)
+							items[itItems].demote()
+							items[itItems].demoteMethods = append(items[itItems].demoteMethods, &methods[it0])
 						}
 					}
 				}
 			}
 		}
-		if methods.items[it].(Method).semantics == FIFO {
-
+		if methods[it].semantics == FIFO {
+			//fmt.Printf("it is %d\n", it)
 			for it0 := 0; it0 != it; it0++{
+				fmt.Printf("MADE it to FIFO loop\n")
 				// serializability
-				if methods.items[it0].(*Method).itemAddr == methods.items[it].(*Method).itemAddr &&
-					methods.items[it0].(*Method).requestAmnt > methods.items[it].(*Method).requestAmnt{
+				fmt.Printf("CHECKING CORRECTNESS 1\n")
+				if methods[it0].itemAddr == methods[it].itemAddr &&
+					methods[it0].requestAmnt > methods[it].requestAmnt{
+					fmt.Println("MADE IT in 2")
 					// #endif
 					itItems0 := it0 //methods[it0].itemAddr
 
 					// Demotion
 					// FIFO Semantics
-					if (methods.items[it0].(*Method).types == PRODUCER && items.items[itItems0].(*Item).status == PRESENT) &&
-						(methods.items[it].(*Method).types == PRODUCER && methods.items[it0].(*Method).semantics == FIFO) {
+					//if (methods.items[it0].(*Method).types == PRODUCER && items.items[itItems0].(*Item).status == PRESENT) &&
+					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+						(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
-						items.items[itItems0].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
-						items.items[itItems].(*Item).demote()
-						items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+						//items.items[itItems0].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
+						//items.items[itItems].(*Item).demote()
+						//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
 					}
 				}
 			}
 		}
-		tempMethods = methods.items[it].(Method)
+		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
-		if tempMethods.types == CONSUMER {
+		if methods[it].types == CONSUMER {
 
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
@@ -671,15 +670,19 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 				it_consumer->second = it_item_0;
 			}*/
 
-			if methods.items[it].(*Method).status == true {
+			if methods[it].status == true {
 
 				// promote reads
-				if items.items[itItems].(*Item).sum > 0 {
-					items.items[itItems].(*Item).sumR = 0
+				//if items.items[itItems].(*Item).sum > 0 {
+				if items[itItems].sum > 0 {
+					//items.items[itItems].(*Item).sumR = 0
+					items[itItems].sumR = 0
 				}
 
-				items.items[itItems].(*Item).subInt(1)
-				items.items[itItems].(*Item).status = ABSENT
+				//items.items[itItems].(*Item).subInt(1)
+				items[itItems].subInt(1)
+				//items.items[itItems].(*Item).status = ABSENT
+				items[itItems].status = ABSENT
 
 				//if mapItems[itItems].sum < 0 {
 				//
@@ -715,9 +718,11 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 				stackConsumer.Push(itItems)
 				stackFinishedMethods.Push(it)
 
-				end = len(methods.items) - 1
-				if items.items[itItems].(*Item).producer != end {
-					stackFinishedMethods.Push(items.items[itItems].(*Item).producer)
+				end = len(methods) - 1
+				//if items.items[itItems].(*Item).producer != end {
+				if items[itItems].producer != end {
+					//stackFinishedMethods.Push(items.items[itItems].(*Item).producer)
+					stackFinishedMethods.Push(items[itItems].producer)
 				}
 			} else {
 				handleFailedConsumer(methods, items, it, itItems, stackFailed)
@@ -736,11 +741,16 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 				return
 			}
 
-			for items.items[itTop].(*Item).promoteItems.Len() != 0 {
-				itemPromote := items.items[itTop].(*Item).promoteItems.Peek().(int)
+			//for items.items[itTop].(*Item).promoteItems.Len() != 0 {
+			for items[itTop].promoteItems.Len() != 0 {
+				/*itemPromote := items.items[itTop].(*Item).promoteItems.Peek().(int)
 				itPromoteItem := itemPromote
 				items.items[itPromoteItem].(*Item).promote()
-				items.items[itTop].(*Item).promoteItems.Pop()
+				items.items[itTop].(*Item).promoteItems.Pop()*/
+				itemPromote := items[itTop].promoteItems.Peek().(int)
+				itPromoteItem := itemPromote
+				items[itPromoteItem].promote()
+				items[itTop].promoteItems.Pop()
 			}
 			stackConsumer.Pop()
 		}
@@ -748,8 +758,10 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 		for stackFailed.Len() != 0 {
 			itTop := stackFailed.Peek().(int)
 
-			if items.items[itTop].(*Item).status == PRESENT {
-				items.items[itTop].(*Item).demoteFailed()
+			//if items.items[itTop].(*Item).status == PRESENT {
+			if items[itTop].status == PRESENT {
+				//items.items[itTop].(*Item).demoteFailed()
+				items[itTop].demoteFailed()
 			}
 			stackFailed.Pop()
 		}
@@ -765,37 +777,43 @@ func verifyCheckpoint(methods *ConcurrentSlice, items *ConcurrentSlice, itStart 
 		// verify sums
 		outcome := true
 		itVerify := 0
-		itEnd := len(items.items) - 1
+		//itEnd := len(items.items) - 1
+		itEnd := len(items) - 1
 
 		for ; itVerify != itEnd; itVerify++ {
-
-			if items.items[itVerify].(*Item).sum < 0 {
+			if items[itVerify].sum < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sum)
+				//fmt.Printf("WARNING: Item %d, sum %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sum)
+				fmt.Printf("WARNING: Item %d, sum %.2f\n", items[itVerify].key, items[itVerify].sum)
 				// #endif
 			}
 			//printf("Item %d, sum %.2lf\n", it_verify->second.key, it_verify->second.sum);
 
-			if (math.Ceil(items.items[itVerify].(*Item).sum) + items.items[itVerify].(*Item).sumR) < 0 {
+			//if (math.Ceil(items.items[itVerify].(*Item).sum) + items.items[itVerify].(*Item).sumR) < 0 {
+			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
 				outcome = false
 
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumR)
+				//fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumR)
+				fmt.Printf("WARNING: Item %d, sum_r %.2f\n", items[itVerify].key, items[itVerify].sumR)
 				// #endif
 			}
 
 			var n float64
-			if items.items[itVerify].(*Item).sumF == 0 {
+			//if items.items[itVerify].(*Item).sumF == 0 {
+			if items[itVerify].sumF == 0 {
 				n = 0
 			} else {
 				n = -1
 			}
 
-			if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
+			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
+			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
-				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumF)
+				//fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumF)
+				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].key, items[itVerify].sumF)
 				// #endif
 			}
 
@@ -917,7 +935,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 		var m2 Method
 		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
-		fmt.Printf("%v\n", m1.itemAddr)
+		//fmt.Printf("%v\n", m1.itemAddr)
 
 		// mId += numThreads
 
@@ -934,12 +952,12 @@ func work(id int, doneWG *sync.WaitGroup) {
 			}
 		}*/
 		threadLists.Lock()
-		fmt.Printf("threadList len = %d and id = %d\n", len(threadLists.items), id)
+		//fmt.Printf("threadList len = %d and id = %d\n", len(threadLists.items), id)
 		//temp := threadLists.items[id].(ConcurrentSliceItem).Value.([]Method)
 		//threadLists.items[id].(ConcurrentSliceItem).Value.([]Method).Append(m1)
 		//temp := threadLists.items[id].([]Method)
 		threadLists.items[id] = append(threadLists.items[id].([]Method), m1)
-		fmt.Print("appended address: %v\n", threadLists.items[id].(*ConcurrentSlice).items[0].(Method).itemAddr)
+		//fmt.Printf("appended: %v\n", threadLists.items[id].([]Method)[0].itemAddr)
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 		threadLists.Unlock()
@@ -952,6 +970,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 func verify(doneWG *sync.WaitGroup) {
 	fmt.Println("Verifying...")
 	//wait()
+	//countIterated = 0
 
 	startTime := time.Unix(0, start.UnixNano())
 	startTimeEpoch := time.Since(startTime)
@@ -965,11 +984,11 @@ func verify(doneWG *sync.WaitGroup) {
 
 	// fnPt       := fncomp
 	//TODO: Either need to make these concurrent slices, or if easier just start slapping RWlocks around the use of them.
-	//methods := make([]*Method, 0)
-	methods := NewConcurrentSlice()
+	methods := make([]Method, 0)
+	//methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
-	//items := make([]*Item, 0)
-	items := NewConcurrentSlice()
+	items := make([]Item, 0)
+	//items := NewConcurrentSlice()
 	it := make([]int, numThreads, numThreads)
 	var itStart int
 
@@ -986,7 +1005,6 @@ func verify(doneWG *sync.WaitGroup) {
 
 	stop := false
 	var countOverall uint32 = 0
-	var countIterated uint32 = 0
 
 	var min int64
 	//var oldMin int64
@@ -1014,7 +1032,7 @@ func verify(doneWG *sync.WaitGroup) {
 			//var responseTime int64 = 0
 
 			for {
-				threadLists.Lock()
+				//threadLists.Lock()
 				if itCount[i] >= threadListsSize[i].Load() {
 					break
 				} else if itCount[i] == 0 {
@@ -1023,29 +1041,12 @@ func verify(doneWG *sync.WaitGroup) {
 					//++it[i]
 					it[i]++
 				}
-				threadLists.Unlock()
-				fmt.Printf("it[i] = %v", it[i])
+				//fmt.Printf("it[i] = %v\n", it[i])
 
-				//m := threadLists[it[i]].Back().Value.(Method)
-				//m := threadLists[it[i]][len(threadLists[it[i]]) - 1]
-				//m := threadLists.items[i].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).items[it[i]].(*ConcurrentSliceItem).Value.(*Method)
-				//var m *Method = nil
 				var m Method
-				/*for ti := range threadLists.Iter() {
-					if ti.Index == tId {
-						for tj := range ti.Value.(*ConcurrentSlice).Iter() {
-							if tj.Index == it[i] {
-								m = tj.Value.(Method)
-							}
-						}
-					}
-				}*/
-				//temp := threadLists.items[tId].(*ConcurrentSlice)
-				//m = temp.items[it[i]].(Method)
-				threadLists.Lock()
-				temp := threadLists.items[tId].(*ConcurrentSliceItem).Value.([]Method)
-				m = temp[it[i]]
-				threadLists.Unlock()
+
+				m = threadLists.items[tId].([]Method)[it[i]]
+				//threadLists.Unlock()
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
 				if err != nil{
@@ -1067,8 +1068,9 @@ func verify(doneWG *sync.WaitGroup) {
 				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
 				*/
 				//methods.Append(ConcurrentSliceItem{int(m.txnCtr), m})
-				fmt.Printf("M semantics = %v\n", m.semantics)
-				methods.Append(m)
+
+				//methods.Append(m)
+				methods = append(methods, m)
 
 				itCount[i]++
 				countOverall++
@@ -1076,22 +1078,30 @@ func verify(doneWG *sync.WaitGroup) {
 				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
 				//itItem := findIndexForMethod(methods, m, "itemAddr")
 				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
+
 				itItem := 0
-				for i := range items.Iter() {
-					j := i.Value.(ConcurrentSliceItem)
-					if j.Value.(Item).key == m.itemAddr {
+				for i := range items {
+					if items[i].key == m.itemAddr {
 						break
 					}
 					itItem++
 				}
+				/*for i := range items.Iter() {
+					j := i.Value.(Item)
+					if j.key == m.itemAddr {
+						break
+					}
+					itItem++
+				}*/
 
 				//mapItemsEnd := len(items) - 1
-				mapItemsEnd := 0
+				/*mapItemsEnd := 0
 				for range items.Iter() {
 					mapItemsEnd++
-				}
+				}*/
+				mapItemsEnd := len(items)
 				mapMethodsEnd := 0
-				for range items.Iter() {
+				for range methods {
 					mapMethodsEnd++
 				}
 
@@ -1103,19 +1113,25 @@ func verify(doneWG *sync.WaitGroup) {
 
 					//items.items[item.key] = &item
 
-					//TODO: does index matter?
-					items.Append(ConcurrentSliceItem{len(items.items), item})
+					//items.Append(ConcurrentSliceItem{len(items.items), item})
+					items = append(items, item)
+					//items.Append(item)
 
 					/*for i := range items.Iter() {
 						//if i.Index == item.key {
 							items.Append(ConcurrentSliceItem{item.key, item})
 					}*/
 					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
-					for i := range methods.Iter() {
+					/*for i := range methods.Iter() {
 						//k := i.Value.(ConcurrentSliceItem)
 						//if k.Value.(Method).itemAddr == m.itemAddr {
 						if i.Value.(Method).itemAddr == m.itemAddr {
 							itItem = i.Index
+						}
+					}*/
+					for i := range methods {
+						if methods[i].itemAddr == m.itemAddr {
+							itItem = i
 						}
 					}
 				}
@@ -1134,7 +1150,7 @@ func verify(doneWG *sync.WaitGroup) {
 	verifyCheckpoint(methods, items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
-				fmt.Printf("Count overall = %+V, count iterated = %+V, map_methods.size(1) = %+V\n", fmt.Sprint(countOverall), fmt.Sprint(countIterated), fmt.Sprint(len(methods.items)));
+				fmt.Printf("Count overall = %v, count iterated = %d, map_methods.size(1) = %v\n", fmt.Sprint(countOverall), countIterated, fmt.Sprint(len(methods)));
 			//#endif
 
 		//#if DEBUG_
@@ -1178,6 +1194,9 @@ func verify(doneWG *sync.WaitGroup) {
 
 	postVerifyEpoch := time.Now().UnixNano() - postVerify
 	verifyFinish := postVerifyEpoch - startTimeEpoch.Nanoseconds()
+	//a := verifyStart / int64(time.Millisecond)
+	//b := verifyFinish / int64(time.Millisecond)
+	//fmt.Printf("verify start is %d verify finish is %d\n", a, b)
 
 	elapsedTimeVerify = verifyFinish - verifyStart
 
@@ -1237,6 +1256,7 @@ func main() {
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
+	doneWG.Wait()
 	doneWG.Add(1)
 	go verify(&doneWG)
 	doneWG.Wait()
