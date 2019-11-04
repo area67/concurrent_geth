@@ -781,11 +781,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", common.NumThreads))
 	// semaphore to limit number of threads running at a time
-	var sem = make(chan bool, common.NumThreads)
+	//var sem = make(chan bool, common.NumThreads)
 	// load the semaphore
-	for i := 0; i < common.NumThreads; i++ {
-		sem <- true
-	}
+	//for i := 0; i < common.NumThreads; i++ {
+	//	sem <- true
+	//}
 
 	// 0 = OK, 1 = Break, 2 = Return
 
@@ -794,21 +794,27 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	var threadID int32 = 0
 
-	// debug: want to know how manny txs in trasactions by price and nonce
+	// debug: want to know how manny txs in transactions by price and nonce
 	// fmt.Printf("Attempting commit of %d transactions from %d senders\n", txs.NumTransactions()  ,txs.NumSenders())
+
+	// thread pool
+	var workerGroup sync.WaitGroup
+
 
 
 
 	// loop until break signal received
 	// increment threadID to keep track of threads
-	for ; loopStatus != BREAK; threadID++ {
+	for ; loopStatus == OK; threadID++ {
 		// check if need to return or break before beginning new thread
 
-		<-sem // take semaphore slot
-		// attempt parallel commit
-		go func(threadID int32) {
+		//<-sem // take semaphore slot
+		workerGroup.Add(1)
 
-			defer func() { sem <- true }()
+		// attempt parallel commit
+		go func(threadID int32, wg *sync.WaitGroup) {
+			defer func() {wg.Done()}()
+			//defer func() { sem <- true }()
 			// var casResult bool
 			// In the following three cases, we will interrupt the execution of the transaction.
 			// (1) new head block event arrival, the interrupt signal is 1
@@ -934,19 +940,22 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					//fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
 					txs.Shift(from)
 			}
-		}(threadID)
+		}(threadID,&workerGroup)
 
 		switch loopStatus {
 		case RETURN:
 			for i := 0; i < common.NumThreads; i++ {
-				<-sem
+				//<-sem
 			}
+			workerGroup.Wait()
 			return returnValue
 		}
 	}
 
 	for i := 0; i < common.NumThreads; i++ {
-		<-sem
+		//<-sem
+		workerGroup.Wait()
+		close()
 	}
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
