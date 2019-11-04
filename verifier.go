@@ -23,7 +23,7 @@ type Status int
 
 var txnCtr AtomicTxnCtr
 
-var countIterated uint32 = 0
+//var countIterated uint32 = 0
 
 const (
 	PRESENT Status = iota
@@ -527,7 +527,7 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 	}
 }*/
 
-func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -543,12 +543,14 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 		it := 0
 		end := len(methods) - 1
 
-		//fmt.Printf("end = %d\n", end)
+		fmt.Printf("end = %d\n", end)
 
 		//TODO: corner case
-		if countIterated == 0 {
+		if *countIterated == 0 {
+			fmt.Printf("setting reserItStart to false\n")
 			resetItStart = false
 		} else if it != end {
+			fmt.Printf("Incrementing itStart and it\n")
 			itStart = itStart + 1
 			it = itStart
 		}
@@ -567,7 +569,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 
 		itStart = it
 		resetItStart = false
-		countIterated++
+		*countIterated++
 
 		//fmt.Printf("Do we even get here? %d", countIterated)
 
@@ -603,12 +605,13 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 			items[it].addInt(1)
 
 			if methods[it].semantics == FIFO {
+				fmt.Println("MADE IT")
 				for it0 := 0; it0 != it; it0++ {
+					fmt.Println("MADE IT in 1")
 					// serializability
-					//fmt.Println("MADE IT")
 					if methods[it0].itemAddr == methods[it].itemAddr &&
 						methods[it0].requestAmnt > methods[it].requestAmnt {
-						fmt.Println("MADE IT in 1")
+						fmt.Println("MADE IT in 2")
 						// #endif
 						itItems0 := 0
 
@@ -630,15 +633,11 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 				}
 			}
 		}
-		if methods[it].semantics == FIFO {
-			//fmt.Printf("it is %d\n", it)
+		/*if methods[it].semantics == FIFO {
 			for it0 := 0; it0 != it; it0++{
-				fmt.Printf("MADE it to FIFO loop\n")
 				// serializability
-				fmt.Printf("CHECKING CORRECTNESS 1\n")
 				if methods[it0].itemAddr == methods[it].itemAddr &&
 					methods[it0].requestAmnt > methods[it].requestAmnt{
-					fmt.Println("MADE IT in 2")
 					// #endif
 					itItems0 := it0 //methods[it0].itemAddr
 
@@ -654,11 +653,10 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 					}
 				}
 			}
-		}
+		}*/
 		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
 		if methods[it].types == CONSUMER {
-
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
 			if(it_consumer == map_consumer.end())
@@ -935,8 +933,6 @@ func work(id int, doneWG *sync.WaitGroup) {
 		var m2 Method
 		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
-		//fmt.Printf("%v\n", m1.itemAddr)
-
 		// mId += numThreads
 
 		//threadLists[id] = append(threadLists[id], m1)
@@ -970,7 +966,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 func verify(doneWG *sync.WaitGroup) {
 	fmt.Println("Verifying...")
 	//wait()
-	//countIterated = 0
+	var countIterated uint64 = 0
 
 	startTime := time.Unix(0, start.UnixNano())
 	startTimeEpoch := time.Since(startTime)
@@ -983,7 +979,6 @@ func verify(doneWG *sync.WaitGroup) {
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
-	//TODO: Either need to make these concurrent slices, or if easier just start slapping RWlocks around the use of them.
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
@@ -1143,11 +1138,11 @@ func verify(doneWG *sync.WaitGroup) {
 			*/
 		}
 
-		verifyCheckpoint(methods, items, itStart, uint64(countIterated), int64(min), true, blocks)
+		verifyCheckpoint(methods, items, itStart, &countIterated, int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(methods, items, itStart, uint64(countIterated), math.MaxInt64, false, blocks)
+	verifyCheckpoint(methods, items, itStart, &countIterated, math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %v, count iterated = %d, map_methods.size(1) = %v\n", fmt.Sprint(countOverall), countIterated, fmt.Sprint(len(methods)));
