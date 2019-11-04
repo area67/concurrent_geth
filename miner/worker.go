@@ -955,7 +955,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	for i := 0; i < common.NumThreads; i++ {
 		//<-sem
 		workerGroup.Wait()
-		close()
+
 	}
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
