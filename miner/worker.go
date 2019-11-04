@@ -738,7 +738,7 @@ func WriteToFile(filename string, data string) error {
 	}
 
 	defer f.Close()
-	fmt.Fprintf(f, "%s", data)
+	_, err = fmt.Fprintf(f, "%s", data)
 	return  err
 }
 
@@ -746,12 +746,16 @@ func processTimer(start time.Time, txCount *int64) {
 	nanoseconds := time.Since(start).Nanoseconds()
 	seconds := float64(nanoseconds) / 1e9
 	throughput := float64(*txCount) / seconds
+<<<<<<< HEAD
 	if _, err := os.Stat("performanceEval.txt"); os.IsNotExist(err) {
 		// "performanceEval.txt" does not exist
 		// create file
 		os.Create("performanceEval.txt")
 	}
 	s := fmt.Sprintf("%d, %f\n", common.NumThreads, throughput)
+=======
+	s := fmt.Sprintf("%d\t%f\n", common.NumThreads, throughput)
+>>>>>>> bbf3f10321bd6989e95271cc69153eb49ee9b34e
 	_ = WriteToFile("performanceEval.txt", s)
 }
 

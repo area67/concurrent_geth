@@ -2,6 +2,7 @@ package miner
 
 import (
 	"crypto/ecdsa"
+	"flag"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -197,7 +199,15 @@ func testEmptyWorkConcurrent(t *testing.T, chainConfig *params.ChainConfig, engi
 	}
 }
 
+var defaultVal = -1
+var threads = flag.String("threads", strconv.Itoa(defaultVal), "Number of threads for the test to use.")
+
 func TestCommitTransactionsPerformance(t *testing.T){
+	flag.Parse()
+	threadCount, err := strconv.Atoi(*threads)
+	if threadCount != defaultVal && err == nil {
+		common.NumThreads = threadCount
+	}
 	testCommitTransactionsPerformance(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 
@@ -209,7 +219,6 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 	var (
 		taskCh    = make(chan struct{}, 2)
 		taskIndex int
-		//interrupt int32 = 0
 	)
 
 	checkEqual := func(t *testing.T, task *task, index int) {
@@ -220,10 +229,6 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 		if len(task.receipts) != receiptLen {
 			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
 		}
-		/*
-		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
-		}*/
 	}
 
 	w.newTaskHook = func(task *task) {
@@ -253,11 +258,4 @@ func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainCo
 			t.Error("new task timeout")
 		}
 	}
-	//tem := w.current
-	//print(tem)
-	//testTxs:=types.NewTransactionsByPriceAndNonce(w.current.signer, txsMap)
-
-	// start time
-	//w.commitTransactions(testTxs, w.coinbase, &interrupt)
-	// end time
 }

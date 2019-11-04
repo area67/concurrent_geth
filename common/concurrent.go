@@ -1,5 +1,5 @@
 package common
 
-const (
-	NumThreads   = 4
+var (
+	NumThreads   = 1
 )
