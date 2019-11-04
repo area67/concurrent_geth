@@ -754,8 +754,7 @@ func processTimer(start time.Time, txCount *int64) {
 	throughput := float64(*txCount) / seconds
 
 	s := fmt.Sprintf("%d\t%f\n", common.NumThreads, throughput)
-
-	_ = WriteToFile("performanceEval.txt", s)
+	_ = WriteToFile("results.txt", s)
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {

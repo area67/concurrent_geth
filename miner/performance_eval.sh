@@ -1,6 +1,6 @@
 if [ $# -lt 2 ]
 	then
-	echo "Expected ./script <max threads> <num operations>"
+	echo "Expected ./<script_name> <max threads> <num tests per threadcount>"
 	exit 1
 fi
 
