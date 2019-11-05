@@ -47,3 +47,7 @@ profile.cov
 
 **/yarn-error.log
 /miner/performanceEval.txt
+
+# for local evaluation
+/miner/*.png
+/miner/*.txt
