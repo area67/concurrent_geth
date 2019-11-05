@@ -765,7 +765,6 @@ func processTimer(start time.Time, txCount *int64) {
 func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce,coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64){
 	defer func() {wg.Done()}()
 
-	time.Sleep(time.Millisecond*50)
 	for ;*loopStatus == OK; {
 		//fmt.Printf("Thread %d starting\n", threadID)
 
