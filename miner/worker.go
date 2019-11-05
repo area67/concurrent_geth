@@ -825,9 +825,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			return
 		}
 
-		// txn start
-		// pause to see concurrency
-		//time.Sleep(time.Millisecond * 500)
+
 
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -836,9 +834,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		from, _ := types.Sender(w.current.signer, tx)
 		log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
 		//fmt.Printf("Attempting commit of transaction from sender %s in thread %d\n",from.String(), threadID)
-		defer func() {
-			log.Debug(fmt.Sprintf("Finishing attempted commit of transaction from sender %s in thread %d", from.String(), threadID))
-		}()
+
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
 		// phase, start ignoring the sender until we do.
 		if tx.Protected() && !w.config.IsEIP155(w.current.header.Number) {
@@ -850,13 +846,13 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		}
 
 		// Start executing the transaction
-		// commitTxnsLock.Lock()
+
 
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
 		logs, err := w.commitTransaction(tx, coinbase)
 
-		//commitTxnsLock.Unlock()
+
 		// where transaction iteration happens
 		switch err {
 		case core.ErrGasLimitReached:
@@ -896,6 +892,8 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		//fmt.Printf("Thread %d finishing\n", threadID)
 	}
 
+
+
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -914,17 +912,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var coalescedLogs []*types.Log
 
 
-	// load txnJobs
 
 
-	// use num threads as semaphore
+
 	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", common.NumThreads))
-	// semaphore to limit number of threads running at a time
-	//var sem = make(chan bool, common.NumThreads)
-	// load the semaphore
-	//for i := 0; i < common.NumThreads; i++ {
-	//	sem <- true
-	//}
+
 
 	// 0 = OK, 1 = Break, 2 = Return
 
@@ -947,8 +939,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		threadID++
 	}
 
-	// select
-	// return, done
+
 
 	// loop until break signal received
 	// increment threadID to keep track of threads
