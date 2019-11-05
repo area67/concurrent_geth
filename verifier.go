@@ -528,7 +528,7 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 	}
 }*/
 
-func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -544,7 +544,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 		it := 0
 		end := len(methods) - 1
 
-		fmt.Printf("end = %d\n", end)
+		fmt.Printf("end of methods = %d\n", end)
 
 		//TODO: corner case
 		if *countIterated == 0 {
@@ -552,8 +552,8 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 			resetItStart = false
 		} else if it != end {
 			fmt.Printf("Incrementing itStart and it\n")
-			itStart = itStart + 1
-			it = itStart
+			*itStart = *itStart + 1
+			it = *itStart
 		}
 		fmt.Printf("it = %d\n", it)
 
@@ -568,7 +568,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 		}
 		methodCount = methodCount + 1
 
-		itStart = it
+		*itStart = it
 		resetItStart = false
 		*countIterated++
 
@@ -658,6 +658,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
 		if methods[it].types == CONSUMER {
+			fmt.Printf("WE GOT A LIVE ONE")
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
 			if(it_consumer == map_consumer.end())
@@ -729,7 +730,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart int, countIterated
 		}
 		//}
 		if resetItStart {
-			itStart--
+			*itStart--
 		}
 
 		//NEED TO FLAG ITEMS ASSOCIATED WITH CONSUMER METHODS AS ABSENT
@@ -953,8 +954,9 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//temp := threadLists.items[id].(ConcurrentSliceItem).Value.([]Method)
 		//threadLists.items[id].(ConcurrentSliceItem).Value.([]Method).Append(m1)
 		//temp := threadLists.items[id].([]Method)
+		//TODO: we want to append both...right?
 		threadLists.items[id] = append(threadLists.items[id].([]Method), m1)
-		//fmt.Printf("appended: %v\n", threadLists.items[id].([]Method)[0].itemAddr)
+		threadLists.items[id] = append(threadLists.items[id].([]Method), m2)
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 		threadLists.Unlock()
@@ -1076,6 +1078,7 @@ func verify(doneWG *sync.WaitGroup) {
 				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
 				itItem := 0
+				//TODO: this break will always happen because the producer and consumer methods will always have same address
 				for i := range items {
 					if items[i].key == m.itemAddr {
 						break
@@ -1139,11 +1142,11 @@ func verify(doneWG *sync.WaitGroup) {
 			*/
 		}
 
-		verifyCheckpoint(methods, items, itStart, &countIterated, int64(min), true, blocks)
+		verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(methods, items, itStart, &countIterated, math.MaxInt64, false, blocks)
+	verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %v, count iterated = %d, map_methods.size(1) = %v\n", fmt.Sprint(countOverall), countIterated, fmt.Sprint(len(methods)));
