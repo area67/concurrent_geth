@@ -762,15 +762,13 @@ func processTimer(start time.Time, txCount *int64) {
 	_ = WriteToFile("results.txt", s)
 }
 
-/*read pending transactions and put into channel*/
-func Allocate(){
-
-}
-
 func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce,coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64){
 	defer func() {wg.Done()}()
 
+	time.Sleep(time.Millisecond*50)
 	for ;*loopStatus == OK; {
+		//fmt.Printf("Thread %d starting\n", threadID)
+
 		// var casResult bool
 		// In the following three cases, we will interrupt the execution of the transaction.
 		// (1) new head block event arrival, the interrupt signal is 1
@@ -896,6 +894,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			//fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
 			txs.Shift(from)
 		}
+		//fmt.Printf("Thread %d finishing\n", threadID)
 	}
 
 }
@@ -945,6 +944,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	for i := 0; i < common.NumThreads; i++{
 		workerGroup.Add(1)
 		go txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,threadID,&counter)
+		//fmt.Printf("Started thread %d\n",threadID)
 		threadID++
 	}
 
@@ -1109,6 +1109,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	workerGroup.Wait()
 
+	switch loopStatus{
+		case RETURN:
+			return returnValue
+
+	}
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
 		// We don't push the pendingLogsEvent while we are mining. The reason is that

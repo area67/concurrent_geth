@@ -1,5 +1,5 @@
 package common
 
 var (
-	NumThreads   = 1
+	NumThreads   = 4
 )
