@@ -593,7 +593,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 
 
 		if methods[it].types == PRODUCER {
-
+			fmt.Printf("PRODUCER\n")
 			items[it].producer = it
 
 			if items[itItems].status == ABSENT {
@@ -634,6 +634,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 				}
 			}
 		}
+
 		/*if methods[it].semantics == FIFO {
 			for it0 := 0; it0 != it; it0++{
 				// serializability
@@ -658,7 +659,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
 		if methods[it].types == CONSUMER {
-			fmt.Printf("WE GOT A LIVE ONE")
+			fmt.Printf("WE GOT A LIVE ONE\n")
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
 			if(it_consumer == map_consumer.end())
@@ -862,9 +863,15 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//var end time.Time
 
 	//wait()
+	//if(Atomic.LoadInt32(&numTxns) == 0) {
+		//return;
+	//}
 
 	for i := int32(0); i < testSize; i++ {
 
+		/*if Atomic.LoadInt32(&numTxns) == 0 {
+			break;
+		}*/
 		var res bool
 		itemAddr1 := transactions[id].addrSender
 		itemAddr2 := transactions[id].addrReceiver
@@ -935,6 +942,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 		var m2 Method
 		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
+		Atomic.AddInt32(&numTxns, -1)
 		// mId += numThreads
 
 		//threadLists[id] = append(threadLists[id], m1)
@@ -957,6 +965,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//TODO: we want to append both...right?
 		threadLists.items[id] = append(threadLists.items[id].([]Method), m1)
 		threadLists.items[id] = append(threadLists.items[id].([]Method), m2)
+		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
 		threadListsSize[id].Add(1)
 		Atomic.AddInt64(&methodTime[id], 1)
 		threadLists.Unlock()
@@ -980,6 +989,7 @@ func verify(doneWG *sync.WaitGroup) {
 	preVerifyEpoch := time.Since(preVerify)
 
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
+
 
 	// fnPt       := fncomp
 	methods := make([]Method, 0)
@@ -1044,6 +1054,9 @@ func verify(doneWG *sync.WaitGroup) {
 				var m Method
 
 				m = threadLists.items[tId].([]Method)[it[i]]
+				it[i]++
+				m2 := threadLists.items[tId].([]Method)[it[i]]
+				//fmt.Print("m is %v\nm2 is %v", m, m2)
 				//threadLists.Unlock()
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
@@ -1069,6 +1082,7 @@ func verify(doneWG *sync.WaitGroup) {
 
 				//methods.Append(m)
 				methods = append(methods, m)
+				methods = append(methods, m2)
 
 				itCount[i]++
 				countOverall++
@@ -1116,18 +1130,8 @@ func verify(doneWG *sync.WaitGroup) {
 					items = append(items, item)
 					//items.Append(item)
 
-					/*for i := range items.Iter() {
-						//if i.Index == item.key {
-							items.Append(ConcurrentSliceItem{item.key, item})
-					}*/
 					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
-					/*for i := range methods.Iter() {
-						//k := i.Value.(ConcurrentSliceItem)
-						//if k.Value.(Method).itemAddr == m.itemAddr {
-						if i.Value.(Method).itemAddr == m.itemAddr {
-							itItem = i.Index
-						}
-					}*/
+
 					for i := range methods {
 						if methods[i].itemAddr == m.itemAddr {
 							itItem = i
@@ -1149,7 +1153,7 @@ func verify(doneWG *sync.WaitGroup) {
 	verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
-				fmt.Printf("Count overall = %v, count iterated = %d, map_methods.size(1) = %v\n", fmt.Sprint(countOverall), countIterated, fmt.Sprint(len(methods)));
+				fmt.Printf("Count overall = %v, count iterated = %d, methods size = %d, items size = %d\n", fmt.Sprint(countOverall), countIterated, len(methods), len(items));
 			//#endif
 
 		//#if DEBUG_
@@ -1203,12 +1207,14 @@ func verify(doneWG *sync.WaitGroup) {
 }
 
 var transactions [100]TransactionData
+var numTxns int32
 
 func main() {
-	// Notes: Need to USE THE CHANNELS.
 	// will use for i:= range threadLists.iter() in place of findMethodKey.
 	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 	// Whats the deal with the separate items slice?
+	Atomic.StoreInt32(&numTxns, 0)
+
 	methodCount = 0
 
 	finalOutcome = true
@@ -1229,6 +1235,7 @@ func main() {
 	}
 
 	for i := 0; i < 2; i++ {
+		Atomic.AddInt32(&numTxns, 1)
 		/*for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
