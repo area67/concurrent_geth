@@ -492,7 +492,7 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 		// serializability
 		//todo: > or <
 		if methods[it0].itemAddr == methods[it].itemAddr &&
-			methods[it0].requestAmnt < methods[mk].requestAmnt {
+			methods[it0].requestAmnt > methods[mk].requestAmnt {
 
 			itemItr0 := methods[it0].itemAddr
 
@@ -659,7 +659,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
 		if methods[it].types == CONSUMER {
-			fmt.Printf("WE GOT A LIVE ONE\n")
+			//fmt.Printf("WE GOT A LIVE ONE\n")
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
 			if(it_consumer == map_consumer.end())
@@ -771,7 +771,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		//TODO: DANGER, this is the removal optimization that can cause segfaults, commented out the dangerous contents for now.
 		for stackFinishedMethods.Len() != 0 {
 			//itTop := stackFinishedMethods.Peek().(int64)
-			//delete(methods, itTop)
+			//(methods, itTop)
 			stackFinishedMethods.Pop()
 		}
 
@@ -810,6 +810,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}
 
 			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
+			//fmt.Printf("prior to outcome = false, sum stuff = %f\n", items[itVerify].sumF)
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
