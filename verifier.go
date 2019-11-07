@@ -51,7 +51,8 @@ const (
 
 type Method struct {
 	id          int       // atomic var
-	itemAddr    string       // account address
+	itemAddrS    string       // sender account address
+	itemAddrR    string   // receiver account address
 	itemBalance int       // account balance
 	semantics   Semantics // hardcode as FIFO per last email
 	types       Types     // producing/consuming  adding/subtracting
@@ -118,10 +119,11 @@ func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
 	return c
 }
 
-func (m *Method) setMethod(id int, itemAddr string, itemBalance int, semantics Semantics,
+func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt int, txnCtr int32) {
 	m.id = id
-	m.itemAddr = itemAddr
+	m.itemAddrS = itemAddrS
+	m.itemAddrR = itemAddrR
 	m.itemBalance = itemBalance
 	m.semantics = semantics
 	m.types = types
@@ -325,7 +327,7 @@ func (i *Item) addFracFailed(num int64, den int64) {
 	//   C.printf("WARNING: addFracFailed: 2. denominatorF = 0\n");
 	// #endif
 
-	i.sumF = float64(i.numeratorF / i.denominatorF)
+	i.sumF = float64(i.numeratorF) / float64(i.denominatorF)
 }
 
 func (i *Item) subFracFailed(num int64, den int64) {
@@ -348,7 +350,7 @@ func (i *Item) subFracFailed(num int64, den int64) {
 	// if(denominator_f == 0)
 	// C.printf("WARNING: sub_frac_f: 2. denominator_f = 0\n");
 	// #endif
-	i.sumF = float64(i.numeratorF / i.denominatorF)
+	i.sumF = float64(i.numeratorF) / float64(i.denominatorF)
 }
 
 func (i *Item) demoteFailed() {
@@ -466,7 +468,7 @@ func maxOf(vars []int) int {
 	return vars[len(vars) - 1]
 }
 
-func findIndexForMethod(methods []*Method, method Method, field string) int {
+/*func findIndexForMethod(methods []*Method, method Method, field string) int {
 	if field == "itemAddr" {
 		for i, m := range methods {
 			if m.itemAddr == method.itemAddr{
@@ -475,7 +477,7 @@ func findIndexForMethod(methods []*Method, method Method, field string) int {
 		}
 	}
 	return -1
-}
+}*/
 
 //
 //func reslice(s []*Method, index int) []*Method {
@@ -485,24 +487,27 @@ func findIndexForMethod(methods []*Method, method Method, field string) int {
 
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed stack.Stack) {
+func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
 	fmt.Printf("Handling failed consumer...\n")
 	begin := 0
 	for it0 := begin; it0 != it; it0++ {
+		fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and mk requestAmnt is %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[mk + 1].requestAmnt)
 		// serializability
 		//todo: > or <
-		if methods[it0].itemAddr == methods[it].itemAddr &&
-			methods[it0].requestAmnt > methods[mk].requestAmnt {
+		if methods[it0].itemAddrS == methods[it].itemAddrS &&
+			math.Abs(float64(methods[it0].requestAmnt)) < math.Abs(float64(methods[mk].requestAmnt)) {
 
-			itemItr0 := methods[it0].itemAddr
+			fmt.Printf("Handling failed consumer 2\n")
 
-			if methods[it0].types == PRODUCER &&
-				//items.items[it].(*Item).status == PRESENT &&
+			itemItr0 := methods[it0].itemAddrS
+
+			//if methods[it0].types == PRODUCER &&
+			if methods[it0].types == CONSUMER &&
 				items[it].status == PRESENT &&
 				methods[it0].semantics == FIFO ||
 				methods[it0].semantics == LIFO ||
-				methods[mk].itemAddr == methods[it0].itemAddr {
-
+				methods[mk].itemAddrS == methods[it0].itemAddrS {
+				fmt.Printf("Handling failed consumer 3\n")
 				stackFailed.Push(itemItr0)
 			}
 		}
@@ -610,7 +615,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 				for it0 := 0; it0 != it; it0++ {
 					fmt.Println("MADE IT in 1")
 					// serializability
-					if methods[it0].itemAddr == methods[it].itemAddr &&
+					if methods[it0].itemAddrS == methods[it].itemAddrS &&
 						methods[it0].requestAmnt < methods[it].requestAmnt {
 						fmt.Println("MADE IT in 2")
 						// #endif
@@ -726,7 +731,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 					stackFinishedMethods.Push(items[itItems].producer)
 				}
 			} else {
-				handleFailedConsumer(methods, items, it, itItems, stackFailed)
+				handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 			}
 		}
 		//}
@@ -757,14 +762,24 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		}
 
 		for stackFailed.Len() != 0 {
-			itTop := stackFailed.Peek().(int)
-
-			//if items.items[itTop].(*Item).status == PRESENT {
-			if items[itTop].status == PRESENT {
+			fmt.Printf("stackFailed length non zero\n")
+			//itTop := stackFailed.Peek().(int)
+			/*if items[itTop].status == PRESENT {
 				//items.items[itTop].(*Item).demoteFailed()
 				items[itTop].demoteFailed()
 			}
-			stackFailed.Pop()
+			stackFailed.Pop()*/
+			temp := stackFailed.Peek().(string)
+			for itTop := range items {
+
+				//if items.items[itTop].(*Item).status == PRESENT {
+				if items[itTop].key == temp && items[itTop].status == PRESENT {
+					//items.items[itTop].(*Item).demoteFailed()
+					fmt.Printf("Demoting item...\n")
+					items[itTop].demoteFailed()
+				}
+				stackFailed.Pop()
+			}
 		}
 
 		// remove methods that are no longer active
@@ -780,6 +795,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		itVerify := 0
 		//itEnd := len(items.items) - 1
 		itEnd := len(items) - 1
+
 
 		for ; itVerify != itEnd; itVerify++ {
 			if items[itVerify].sum < 0 {
@@ -810,7 +826,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}
 
 			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
-			//fmt.Printf("prior to outcome = false, sum stuff = %f\n", items[itVerify].sumF)
+			fmt.Printf("prior to outcome = false, sum stuff = %f\n", items[itVerify].sumF)
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				outcome = false
 				// #if DEBUG_
@@ -936,12 +952,12 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 		// account being added to
 		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
+		m1.setMethod(int(mId), itemAddr1, itemAddr2, transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
 
 		// account being subtracted from
 		Atomic.AddInt32(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId), itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
+		m2.setMethod(int(mId),itemAddr1, itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
 		Atomic.AddInt32(&numTxns, -1)
 		// mId += numThreads
@@ -1095,7 +1111,7 @@ func verify(doneWG *sync.WaitGroup) {
 				itItem := 0
 				//TODO: this break will always happen because the producer and consumer methods will always have same address
 				for i := range items {
-					if items[i].key == m.itemAddr {
+					if items[i].key == m.itemAddrS {
 						break
 					}
 					itItem++
@@ -1121,7 +1137,9 @@ func verify(doneWG *sync.WaitGroup) {
 
 				if itItem == mapItemsEnd {
 					var item Item
-					item.setItem(m.itemAddr)
+					var item2 Item
+					item.setItem(m.itemAddrS)
+					item2.setItem(m2.itemAddrS)
 					//item.key = m.itemAddr
 					item.producer = mapMethodsEnd
 
@@ -1129,12 +1147,13 @@ func verify(doneWG *sync.WaitGroup) {
 
 					//items.Append(ConcurrentSliceItem{len(items.items), item})
 					items = append(items, item)
+					items = append(items, item2)
 					//items.Append(item)
 
 					//itItem, _ = findMethodKey(mapMethods, m.itemAddr)
 
 					for i := range methods {
-						if methods[i].itemAddr == m.itemAddr {
+						if methods[i].itemAddrS == m.itemAddrS {
 							itItem = i
 						}
 					}
