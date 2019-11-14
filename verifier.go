@@ -3,6 +3,7 @@ package main
 import (
 	"C"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
@@ -88,14 +89,6 @@ type ConcurrentSliceItem struct {
 	Value interface{}
 }
 
-func NewConcurrentSlice() *ConcurrentSlice {
-	cs := &ConcurrentSlice{
-		//items: make([]interface{}, 0),
-		items: make([]interface{}, numThreads),
-	}
-	return cs
-}
-
 func (cs *ConcurrentSlice) Append(item interface{}) {
 	cs.Lock()
 	defer cs.Unlock()
@@ -117,6 +110,32 @@ func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
 	go f()
 
 	return c
+}
+
+func WriteToFile(filename string, data string) error {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		// file does not exist
+		// create file
+		os.Create(filename)
+	}
+
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	defer f.Close()
+	_, err = fmt.Fprintf(f, "%s", data)
+	return  err
+}
+
+func processTimer(start time.Time, txCount *int64) {
+	nanoseconds := time.Since(start).Nanoseconds()
+	seconds := float64(nanoseconds) / 1e9
+	throughput := float64(*txCount) / seconds
+
+	s := fmt.Sprintf("%d\t%f\n", common.NumThreads, throughput)
+	_ = WriteToFile("results.txt", s)
 }
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
@@ -1254,7 +1273,7 @@ func main() {
 		transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 64; i++ {
 		Atomic.AddInt32(&numTxns, 1)
 		/*for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
@@ -1262,16 +1281,17 @@ func main() {
 		}*/
 		transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
+		transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))
 		//transactions[i].amount = rand.Intn(50)
-		if(i == 0) {
-			transactions[i].amount = 100
+		/*if(i == 0) {
+			transactions[i].amount = 300
 		} else {
 			transactions[i].amount = 200
-		}
+		}*/
 		transactions[i].balanceSender = rand.Intn(50)
 		transactions[i].balanceReceiver = rand.Intn(50)
-		transactions[i].tId = txnCtr.val
-		Atomic.AddInt32(&txnCtr.val, 1)
+		transactions[i].tId = Atomic.LoadInt32(&numTxns)
+		//Atomic.AddInt32(&txnCtr.val, 1)
 	}
 	txnCtr.val = 0
 	start := time.Now()
@@ -1279,16 +1299,9 @@ func main() {
 	//TODO: thread/ channel stuff
 
 	for i := 0; i < numThreads; i++ {
-		//csi := ConcurrentSliceItem{i, NewConcurrentSlice()}
-		//cs := &ConcurrentSlice{items: make([], numThreads),}
-		//threadLists.items[i] = cs
-		//threadLists.RLock()
-		//threadLists.Append(ConcurrentSliceItem{i, make([]Method, 0)})
-		//threadLists.Append(NewConcurrentSlice())
+
 		threadLists.Append(make([]Method, 0))
 		threadListsSize[i].Store(0)
-		//threadLists.RUnlock()
-		//threadLists.items[i].(*ConcurrentSlice).Append()
 		doneWG.Add(1)
 		go work(i, &doneWG)
 	}
