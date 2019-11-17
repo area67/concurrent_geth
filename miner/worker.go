@@ -713,11 +713,11 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, threadID int32, threadState *state.StateDB) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, threadState *state.StateDB) ([]*types.Log, error) {
 
 
 	snap := w.current.state.Snapshot()
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, threadState, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), threadID)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, threadState, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 
 	if err != nil {
 		log.Debug(fmt.Sprintf("Transaction error, reverting to snapshot %s", err))
@@ -914,7 +914,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
 
-		logs, err := w.commitTransaction(tx, coinbase, threadID, threadState)
+		logs, err := w.commitTransaction(tx, coinbase, threadState)
 
 
 		// where transaction iteration happens
