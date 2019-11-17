@@ -17,14 +17,13 @@
 package core
 
 import (
-	"math/big"
-	"sync"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"math/big"
+	"sync"
 )
 var(
 	InUseAccounts sync.Map
@@ -96,7 +95,7 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	delay := common.MIN_DELAY
+	delay := concurrent.MIN_DELAY
 	for {
 		if _, senderInUse := InUseAccounts.LoadOrStore(sender.String(), nil); !senderInUse {
 			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse {
@@ -107,10 +106,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 				return
 			}
 			InUseAccounts.Delete(sender.String())
-			time.Sleep(time.Duration(delay) * time.Nanosecond)
-			if delay < common.MAX_DELAY {
-				delay *= 2
-			}
+			delay = concurrent.Backoff(delay)
 		}
 	}
 }

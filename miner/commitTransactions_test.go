@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -208,12 +209,12 @@ func TestCommitTransactionsPerformance(t *testing.T){
 	flag.Parse()
 	threadCount, err := strconv.Atoi(*threads)
 	if err == nil {
-		common.NumThreads = threadCount
+		concurrent.NumThreads = threadCount
 		runtime.GOMAXPROCS(runtime.NumCPU() + threadCount)
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU() + defaultVal)
 	}
-	fmt.Println("Beginning Test for ", common.NumThreads, " Txn Threads")
+	fmt.Println("Beginning Test for ", concurrent.NumThreads, " Txn Threads")
 	testCommitTransactionsPerformance(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"os"
 
 	"math/big"
@@ -759,7 +760,7 @@ func processTimer(start time.Time, txCount *int64) {
 	seconds := float64(nanoseconds) / 1e9
 	throughput := float64(*txCount) / seconds
 
-	s := fmt.Sprintf("%d\t%f\n", common.NumThreads, throughput)
+	s := fmt.Sprintf("%d\t%f\n", concurrent.NumThreads, throughput)
 	_ = WriteToFile("results.txt", s)
 }
 
@@ -779,7 +780,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 	var coalescedLogs []*types.Log
 
-	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", common.NumThreads))
+	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", concurrent.NumThreads))
 
 
 	// 0 = OK, 1 = Break, 2 = Return
@@ -795,13 +796,14 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// thread pool
 	var workerGroup sync.WaitGroup
 	// start txnWorkers
-	for i := 0; i < common.NumThreads; i++{
+	for i := 1; i < concurrent.NumThreads; i++{
 		workerGroup.Add(1)
 		go txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,threadID,&counter)
 		//fmt.Printf("Started thread %d\n",threadID)
 		threadID++
 	}
-
+	workerGroup.Add(1)
+	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter)
 	workerGroup.Wait()
 
 	switch loopStatus{
