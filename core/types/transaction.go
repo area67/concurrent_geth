@@ -337,6 +337,7 @@ type TransactionsByPriceAndNonce struct {
 	signer         Signer                          	// Signer for the set of transactions
 	accountLock    hashmap.HashMap					// What accounts are available to take transactions form
 	headsAvailable []int32							// 1 = available, 0 = not available
+	index  		   uint32							// used to reference where in the transactions aray should be accessed next
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -372,6 +373,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 		heads:  heads,
 		signer: signer,
 		headsAvailable: headsAvailable,
+		index: 0,
 	}
 }
 
@@ -382,18 +384,18 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	//defer t.nonceMutex.RUnlock()
 	var result *Transaction = nil
 	var length = len(t.heads)
-
+	var index = int(atomic.LoadUint32(&t.index))
 	for i := 0; i < length; i++ {
 
 		// check that sender in heads[i] is still available (has not been removed)
-		if atomic.LoadInt32(&t.headsAvailable[i]) == 0{
+		if atomic.LoadInt32(&t.headsAvailable[(index + i) % length]) == 0{
 			// sender is finished, look to next sender
 			continue
 		}
 
 
 		// Find the sender
-		var sender, err = Sender(t.signer, t.heads[i])
+		var sender, err = Sender(t.signer, t.heads[(index + i) % length])
 		if err != nil {
 			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
 			//fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
@@ -415,7 +417,8 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
 				// fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
-				result = t.heads[i]
+				atomic.AddUint32(&t.index, 1)
+				result = t.heads[(index + i) % length]
 				break
 			}
 

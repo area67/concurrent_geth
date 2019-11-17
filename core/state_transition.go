@@ -129,8 +129,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, threadID int32) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp).TransitionDb(threadID)
 }
 
 // to returns the recipient of the message.
@@ -169,6 +169,12 @@ func (st *StateTransition) buyGas() error {
 
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
+
+	// TODO: this is bad
+	if st.msg.CheckNonce() {
+		return st.buyGas()
+	}
+
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
@@ -185,8 +191,12 @@ func (st *StateTransition) preCheck() error {
 // TransitionDb will transition the state by applying the current message and
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
-func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
-	stateTransitionLock.Lock()
+func (st *StateTransition) TransitionDb(threadID int32) (ret []byte, usedGas uint64, failed bool, err error) {
+
+	//stateTransitionLock.Lock()
+	//defer stateTransitionLock.Unlock()
+
+	// nonce error here
 	if err = st.preCheck(); err != nil {
 		return
 	}
@@ -215,6 +225,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
+
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
@@ -228,7 +239,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
-	stateTransitionLock.Unlock()
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 

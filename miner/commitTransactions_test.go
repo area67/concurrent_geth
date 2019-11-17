@@ -3,6 +3,7 @@ package miner
 import (
 	"crypto/ecdsa"
 	"flag"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -199,15 +201,19 @@ func testEmptyWorkConcurrent(t *testing.T, chainConfig *params.ChainConfig, engi
 	}
 }
 
-var defaultVal = -1
+var defaultVal = 1
 var threads = flag.String("threads", strconv.Itoa(defaultVal), "Number of threads for the test to use.")
 
 func TestCommitTransactionsPerformance(t *testing.T){
 	flag.Parse()
 	threadCount, err := strconv.Atoi(*threads)
-	if threadCount != defaultVal && err == nil {
+	if err == nil {
 		common.NumThreads = threadCount
+		runtime.GOMAXPROCS(runtime.NumCPU() + threadCount)
+	} else {
+		runtime.GOMAXPROCS(runtime.NumCPU() + defaultVal)
 	}
+	fmt.Println("Beginning Test for ", common.NumThreads, " Txn Threads")
 	testCommitTransactionsPerformance(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 
