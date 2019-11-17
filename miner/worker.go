@@ -839,7 +839,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64){
 	defer func() {wg.Done()}()
 
-	threadState := w.current.state.Copy();
+	threadState := w.current.state.Copy()
 	for ;*loopStatus == OK; {
 		//fmt.Printf("Thread %d starting\n", threadID)
 
