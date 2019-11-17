@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"io"
 	"math/big"
+	"sync"
 	"sync/atomic"
 	//"time"
 )
@@ -335,7 +336,7 @@ type TransactionsByPriceAndNonce struct {
 	txs            hashmap.HashMap//map[common.Address]Transactions 	// Per account nonce-sorted list of transactions
 	heads          TxByPrice                       	// Next transaction for each unique account (price heap)
 	signer         Signer                          	// Signer for the set of transactions
-	accountLock    hashmap.HashMap					// What accounts are available to take transactions form
+	accountLock    sync.Map					// What accounts are available to take transactions form
 	headsAvailable []int32							// 1 = available, 0 = not available
 	index  		   uint32							// used to reference where in the transactions aray should be accessed next
 }
@@ -403,7 +404,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		}
 
 		// Check if the sender is currently being used
-		if _, ok := t.accountLock.GetStringKey(sender.String()); ok {
+		if _, ok := t.accountLock.Load(sender.String()); ok {
 			// fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
 			continue
 
@@ -413,7 +414,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			sender's transactions, if it fails another thread has successfully added it to the table thus continue to
 			the next sender.
 			*/
-			if t.accountLock.Insert(sender.String(), sender) {
+			if  _, senderInUse := t.accountLock.LoadOrStore(sender.String(), nil); !senderInUse {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
 				// fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
@@ -444,7 +445,7 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 		// relinquish control of sender so other threads my pick it up
 		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
 		//fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
-		t.accountLock.Del(sender.String())
+		t.accountLock.Delete(sender.String())
 
 	} else {
 		//heap.Remove(&t.heads, index)
