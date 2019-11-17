@@ -107,19 +107,21 @@ func (t *SecureTrie) Update(key, value []byte) {
 //
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryUpdate(key, value []byte) error {
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	hk := t.hashKey(key)
 	err := t.trie.TryUpdate(hk, value)
 	if err != nil {
 		return err
 	}
-	secureTrieLock.Lock()
-	defer secureTrieLock.Unlock()
 	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)
 	return nil
 }
 
 // Delete removes any existing value for key from the trie.
 func (t *SecureTrie) Delete(key []byte) {
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	if err := t.TryDelete(key); err != nil {
 		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
@@ -128,9 +130,9 @@ func (t *SecureTrie) Delete(key []byte) {
 // TryDelete removes any existing value for key from the trie.
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryDelete(key []byte) error {
-	hk := t.hashKey(key)
 	secureTrieLock.Lock()
 	defer secureTrieLock.Unlock()
+	hk := t.hashKey(key)
 	delete(t.getSecKeyCache(), string(hk))
 	return t.trie.TryDelete(hk)
 }
@@ -153,6 +155,8 @@ func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 // Committing flushes nodes from memory. Subsequent Get calls will load nodes
 // from the database.
 func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	// Write all the pre-images to the actual disk database
 	if len(t.getSecKeyCache()) > 0 {
 		t.trie.db.lock.Lock()
