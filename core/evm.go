@@ -106,7 +106,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 				return
 			}
 			InUseAccounts.Delete(sender.String())
-			delay = concurrent.Backoff(delay)
 		}
+		delay = concurrent.Backoff(delay)
 	}
 }
