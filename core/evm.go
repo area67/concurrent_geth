@@ -98,7 +98,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 	delay := concurrent.MIN_DELAY
 	for {
 		if _, senderInUse := InUseAccounts.LoadOrStore(sender.String(), nil); !senderInUse {
-			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse {
+			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse || sender.Big().Cmp(recipient.Big()) == 0  {
 				db.SubBalance(sender, amount)
 				db.AddBalance(recipient, amount)
 				InUseAccounts.Delete(sender.String())

@@ -59,7 +59,7 @@ func (n *proofList) Put(key []byte, value []byte) error {
 // * Accounts
 type StateDB struct {
 	db   *Database
-	trie Trie
+	trie *Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateObjectsLock        sync.Mutex
@@ -105,7 +105,7 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 
 	return &StateDB{
 		db:                &db,
-		trie:              tr,
+		trie:              &tr,
 		stateObjects:      make(map[common.Address]*stateObject),
 		stateObjectsDirty: make(map[common.Address]struct{}),
 		logs:              make(map[common.Hash][]*types.Log),
@@ -132,7 +132,7 @@ func (self *StateDB) Reset(root common.Hash) error {
 	if err != nil {
 		return err
 	}
-	self.trie = tr
+	self.trie = &tr
 	self.stateObjects = make(map[common.Address]*stateObject)
 	self.stateObjectsDirty = make(map[common.Address]struct{})
 	self.thash = common.Hash{}
@@ -273,7 +273,7 @@ func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash
 // GetProof returns the MerkleProof for a given Account
 func (self *StateDB) GetProof(a common.Address) ([][]byte, error) {
 	var proof proofList
-	err := self.trie.Prove(crypto.Keccak256(a.Bytes()), 0, &proof)
+	err := (*self.trie).Prove(crypto.Keccak256(a.Bytes()), 0, &proof)
 	return [][]byte(proof), err
 }
 
@@ -402,14 +402,14 @@ func (self *StateDB) updateStateObject(stateObject *stateObject) {
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
-	self.setError(self.trie.TryUpdate(addr[:], data))
+	self.setError((*self.trie).TryUpdate(addr[:], data))
 }
 
 // deleteStateObject removes the given object from the state trie.
 func (self *StateDB) deleteStateObject(stateObject *stateObject) {
 	stateObject.deleted = true
 	addr := stateObject.Address()
-	self.setError(self.trie.TryDelete(addr[:]))
+	self.setError((*self.trie).TryDelete(addr[:]))
 }
 
 // Retrieve a state object given by the address. Returns nil if not found.
@@ -428,7 +428,7 @@ func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObje
 	self.stateObjectsLock.Unlock()
 
 	// Load the object from the database.
-	enc, err := self.trie.TryGet(addr[:])
+	enc, err := (*self.trie).TryGet(addr[:])
 	if len(enc) == 0 {
 		self.setError(err)
 		return nil
@@ -499,7 +499,7 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 	}
 	it := trie.NewIterator(so.getTrie(*db.db).NodeIterator(nil))
 	for it.Next() {
-		key := common.BytesToHash(db.trie.GetKey(it.Key))
+		key := common.BytesToHash((*db.trie).GetKey(it.Key))
 		if value, dirty := so.dirtyStorage[key]; dirty {
 			cb(key, value)
 			continue
@@ -512,9 +512,58 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 // Snapshots of the copied state cannot be applied to the copy.
 func (self *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
+	tempTrie := (*self.db).CopyTrie(*self.trie)
 	state := &StateDB{
 		db:                self.db,
-		trie:              (*self.db).CopyTrie(self.trie),
+		trie:              &tempTrie,
+		stateObjects:      make(map[common.Address]*stateObject, len(self.journal.dirties)),
+		stateObjectsDirty: make(map[common.Address]struct{}, len(self.journal.dirties)),
+		refund:            self.refund,
+		logs:              make(map[common.Hash][]*types.Log, len(self.logs)),
+		logSize:           self.logSize,
+		preimages:         make(map[common.Hash][]byte, len(self.preimages)),
+		journal:           newJournal(),
+	}
+	// Copy the dirty states, logs, and preimages
+	for addr := range self.journal.dirties {
+		// As documented [here](https://github.com/ethereum/go-ethereum/pull/16485#issuecomment-380438527),
+		// and in the Finalise-method, there is a case where an object is in the journal but not
+		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
+		// nil
+		if object, exist := self.stateObjects[addr]; exist {
+			state.stateObjects[addr] = object.deepCopy(state)
+			state.stateObjectsDirty[addr] = struct{}{}
+		}
+	}
+	// Above, we don't copy the actual journal. This means that if the copy is copied, the
+	// loop above will be a no-op, since the copy's journal is empty.
+	// Thus, here we iterate over stateObjects, to enable copies of copies
+	for addr := range self.stateObjectsDirty {
+		if _, exist := state.stateObjects[addr]; !exist {
+			state.stateObjects[addr] = self.stateObjects[addr].deepCopy(state)
+			state.stateObjectsDirty[addr] = struct{}{}
+		}
+	}
+	for hash, logs := range self.logs {
+		cpy := make([]*types.Log, len(logs))
+		for i, l := range logs {
+			cpy[i] = new(types.Log)
+			*cpy[i] = *l
+		}
+		state.logs[hash] = cpy
+	}
+	for hash, preimage := range self.preimages {
+		state.preimages[hash] = preimage
+	}
+	return state
+}
+
+
+func (self *StateDB) CopySharedTrie() *StateDB {
+	// Copy all the basic fields, initialize the memory ones
+	state := &StateDB{
+		db:                self.db,
+		trie:              self.trie,
 		stateObjects:      make(map[common.Address]*stateObject, len(self.journal.dirties)),
 		stateObjectsDirty: make(map[common.Address]struct{}, len(self.journal.dirties)),
 		refund:            self.refund,
@@ -626,7 +675,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	s.Finalise(deleteEmptyObjects)
-	return s.trie.Hash()
+	return (*s.trie).Hash()
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
@@ -674,7 +723,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 		delete(s.stateObjectsDirty, addr)
 	}
 	// Write trie changes.
-	root, err = s.trie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err = (*s.trie).Commit(func(leaf []byte, parent common.Hash) error {
 		var account Account
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
