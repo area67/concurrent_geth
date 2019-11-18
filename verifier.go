@@ -3,12 +3,12 @@ package main
 import (
 	"C"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
 	"math"
 	"math/rand"
+	"os"
 	"sort"
 	"sync"
 	Atomic "sync/atomic"
@@ -73,7 +73,7 @@ type TransactionData struct {
 }
 
 type AtomicTxnCtr struct {
-	val int32
+	val int64
 	lock sync.Mutex
 }
 
@@ -129,12 +129,12 @@ func WriteToFile(filename string, data string) error {
 	return  err
 }
 
-func processTimer(start time.Time, txCount *int64) {
+func processTimer(start time.Time, txCount *int32) {
 	nanoseconds := time.Since(start).Nanoseconds()
 	seconds := float64(nanoseconds) / 1e9
 	throughput := float64(*txCount) / seconds
 
-	s := fmt.Sprintf("%d\t%f\n", common.NumThreads, throughput)
+	s := fmt.Sprintf("%d\t%f\n", numThreads, throughput)
 	_ = WriteToFile("results.txt", s)
 }
 
@@ -533,25 +533,6 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 	}
 }
 
-/*func handleFailedReader(methods []*Method, items []*Item, mk int, ik int, stackFailed *stack.Stack){
-
-	for it0 := 0; it0 != ik; it0++ {
-		// serializability
-		if methods[it0].senderID == methods[mk].senderID &&
-			methods[it0].requestAmnt > methods[mk].requestAmnt{
-
-			itemItr0 := methods[it0].itemAddr
-
-			if methods[it0].types == PRODUCER &&
-				items[ik].status == PRESENT &&
-				methods[it0].itemAddr == methods[it0].itemAddr{
-
-				stackFailed.Push(items[itemItr0])
-			}
-		}
-	}
-}*/
-
 func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	//fmt.Println("Verifying Checkpoint...")
 
@@ -572,7 +553,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 
 		//TODO: corner case
 		if *countIterated == 0 {
-			fmt.Printf("setting reserItStart to false\n")
+			fmt.Printf("setting resetItStart to false\n")
 			resetItStart = false
 		} else if it != end {
 			fmt.Printf("Incrementing itStart and it\n")
@@ -581,8 +562,8 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		}
 		fmt.Printf("it = %d\n", it)
 
-		/*for ; it != len(methods) - 1; it++{
-		if methods[it].response > min{
+		for ; it != len(methods); it++ {
+		/*if methods[it].response > min{
 			break
 		}
 		*/
@@ -596,7 +577,6 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		resetItStart = false
 		*countIterated++
 
-		//fmt.Printf("Do we even get here? %d", countIterated)
 
 		itItems := it //methods[it].itemAddr
 		//itItems := int(methods[it].txnCtr)
@@ -631,7 +611,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 
 			if methods[it].semantics == FIFO {
 				fmt.Println("MADE IT")
-				for it0 := 0; it0 != it; it0++ {
+				for it0 := 0; it0 != it + 1; it0++ {
 					fmt.Println("MADE IT in 1")
 					// serializability
 					if methods[it0].itemAddrS == methods[it].itemAddrS &&
@@ -683,7 +663,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		//tempMethods = methods.items[it].(Method)
 		//if methods.items[it].(*Method).types == CONSUMER {
 		if methods[it].types == CONSUMER {
-			//fmt.Printf("WE GOT A LIVE ONE\n")
+			fmt.Printf("CONSUMER\n")
 			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
 			it_consumer = map_consumer.find((it->second).key);
 			if(it_consumer == map_consumer.end())
@@ -696,7 +676,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}*/
 
 			if methods[it].status == true {
-
+				fmt.Printf("methods[it].status == true\n")
 				// promote reads
 				//if items.items[itItems].(*Item).sum > 0 {
 				if items[itItems].sum > 0 {
@@ -753,7 +733,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 				handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 			}
 		}
-		//}
+		}
 		if resetItStart {
 			*itStart--
 		}
@@ -815,7 +795,9 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		//itEnd := len(items.items) - 1
 		itEnd := len(items) - 1
 
-
+		if items[itVerify].sum < 0 {
+			fmt.Printf("Negative sum!\n")
+		}
 		for ; itVerify != itEnd; itVerify++ {
 			if items[itVerify].sum < 0 {
 				outcome = false
@@ -845,8 +827,9 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}
 
 			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
-			fmt.Printf("prior to outcome = false, sum stuff = %f\n", items[itVerify].sumF)
+			fmt.Printf("prior to outcome = false, sum = %f and sumF = %f and outcome = %b\n", items[itVerify].sum, items[itVerify].sumF, outcome)
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
+				fmt.Printf("!!!!!!!!!!\n")
 				outcome = false
 				// #if DEBUG_
 				//fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumF)
@@ -893,7 +876,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//
 	txnCtr.lock.Lock()
 	mId := txnCtr.val
-	Atomic.AddInt32(&txnCtr.val, 1)
+	Atomic.AddInt64(&txnCtr.val, 1)
 	txnCtr.lock.Unlock()
 	//
 	//var end time.Time
@@ -902,6 +885,14 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//if(Atomic.LoadInt32(&numTxns) == 0) {
 		//return;
 	//}
+
+	if numTxns == 0 {
+		done[id].Store(true)
+		doneWG.Done()
+		return
+	} else {
+		Atomic.AddInt32(&numTxns, -1)
+	}
 
 	for i := int32(0); i < testSize; i++ {
 
@@ -962,23 +953,28 @@ func work(id int, doneWG *sync.WaitGroup) {
 		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
 		//postFunction := end
 
-		// Is this right??
 		// auto post_function_epoch = post_function.time_since_epoch();
 		//postFunctionEpoch := time.Now().UnixNano() - postFunction
 
 		//response := post_function_epoch.count() - start_time_epoch.count()
 		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
+
 		// account being added to
+		if allSenders[itemAddr1] != 1 {
+			res = true
+		} else {
+			res = false
+		}
 		var m1 Method
 		m1.setMethod(int(mId), itemAddr1, itemAddr2, transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), transactions[id].amount, transactions[id].tId)
 
 		// account being subtracted from
-		Atomic.AddInt32(&mId, 1)
+		Atomic.AddInt64(&mId, 1)
 		var m2 Method
 		m2.setMethod(int(mId),itemAddr1, itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -(transactions[id].amount), transactions[id].tId)
 
-		Atomic.AddInt32(&numTxns, -1)
+		//Atomic.AddInt32(&numTxns, -1)
 		// mId += numThreads
 
 		//threadLists[id] = append(threadLists[id], m1)
@@ -1012,6 +1008,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 }
 
 func verify(doneWG *sync.WaitGroup) {
+	//defer processTimer(time.Now(), &txnCtr.val)
 	fmt.Println("Verifying...")
 	//wait()
 	var countIterated uint64 = 0
@@ -1031,7 +1028,7 @@ func verify(doneWG *sync.WaitGroup) {
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
-	items := make([]Item, 0)
+	items := make([]Item, 0, numTxns * 2)
 	//items := NewConcurrentSlice()
 	it := make([]int, numThreads, numThreads)
 	var itStart int
@@ -1077,6 +1074,10 @@ func verify(doneWG *sync.WaitGroup) {
 
 			for {
 				//threadLists.Lock()
+				fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, threadListsSize[i].Load())
+				if threadListsSize[i].Load() > 0 {
+
+				}
 				if itCount[i] >= threadListsSize[i].Load() {
 					break
 				} else if itCount[i] == 0 {
@@ -1088,10 +1089,18 @@ func verify(doneWG *sync.WaitGroup) {
 				//fmt.Printf("it[i] = %v\n", it[i])
 
 				var m Method
+				var m2 Method
 
-				m = threadLists.items[tId].([]Method)[it[i]]
-				it[i]++
-				m2 := threadLists.items[tId].([]Method)[it[i]]
+				//if it[i] < len(threadLists.items[tId].([]Method)) {
+				if it[i] < int(threadListsSize[tId].Load()) {
+					fmt.Printf("Address of methods txn sender at %d: %s\nAt %d: %s\n", it[i], threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
+					m = threadLists.items[tId].([]Method)[it[i]]
+					it[i]++
+					m2 = threadLists.items[tId].([]Method)[it[i]]
+				} else {
+					fmt.Printf("Verifier threadlist error!\n")
+					break;
+				}
 				//fmt.Print("m is %v\nm2 is %v", m, m2)
 				//threadLists.Unlock()
 
@@ -1128,7 +1137,6 @@ func verify(doneWG *sync.WaitGroup) {
 				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
 				itItem := 0
-				//TODO: this break will always happen because the producer and consumer methods will always have same address
 				for i := range items {
 					if items[i].key == m.itemAddrS {
 						break
@@ -1153,10 +1161,11 @@ func verify(doneWG *sync.WaitGroup) {
 				for range methods {
 					mapMethodsEnd++
 				}
-
+				fmt.Printf("%d\t%d\n", itItem, mapItemsEnd)
 				if itItem == mapItemsEnd {
 					var item Item
 					var item2 Item
+					fmt.Printf("appending addresses to items: %s\t%s\n", m.itemAddrS, m2.itemAddrS)
 					item.setItem(m.itemAddrS)
 					item2.setItem(m2.itemAddrS)
 					//item.key = m.itemAddr
@@ -1176,7 +1185,9 @@ func verify(doneWG *sync.WaitGroup) {
 							itItem = i
 						}
 					}
-				}
+				}/* else {
+					fmt.Print(items)
+				}*/
 			}
 
 			/*if responseTime < min {
@@ -1228,7 +1239,6 @@ func verify(doneWG *sync.WaitGroup) {
 
 	// #endif
 
-	// How to??? lines 1360 - 1362
 	// end = std::chrono::high_resolution_clock::now();
 	// auto post_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
 	end = time.Now()
@@ -1245,13 +1255,15 @@ func verify(doneWG *sync.WaitGroup) {
 	doneWG.Done()
 }
 
-var transactions [100]TransactionData
+var transactions [200]TransactionData
+var allSenders map[string]int
 var numTxns int32
 
 func main() {
 	// will use for i:= range threadLists.iter() in place of findMethodKey.
 	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 	// Whats the deal with the separate items slice?
+	allSenders := make(map[string]int)
 	Atomic.StoreInt32(&numTxns, 0)
 
 	methodCount = 0
@@ -1263,25 +1275,39 @@ func main() {
 
 	var doneWG sync.WaitGroup
 
-// Generating 50 random transactions
+// Generating transaction data
 	var hexRunes = []rune("0123456789abcdef")
 	var transactionSenders = make([]rune,16)
 	var transactionReceivers = make([]rune,16)
+	var control string
 
-	for j := 0; j < 16; j++ {
-		transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
-		transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
-	}
-
-	for i := 0; i < 64; i++ {
+	for i := 0; i < 2; i++ {
 		Atomic.AddInt32(&numTxns, 1)
-		/*for j := 0; j < 16; j++ {
+		for j := 0; j < 16; j++ {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
-		}*/
-		transactions[i].addrSender = string(transactionSenders)
+		}
+
+
+		/*transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
-		transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))
+		transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))*/
+		if i == 0 {
+			transactions[i].addrSender = string(transactionSenders)
+			transactions[i].addrReceiver = string(transactionReceivers)
+			control = transactions[i].addrSender
+			transactions[i].amount = 50
+		} else if i == 1 {
+			//transactions[i].addrSender = control
+			transactions[i].addrSender = string(transactionSenders)
+			transactions[i].addrReceiver = string(transactionReceivers)
+			transactions[i].amount = 1
+		} else {
+			transactions[i].addrSender = string(transactionSenders)
+			transactions[i].addrReceiver = string(transactionReceivers)
+			transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))
+		}
+		allSenders[string(transactionSenders)] = 1
 		//transactions[i].amount = rand.Intn(50)
 		/*if(i == 0) {
 			transactions[i].amount = 300
@@ -1295,6 +1321,7 @@ func main() {
 	}
 	txnCtr.val = 0
 	start := time.Now()
+	defer processTimer(time.Now(), &numTxns)
 
 	//TODO: thread/ channel stuff
 
@@ -1310,6 +1337,8 @@ func main() {
 	go verify(&doneWG)
 	doneWG.Wait()
 	fmt.Println("finished working and verifying!")
+
+	fmt.Printf("Control was: %s\n", control)
 
 	if finalOutcome == true {
 		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
@@ -1345,5 +1374,5 @@ func main() {
 
 	elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
 
-	fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
+	//fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
 }
