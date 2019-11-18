@@ -82,9 +82,12 @@ func newConcurrentTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfi
 	genesisAccount.Balance = initBalance
 
 	initMap := make(map[common.Address] core.GenesisAccount)
-
-	for a := range addresses{
+	i := 0
+	for a := range addresses {
+		genesisAccount.PrivateKey = keys[i].D.Bytes()
+		genesisAccount.Nonce = 0
 		initMap[addresses[a]] = genesisAccount
+		i++
 	}
 
 	var (
@@ -204,6 +207,7 @@ func testEmptyWorkConcurrent(t *testing.T, chainConfig *params.ChainConfig, engi
 
 var defaultVal = 1
 var threads = flag.String("threads", strconv.Itoa(defaultVal), "Number of threads for the test to use.")
+var fileName = flag.String("output", concurrent.OutputFile, "Name of the file to store benchmarks in.")
 
 func TestCommitTransactionsPerformance(t *testing.T){
 	flag.Parse()
@@ -214,8 +218,31 @@ func TestCommitTransactionsPerformance(t *testing.T){
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU() + defaultVal)
 	}
+	concurrent.OutputFile = *fileName
+
 	fmt.Println("Beginning Test for ", concurrent.NumThreads, " Txn Threads")
 	testCommitTransactionsPerformance(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+}
+
+
+var numOps = flag.String("numops", "0", "Number of operations to perform.")
+func TestConcurrentBenchmark(t *testing.T) {
+	flag.Parse()
+	threadCount, err := strconv.Atoi(*threads)
+	if err == nil {
+		concurrent.NumThreads = threadCount
+		runtime.GOMAXPROCS(runtime.NumCPU() + threadCount)
+	} else {
+		runtime.GOMAXPROCS(runtime.NumCPU() + defaultVal)
+	}
+	ops, err := strconv.Atoi(*numOps)
+	concurrent.OutputFile = *fileName
+
+	for i := 0; i < ops; i++ {
+		fmt.Println("Beginning Test ", i, " for ", concurrent.NumThreads, " Txn Threads")
+		testCommitTransactionsPerformance(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	}
+
 }
 
 func testCommitTransactionsPerformance(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine){

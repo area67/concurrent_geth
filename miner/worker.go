@@ -21,8 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/concurrent"
-	"os"
-
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -738,36 +736,10 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func WriteToFile(filename string, data string) error {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// file does not exist
-		// create file
-		os.Create(filename)
-	}
-
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
-	_, err = fmt.Fprintf(f, "%s", data)
-	return  err
-}
-
-func processTimer(start time.Time, txCount *int64) {
-	nanoseconds := time.Since(start).Nanoseconds()
-	seconds := float64(nanoseconds) / 1e9
-	throughput := float64(*txCount) / seconds
-
-	s := fmt.Sprintf("%d\t%f\n", concurrent.NumThreads, throughput)
-	_ = WriteToFile("results.txt", s)
-}
-
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	var counter int64 = 0
-	defer processTimer(time.Now(), &counter)
+	defer concurrent.ProcessTimer(time.Now(), concurrent.OutputFile, &counter)
 
 	// Short circuit if current is nil
 	if w.current == nil {
