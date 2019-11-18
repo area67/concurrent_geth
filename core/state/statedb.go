@@ -20,17 +20,18 @@ package state
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"sort"
-	"sync"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"math/big"
+	"sort"
+	"sync"
 )
+
+type StateObject = stateObject
 
 type revision struct {
 	id           int
@@ -62,8 +63,8 @@ type StateDB struct {
 	trie *Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
-	stateObjectsLock        sync.Mutex
-	stateObjects      		map[common.Address]*stateObject
+	stateObjects			sync.Map
+	//stateObjects      		map[common.Address]*stateObject
 	stateObjectsDirty 		map[common.Address]struct{}
 
 	// DB error.
@@ -106,7 +107,7 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 	return &StateDB{
 		db:                &db,
 		trie:              &tr,
-		stateObjects:      make(map[common.Address]*stateObject),
+		stateObjects:      sync.Map{},
 		stateObjectsDirty: make(map[common.Address]struct{}),
 		logs:              make(map[common.Hash][]*types.Log),
 		preimages:         make(map[common.Hash][]byte),
@@ -133,7 +134,7 @@ func (self *StateDB) Reset(root common.Hash) error {
 		return err
 	}
 	self.trie = &tr
-	self.stateObjects = make(map[common.Address]*stateObject)
+	self.stateObjects = sync.Map{}
 	self.stateObjectsDirty = make(map[common.Address]struct{})
 	self.thash = common.Hash{}
 	self.bhash = common.Hash{}
@@ -415,17 +416,14 @@ func (self *StateDB) deleteStateObject(stateObject *stateObject) {
 // Retrieve a state object given by the address. Returns nil if not found.
 func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObject) {
 	// Prefer 'live' objects.
-	self.stateObjectsLock.Lock()
 
-	if obj := self.stateObjects[addr]; obj != nil {
+	if objInterface, exist := self.stateObjects.Load(addr); exist {
+		obj := objInterface.(*StateObject)
 		if obj.deleted {
-			self.stateObjectsLock.Unlock()
 			return nil
 		}
-		self.stateObjectsLock.Unlock()
 		return obj
 	}
-	self.stateObjectsLock.Unlock()
 
 	// Load the object from the database.
 	enc, err := (*self.trie).TryGet(addr[:])
@@ -445,10 +443,7 @@ func (self *StateDB) getStateObject(addr common.Address) (stateObject *stateObje
 }
 
 func (self *StateDB) setStateObject(object *stateObject) {
-	self.stateObjectsLock.Lock()
-	defer self.stateObjectsLock.Unlock()
-
-	self.stateObjects[object.Address()] = object
+	self.stateObjects.Store(object.Address(), object)
 }
 
 // Retrieve a state object or create a new state object if nil.
@@ -508,15 +503,17 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 	}
 }
 
+
 // Copy creates a deep, independent copy of the state.
 // Snapshots of the copied state cannot be applied to the copy.
 func (self *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	tempTrie := (*self.db).CopyTrie(*self.trie)
+
 	state := &StateDB{
 		db:                self.db,
 		trie:              &tempTrie,
-		stateObjects:      make(map[common.Address]*stateObject, len(self.journal.dirties)),
+		stateObjects:      sync.Map{},
 		stateObjectsDirty: make(map[common.Address]struct{}, len(self.journal.dirties)),
 		refund:            self.refund,
 		logs:              make(map[common.Hash][]*types.Log, len(self.logs)),
@@ -530,8 +527,8 @@ func (self *StateDB) Copy() *StateDB {
 		// and in the Finalise-method, there is a case where an object is in the journal but not
 		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
 		// nil
-		if object, exist := self.stateObjects[addr]; exist {
-			state.stateObjects[addr] = object.deepCopy(state)
+		if object, exist := self.stateObjects.Load(addr); exist {
+			state.stateObjects.Store(addr, (object.(*StateObject)).deepCopy(state))
 			state.stateObjectsDirty[addr] = struct{}{}
 		}
 	}
@@ -539,8 +536,9 @@ func (self *StateDB) Copy() *StateDB {
 	// loop above will be a no-op, since the copy's journal is empty.
 	// Thus, here we iterate over stateObjects, to enable copies of copies
 	for addr := range self.stateObjectsDirty {
-		if _, exist := state.stateObjects[addr]; !exist {
-			state.stateObjects[addr] = self.stateObjects[addr].deepCopy(state)
+		if _, exist := self.stateObjects.Load(addr); !exist {
+			object, _ := self.stateObjects.Load(addr)
+			state.stateObjects.Store(addr, (object.(*StateObject)).deepCopy(state))
 			state.stateObjectsDirty[addr] = struct{}{}
 		}
 	}
@@ -564,7 +562,7 @@ func (self *StateDB) CopySharedTrie() *StateDB {
 	state := &StateDB{
 		db:                self.db,
 		trie:              self.trie,
-		stateObjects:      make(map[common.Address]*stateObject, len(self.journal.dirties)),
+		stateObjects:      sync.Map{},
 		stateObjectsDirty: make(map[common.Address]struct{}, len(self.journal.dirties)),
 		refund:            self.refund,
 		logs:              make(map[common.Hash][]*types.Log, len(self.logs)),
@@ -578,8 +576,8 @@ func (self *StateDB) CopySharedTrie() *StateDB {
 		// and in the Finalise-method, there is a case where an object is in the journal but not
 		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
 		// nil
-		if object, exist := self.stateObjects[addr]; exist {
-			state.stateObjects[addr] = object.deepCopy(state)
+		if object, exist := self.stateObjects.Load(addr); exist {
+			state.stateObjects.Store(addr, (object.(*StateObject)).deepCopy(state))
 			state.stateObjectsDirty[addr] = struct{}{}
 		}
 	}
@@ -587,11 +585,13 @@ func (self *StateDB) CopySharedTrie() *StateDB {
 	// loop above will be a no-op, since the copy's journal is empty.
 	// Thus, here we iterate over stateObjects, to enable copies of copies
 	for addr := range self.stateObjectsDirty {
-		if _, exist := state.stateObjects[addr]; !exist {
-			state.stateObjects[addr] = self.stateObjects[addr].deepCopy(state)
+		if _, exist := self.stateObjects.Load(addr); !exist {
+			object, _ := self.stateObjects.Load(addr)
+			state.stateObjects.Store(addr, (object.(*StateObject)).deepCopy(state))
 			state.stateObjectsDirty[addr] = struct{}{}
 		}
 	}
+
 	for hash, logs := range self.logs {
 		cpy := make([]*types.Log, len(logs))
 		for i, l := range logs {
@@ -641,13 +641,10 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 
 	s.journal.journalLock.Lock()
 	defer s.journal.journalLock.Unlock()
-	// I think we need an array of journals size numThreads, each thread needs to work on their own journal
-
 
 	for addr := range s.journal.dirties {
-		s.stateObjectsLock.Lock()
-		stateObject, exist := s.stateObjects[addr]
-		s.stateObjectsLock.Unlock()
+		tempObject, exist := s.stateObjects.Load(addr)
+		stateObject := tempObject.(*StateObject)
 		if !exist {
 			// ripeMD is 'touched' at block 1714175, in tx 0x1237f737031e40bcde4a8b7e717b2d15e3ecadfe49bb1bbc71ee9deb09c6fcf2
 			// That tx goes out of gas, and although the notion of 'touched' does not exist there, the
@@ -700,7 +697,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 		s.stateObjectsDirty[addr] = struct{}{}
 	}
 	// Commit objects to the trie.
-	for addr, stateObject := range s.stateObjects {
+	writeToTrie := true
+	s.stateObjects.Range(func(k, v interface{}) bool {
+		addr, _ := k.(common.Address)
+		stateObject, _ := v.(*stateObject)
+
 		_, isDirty := s.stateObjectsDirty[addr]
 		switch {
 		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
@@ -715,12 +716,19 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 			}
 			// Write any storage changes in the state object to its storage trie.
 			if err := stateObject.CommitTrie(*s.db); err != nil {
-				return common.Hash{}, err
+				writeToTrie = false
+				return false
 			}
 			// Update the object in the main account trie.
 			s.updateStateObject(stateObject)
 		}
 		delete(s.stateObjectsDirty, addr)
+
+		return true
+	})
+
+	if !writeToTrie {
+		return common.Hash{}, err
 	}
 	// Write trie changes.
 	root, err = (*s.trie).Commit(func(leaf []byte, parent common.Hash) error {
