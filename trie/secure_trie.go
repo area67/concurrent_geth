@@ -31,7 +31,6 @@ var (
 
 // SecureTrie wraps a trie with key hashing. In a secure trie, all
 // access operations hash the key using keccak256. This prevents
-// access operations hash the key using keccak256. This prevents
 // calling code from creating long chains of nodes that
 // increase the access time.
 //
@@ -121,8 +120,8 @@ func (t *SecureTrie) TryUpdate(key, value []byte) error {
 
 // Delete removes any existing value for key from the trie.
 func (t *SecureTrie) Delete(key []byte) {
-	//secureTrieLock.Lock()
-	//defer secureTrieLock.Unlock()
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	if err := t.TryDelete(key); err != nil {
 		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
@@ -141,8 +140,8 @@ func (t *SecureTrie) TryDelete(key []byte) error {
 // GetKey returns the sha3 preimage of a hashed key that was
 // previously used to store a value.
 func (t *SecureTrie) GetKey(shaKey []byte) []byte {
-	//secureTrieLock.Lock()
-	//defer secureTrieLock.Unlock()
+	secureTrieLock.Lock()
+	defer secureTrieLock.Unlock()
 	if key, ok := t.getSecKeyCache()[string(shaKey)]; ok {
 		return key
 	}
