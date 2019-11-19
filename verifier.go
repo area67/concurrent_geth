@@ -563,176 +563,176 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 		fmt.Printf("it = %d\n", it)
 
 		for ; it != len(methods); it++ {
-		/*if methods[it].response > min{
-			break
-		}
-		*/
-
-		if methodCount%5000 == 0 {
-			fmt.Printf("methodCount = %d\n", methodCount)
-		}
-		methodCount = methodCount + 1
-
-		*itStart = it
-		resetItStart = false
-		*countIterated++
-
-
-		itItems := it //methods[it].itemAddr
-		//itItems := int(methods[it].txnCtr)
-
-		// #if DEBUG_
-		/// if mapItems[itItems].status != PRESENT{
-		//  	fmt.Println("WARNING: Current item not present!")
-		//} }
-
-		// if mapMethods[it].types == PRODUCER{
-		// fmt.Printf("PRODUCER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
-		// }
-
-		// else if mapMethods[it].types == CONSUMER {
-		// fmt.Printf("CONSUMER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
-		// }
-		// #endif
-
-
-		if methods[it].types == PRODUCER {
-			fmt.Printf("PRODUCER\n")
-			items[it].producer = it
-
-			if items[itItems].status == ABSENT {
-
-				// reset item parameters
-				items[it].status = PRESENT
-				items[it].demoteMethods = nil
+			/*if methods[it].response > min{
+				break
 			}
+			*/
 
-			items[it].addInt(1)
+			if methodCount%5000 == 0 {
+				fmt.Printf("methodCount = %d\n", methodCount)
+			}
+			methodCount = methodCount + 1
 
-			if methods[it].semantics == FIFO {
-				fmt.Println("MADE IT")
-				for it0 := 0; it0 != it + 1; it0++ {
-					fmt.Println("MADE IT in 1")
-					// serializability
-					if methods[it0].itemAddrS == methods[it].itemAddrS &&
-						methods[it0].requestAmnt < methods[it].requestAmnt {
-						fmt.Println("MADE IT in 2")
-						// #endif
-						itItems0 := 0
-
-						// Demotion
-						// FIFO Semantics
-						//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
-						if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
-							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+			*itStart = it
+			resetItStart = false
+			*countIterated++
 
 
-							//items.items[itItems].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
-							//items.items[itItems].(*Item).demote()
-							//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
-							items[itItems0].promoteItems.Push(items[itItems].key)
-							items[itItems].demote()
-							items[itItems].demoteMethods = append(items[itItems].demoteMethods, &methods[it0])
+			itItems := it //methods[it].itemAddr
+			//itItems := int(methods[it].txnCtr)
+
+			// #if DEBUG_
+			/// if mapItems[itItems].status != PRESENT{
+			//  	fmt.Println("WARNING: Current item not present!")
+			//} }
+
+			// if mapMethods[it].types == PRODUCER{
+			// fmt.Printf("PRODUCER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+			// }
+
+			// else if mapMethods[it].types == CONSUMER {
+			// fmt.Printf("CONSUMER invocation %ld, response %ld, item %d\n", mapMethods[it].invocation, mapMethods[it].response, mapMethods[it].itemKey)
+			// }
+			// #endif
+
+
+			if methods[it].types == PRODUCER {
+				fmt.Printf("PRODUCER\n")
+				items[it].producer = it
+
+				if items[itItems].status == ABSENT {
+
+					// reset item parameters
+					items[it].status = PRESENT
+					items[it].demoteMethods = nil
+				}
+
+				items[it].addInt(1)
+
+				if methods[it].semantics == FIFO {
+					fmt.Println("MADE IT")
+					for it0 := 0; it0 != it + 1; it0++ {
+						fmt.Println("MADE IT in 1")
+						// serializability
+						if methods[it0].itemAddrS == methods[it].itemAddrS &&
+							methods[it0].requestAmnt < methods[it].requestAmnt {
+							fmt.Println("MADE IT in 2")
+							// #endif
+							itItems0 := 0
+
+							// Demotion
+							// FIFO Semantics
+							//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
+							if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+								(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+
+
+								//items.items[itItems].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
+								//items.items[itItems].(*Item).demote()
+								//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+								items[itItems0].promoteItems.Push(items[itItems].key)
+								items[itItems].demote()
+								items[itItems].demoteMethods = append(items[itItems].demoteMethods, &methods[it0])
+							}
 						}
 					}
 				}
 			}
-		}
 
-		/*if methods[it].semantics == FIFO {
-			for it0 := 0; it0 != it; it0++{
-				// serializability
-				if methods[it0].itemAddr == methods[it].itemAddr &&
-					methods[it0].requestAmnt > methods[it].requestAmnt{
-					// #endif
-					itItems0 := it0 //methods[it0].itemAddr
+			/*if methods[it].semantics == FIFO {
+				for it0 := 0; it0 != it; it0++{
+					// serializability
+					if methods[it0].itemAddr == methods[it].itemAddr &&
+						methods[it0].requestAmnt > methods[it].requestAmnt{
+						// #endif
+						itItems0 := it0 //methods[it0].itemAddr
 
-					// Demotion
-					// FIFO Semantics
-					//if (methods.items[it0].(*Method).types == PRODUCER && items.items[itItems0].(*Item).status == PRESENT) &&
-					if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
-						(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+						// Demotion
+						// FIFO Semantics
+						//if (methods.items[it0].(*Method).types == PRODUCER && items.items[itItems0].(*Item).status == PRESENT) &&
+						if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+							(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
-						//items.items[itItems0].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
-						//items.items[itItems].(*Item).demote()
-						//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+							//items.items[itItems0].(*Item).promoteItems.Push(items.items[itItems].(*Item).key)
+							//items.items[itItems].(*Item).demote()
+							//items.items[itItems].(*Item).demoteMethods = append(items.items[itItems].(*Item).demoteMethods, methods.items[it0].(*Method))
+						}
 					}
 				}
-			}
-		}*/
-		//tempMethods = methods.items[it].(Method)
-		//if methods.items[it].(*Method).types == CONSUMER {
-		if methods[it].types == CONSUMER {
-			fmt.Printf("CONSUMER\n")
-			/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
-			it_consumer = map_consumer.find((it->second).key);
-			if(it_consumer == map_consumer.end())
-			{
-				std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
-				//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
-				map_consumer.insert(entry);
-			} else {
-				it_consumer->second = it_item_0;
 			}*/
+			//tempMethods = methods.items[it].(Method)
+			//if methods.items[it].(*Method).types == CONSUMER {
+			if methods[it].types == CONSUMER {
+				fmt.Printf("CONSUMER\n")
+				/*std::unordered_map<int,std::unordered_map<int,Item>::iterator>::iterator it_consumer;
+				it_consumer = map_consumer.find((it->second).key);
+				if(it_consumer == map_consumer.end())
+				{
+					std::pair<int,std::unordered_map<int,Item>::iterator> entry ((it->second).key,it);
+					//map_consumer.insert(std::make_pair<int,std::unordered_map<int,Item>::iterator>((it->second).key,it));
+					map_consumer.insert(entry);
+				} else {
+					it_consumer->second = it_item_0;
+				}*/
 
-			if methods[it].status == true {
-				fmt.Printf("methods[it].status == true\n")
-				// promote reads
-				//if items.items[itItems].(*Item).sum > 0 {
-				if items[itItems].sum > 0 {
-					//items.items[itItems].(*Item).sumR = 0
-					items[itItems].sumR = 0
+				if methods[it].status == true {
+					fmt.Printf("methods[it].status == true\n")
+					// promote reads
+					//if items.items[itItems].(*Item).sum > 0 {
+					if items[itItems].sum > 0 {
+						//items.items[itItems].(*Item).sumR = 0
+						items[itItems].sumR = 0
+					}
+
+					//items.items[itItems].(*Item).subInt(1)
+					items[itItems].subInt(1)
+					//items.items[itItems].(*Item).status = ABSENT
+					items[itItems].status = ABSENT
+
+					//if mapItems[itItems].sum < 0 {
+					//
+					//	for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
+					//
+					//		if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
+					//			mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
+					//			// Methods do not overlap
+					//			// fmt.Println("NOTE: Methods do not overlap")
+					//		} else {
+					//			mapItems[itItems].promote()
+					//
+					//			// need to remove from promote list
+					//			itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
+					//			var temp stack.Stack
+					//
+					//			for mapItems[itMthdItem].promoteItems.Peek() != nil{
+					//
+					//				top := mapItems[itMthdItem].promoteItems.Peek()
+					//				if top != mapMethods[it].itemKey {
+					//					temp.Push(top)
+					//				}
+					//				mapItems[itMthdItem].promoteItems.Pop()
+					//				fmt.Println("stuck here?")
+					//			}
+					//			// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
+					//
+					//			//
+					//			mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
+					//		}
+					//	}
+					//}
+					stackConsumer.Push(itItems)
+					stackFinishedMethods.Push(it)
+
+					end = len(methods) - 1
+					//if items.items[itItems].(*Item).producer != end {
+					if items[itItems].producer != end {
+						//stackFinishedMethods.Push(items.items[itItems].(*Item).producer)
+						stackFinishedMethods.Push(items[itItems].producer)
+					}
+				} else {
+					handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 				}
-
-				//items.items[itItems].(*Item).subInt(1)
-				items[itItems].subInt(1)
-				//items.items[itItems].(*Item).status = ABSENT
-				items[itItems].status = ABSENT
-
-				//if mapItems[itItems].sum < 0 {
-				//
-				//	for idx := 0; idx != len(mapItems[itItems].demoteMethods) - 1; idx++ {
-				//
-				//		if mapMethods[it].response < mapItems[itItems].demoteMethods[idx].invocation ||
-				//			mapItems[itItems].demoteMethods[idx].response < mapMethods[it].invocation{
-				//			// Methods do not overlap
-				//			// fmt.Println("NOTE: Methods do not overlap")
-				//		} else {
-				//			mapItems[itItems].promote()
-				//
-				//			// need to remove from promote list
-				//			itMthdItem := int64(mapItems[itItems].demoteMethods[idx].itemKey)
-				//			var temp stack.Stack
-				//
-				//			for mapItems[itMthdItem].promoteItems.Peek() != nil{
-				//
-				//				top := mapItems[itMthdItem].promoteItems.Peek()
-				//				if top != mapMethods[it].itemKey {
-				//					temp.Push(top)
-				//				}
-				//				mapItems[itMthdItem].promoteItems.Pop()
-				//				fmt.Println("stuck here?")
-				//			}
-				//			// TODO: swap mapItems[itMthdItem].promoteItems with temp stack
-				//
-				//			//
-				//			mapItems[itItems].demoteMethods = reslice(mapItems[itItems].demoteMethods, idx)
-				//		}
-				//	}
-				//}
-				stackConsumer.Push(itItems)
-				stackFinishedMethods.Push(it)
-
-				end = len(methods) - 1
-				//if items.items[itItems].(*Item).producer != end {
-				if items[itItems].producer != end {
-					//stackFinishedMethods.Push(items.items[itItems].(*Item).producer)
-					stackFinishedMethods.Push(items[itItems].producer)
-				}
-			} else {
-				handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 			}
-		}
 		}
 		if resetItStart {
 			*itStart--
@@ -827,7 +827,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}
 
 			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
-			fmt.Printf("prior to outcome = false, sum = %f and sumF = %f and outcome = %b\n", items[itVerify].sum, items[itVerify].sumF, outcome)
+			fmt.Printf("prior to outcome = false, sum = %f and sumF = %f and n = %v and outcome = %b\n", items[itVerify].sum, items[itVerify].sumF, n, outcome)
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				fmt.Printf("!!!!!!!!!!\n")
 				outcome = false
@@ -876,7 +876,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//
 	txnCtr.lock.Lock()
 	mId := txnCtr.val
-	Atomic.AddInt64(&txnCtr.val, 1)
+	//Atomic.AddInt64(&txnCtr.val, 1)
 	txnCtr.lock.Unlock()
 	//
 	//var end time.Time
@@ -900,8 +900,11 @@ func work(id int, doneWG *sync.WaitGroup) {
 			break;
 		}*/
 		var res bool
-		itemAddr1 := transactions[id].addrSender
-		itemAddr2 := transactions[id].addrReceiver
+		txnCtr.lock.Lock()
+		itemAddr1 := transactions[Atomic.LoadInt64(&txnCtr.val)].addrSender
+		itemAddr2 := transactions[Atomic.LoadInt64(&txnCtr.val)].addrReceiver
+		Atomic.AddInt64(&txnCtr.val, 1)
+		txnCtr.lock.Unlock()
 		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		//end = time.Now()
@@ -1028,8 +1031,8 @@ func verify(doneWG *sync.WaitGroup) {
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
-	items := make([]Item, 0, numTxns * 2)
-	//items := NewConcurrentSlice()
+	//items := make([]Item, 0, numTxns * 2)
+	items := make([]Item, 0, txnCtr.val * 2)
 	it := make([]int, numThreads, numThreads)
 	var itStart int
 
@@ -1093,7 +1096,8 @@ func verify(doneWG *sync.WaitGroup) {
 
 				//if it[i] < len(threadLists.items[tId].([]Method)) {
 				if it[i] < int(threadListsSize[tId].Load()) {
-					fmt.Printf("Address of methods txn sender at %d: %s\nAt %d: %s\n", it[i], threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
+					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
+					fmt.Printf("%v\n", threadLists.items[i].([]Method))
 					m = threadLists.items[tId].([]Method)[it[i]]
 					it[i]++
 					m2 = threadLists.items[tId].([]Method)[it[i]]
@@ -1101,7 +1105,7 @@ func verify(doneWG *sync.WaitGroup) {
 					fmt.Printf("Verifier threadlist error!\n")
 					break;
 				}
-				//fmt.Print("m is %v\nm2 is %v", m, m2)
+				fmt.Printf("m address = %s\nm2 address = %s\n", m.itemAddrS, m2.itemAddrS)
 				//threadLists.Unlock()
 
 				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
@@ -1165,7 +1169,7 @@ func verify(doneWG *sync.WaitGroup) {
 				if itItem == mapItemsEnd {
 					var item Item
 					var item2 Item
-					fmt.Printf("appending addresses to items: %s\t%s\n", m.itemAddrS, m2.itemAddrS)
+					fmt.Printf("appending addresses to items: %v\t%v\n", m.itemAddrS, m2.itemAddrS)
 					item.setItem(m.itemAddrS)
 					item2.setItem(m2.itemAddrS)
 					//item.key = m.itemAddr
@@ -1263,7 +1267,7 @@ func main() {
 	// will use for i:= range threadLists.iter() in place of findMethodKey.
 	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 	// Whats the deal with the separate items slice?
-	allSenders := make(map[string]int)
+	//allSenders := make(map[string]int)
 	Atomic.StoreInt32(&numTxns, 0)
 
 	methodCount = 0
@@ -1287,7 +1291,7 @@ func main() {
 			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
 			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
 		}
-
+		fmt.Printf("%s\n", string(transactionSenders))
 
 		/*transactions[i].addrSender = string(transactionSenders)
 		transactions[i].addrReceiver = string(transactionReceivers)
@@ -1296,7 +1300,7 @@ func main() {
 			transactions[i].addrSender = string(transactionSenders)
 			transactions[i].addrReceiver = string(transactionReceivers)
 			control = transactions[i].addrSender
-			transactions[i].amount = 50
+			transactions[i].amount = 51
 		} else if i == 1 {
 			//transactions[i].addrSender = control
 			transactions[i].addrSender = string(transactionSenders)
@@ -1307,7 +1311,7 @@ func main() {
 			transactions[i].addrReceiver = string(transactionReceivers)
 			transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))
 		}
-		allSenders[string(transactionSenders)] = 1
+		//allSenders[string(transactionSenders)] = 1
 		//transactions[i].amount = rand.Intn(50)
 		/*if(i == 0) {
 			transactions[i].amount = 300
