@@ -96,9 +96,10 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	delay := concurrent.MIN_DELAY
+	sameAccount := sender.Big().Cmp(recipient.Big()) == 0
 	for {
 		if _, senderInUse := InUseAccounts.LoadOrStore(sender.String(), nil); !senderInUse {
-			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse || sender.Big().Cmp(recipient.Big()) == 0  {
+			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse || sameAccount  {
 				db.SubBalance(sender, amount)
 				db.AddBalance(recipient, amount)
 				InUseAccounts.Delete(sender.String())

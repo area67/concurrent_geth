@@ -144,67 +144,6 @@ func newConcurrentTestWorker(t *testing.T, chainConfig *params.ChainConfig, engi
 	return w, backend
 }
 
-
-func TestConcurrentEmptyWorkEthash(t *testing.T) {
-	testEmptyWorkConcurrent(t, ethashChainConfig, ethash.NewFaker())
-}
-func TestEmptyWorkCliqueConcurrent(t *testing.T) {
-	//testEmptyWorkConcurrent(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
-}
-
-func testEmptyWorkConcurrent(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	defer engine.Close()
-
-	w, _ := newConcurrentTestWorker(t, chainConfig, engine, 0)
-	defer w.close()
-
-	var (
-		taskCh    = make(chan struct{}, 2)
-		taskIndex int
-	)
-
-	checkEqual := func(t *testing.T, task *task, index int) {
-		receiptLen, balance := 0, big.NewInt(0)
-		if index == 1 {
-			receiptLen, balance = 1, big.NewInt(1000)
-		}
-		if len(task.receipts) != receiptLen {
-			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
-		}
-		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
-		}
-	}
-
-	w.newTaskHook = func(task *task) {
-		if task.block.NumberU64() == 1 {
-			checkEqual(t, task, taskIndex)
-			taskIndex += 1
-			taskCh <- struct{}{}
-		}
-	}
-	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-
-	w.start()
-	for i := 0; i < 2; i += 1 {
-		select {
-		case <-taskCh:
-		case <-time.NewTimer(4 * time.Second).C:
-			t.Error("new task timeout")
-		}
-	}
-}
-
 var defaultVal = 1
 var threads = flag.String("threads", strconv.Itoa(defaultVal), "Number of threads for the test to use.")
 var fileName = flag.String("output", concurrent.OutputFile, "Name of the file to store benchmarks in.")
