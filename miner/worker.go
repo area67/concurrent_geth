@@ -706,25 +706,22 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 	)
-	//fmt.Println("worker.go 690 Snapshot created ", w.snapshotState)
 
 	w.snapshotState = w.current.state.Copy()
 }
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, threadState *state.StateDB) ([]*types.Log, error) {
-
-
 	snap := w.current.state.Snapshot()
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, threadState, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 
 	if err != nil {
 		log.Debug(fmt.Sprintf("Transaction error, reverting to snapshot %s", err))
-		fmt.Println("err ", err)
-
+		// This likely does not work correctly at the moment
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
 
+	// These locks could be removed if a concurrent datastructure is used to hold the data
 	w.workerTxnsLock.Lock()
 	w.current.txs = append(w.current.txs, tx)
 	w.workerTxnsLock.Unlock()
@@ -751,19 +748,13 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	var coalescedLogs []*types.Log
-
 	log.Debug(fmt.Sprintf("Starting parallel committing with %d threads", concurrent.NumThreads))
 
 
 	// 0 = OK, 1 = Break, 2 = Return
-
 	var loopStatus = OK
 	var returnValue bool
-
 	var threadID int32 = 0
-
-	// debug: want to know how manny txs in transactions by price and nonce
-	// fmt.Printf("Attempting commit of %d transactions from %d senders\n", txs.NumTransactions()  ,txs.NumSenders())
 
 	// thread pool
 	var workerGroup sync.WaitGroup
@@ -810,11 +801,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64){
 	defer func() {wg.Done()}()
-
+	// each thread needs their own state to modify
 	threadState := w.current.state.CopySharedTrie()
 	for ;*loopStatus == OK; {
-		//fmt.Printf("Thread %d starting\n", threadID)
-
 		// var casResult bool
 		// In the following three cases, we will interrupt the execution of the transaction.
 		// (1) new head block event arrival, the interrupt signal is 1
@@ -850,7 +839,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			// break
 		}
 		// Retrieve the next transaction and abort if all done
-
 		tx := txs.Peek()
 		if tx == nil {
 			// no more transactions still need to wait until pending commits are finished or out of gas.
@@ -860,8 +848,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			}
 			return
 		}
-
-
 
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -881,13 +867,8 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		}
 
 		// Start executing the transaction
-
-
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
-
-
 		logs, err := w.commitTransaction(tx, coinbase, threadState)
-
 
 		// where transaction iteration happens
 		switch err {
@@ -915,7 +896,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			w.workerLogsLock.Unlock()
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
-			atomic.AddInt64(counter, 1);
+			atomic.AddInt64(counter, 1)
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
@@ -924,7 +905,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			//fmt.Printf("Transaction from %s failed, account skipped\n", from.String())
 			txs.Shift(from)
 		}
-		//fmt.Printf("Thread %d finishing\n", threadID)
 	}
 }
 

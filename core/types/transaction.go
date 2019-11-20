@@ -380,9 +380,6 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	// Lock the txpool
-	//t.nonceMutex.RLock()
-	//defer t.nonceMutex.RUnlock()
 	var result *Transaction = nil
 	var length = len(t.heads)
 	var index = int(atomic.LoadUint32(&t.index))
@@ -399,13 +396,11 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 		var sender, err = Sender(t.signer, t.heads[(index + i) % length])
 		if err != nil {
 			log.Error("Error getting sender in core/types/transactions.go Peek()", err)
-			//fmt.Printf("Error getting sender in core/types/transactions.go Peek(): %v\n", err)
 			return nil
 		}
 
 		// Check if the sender is currently being used
 		if _, ok := t.accountLock.Load(sender.String()); ok {
-			// fmt.Printf("Sender: %s is in use. Continueing\n", sender.String())
 			continue
 
 		} else {
@@ -416,7 +411,6 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 			*/
 			if  _, senderInUse := t.accountLock.LoadOrStore(sender.String(), nil); !senderInUse {
 				log.Debug(fmt.Sprintf("Locking control of sender %s in Peek()", sender.String()))
-				// fmt.Printf("Locking control of sender %s in Peek()\n", sender.String())
 				// set the transactions the sender has and break to return
 				atomic.AddUint32(&t.index, 1)
 				result = t.heads[(index + i) % length]
@@ -431,24 +425,18 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
-	// t.nonceMutex.Lock()
-	// defer t.nonceMutex.Unlock()
 	index, _ := t.find(sender)
 
 	if txnInterface, ok := t.txs.Get(sender.String()); ok && txnInterface.(Transactions).Len() > 0 {
 		txs := txnInterface.(Transactions)
 		t.heads[index] = txs[0]
 		t.txs.Set(sender.String(),txs[1:])
-		//heap.Fix(&t.heads, index)
 		log.Debug(fmt.Sprintf("Next tx for sender %s shifted in", sender.String()))
-		// fmt.Printf("Next tx for sender %s shifted in\n", sender.String())
 		// relinquish control of sender so other threads my pick it up
 		log.Debug(fmt.Sprintf("Releasing control of sender %s in Shift()", sender.String()))
-		//fmt.Printf("Releasing control of sender %s in Shift()\n", sender.String())
 		t.accountLock.Delete(sender.String())
 
 	} else {
-		//heap.Remove(&t.heads, index)
 		t.Remove(sender)
 
 	}
@@ -458,9 +446,6 @@ func (t *TransactionsByPriceAndNonce) Shift(sender common.Address) {
 func (t *TransactionsByPriceAndNonce) NumSenders() int {
 	//	This likely does not need to be locked, a data race could result in another iteration of the commitTransactions
 	//	loop, but this should reduce lock contention.
-	// nonceMutex.Lock()
-	// defer nonceMutex.Unlock()
-	//return len(t.heads)
 	result := 0
 	for i := 0; i < len(t.headsAvailable); i++ {
 		if t.headsAvailable[i] == AVAILABLE {
@@ -481,19 +466,13 @@ func (t *TransactionsByPriceAndNonce) NumTransactions() int{
 // Remove removes t.heads[i] from t.heads making what was t.heads[i+1] t.heads[i] and so on.
 // this is like a pop that can "pop"
 func (t *TransactionsByPriceAndNonce) Remove(sender common.Address) {
-	//t.nonceMutex.Lock()
-	// defer t.nonceMutex.Unlock()
 	index, _ := t.find(sender)
-	//heap.Remove(&t.heads, heapIndex)
 	// not sure if cas needed
 	if atomic.CompareAndSwapInt32(&t.headsAvailable[index],AVAILABLE,NOT_AVAILABLE){
 		t.heads[index] = nil
 	}
 
-	//log.Debug(fmt.Sprintf("Removing sender %s from heap", sender.String()))
-	//t.accountLock.Del(sender.String())
 	log.Debug(fmt.Sprintf("Releasing control of sender %s in Remove()", sender.String()))
-	//fmt.Printf("Finished with sender %s in Remove()\n", sender.String())
 }
 
 func (t *TransactionsByPriceAndNonce) find(sender common.Address) (int, error) {
