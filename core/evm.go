@@ -17,18 +17,16 @@
 package core
 
 import (
-	"fmt"
-	"github.com/ethereum/go-ethereum/cornelk/hashmap"
-	"github.com/ethereum/go-ethereum/log"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"math/big"
+	"sync"
 )
 var(
-	inUseAccounts hashmap.HashMap
+	InUseAccounts sync.Map
 )
 // ChainContext supports retrieving headers and consensus parameters from the
 // current blockchain to be used during transaction processing.
@@ -97,26 +95,19 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	for ok := true; ok;  {
-		if inUseAccounts.Insert(sender.String(), sender) {
-			log.Debug(fmt.Sprintf("Sender Account: %x locked for transfer", sender))
-			if inUseAccounts.Insert(recipient.String(), recipient) {
-				log.Debug(fmt.Sprintf("Recipient Account: %x locked for transfer", recipient))
-
+	delay := concurrent.MIN_DELAY
+	sameAccount := sender.Big().Cmp(recipient.Big()) == 0
+	for {
+		if _, senderInUse := InUseAccounts.LoadOrStore(sender.String(), nil); !senderInUse {
+			if _, recipientInUse := InUseAccounts.LoadOrStore(recipient.String(), nil); !recipientInUse || sameAccount  {
 				db.SubBalance(sender, amount)
 				db.AddBalance(recipient, amount)
-				log.Debug(fmt.Sprintf("Removing %d from %x", amount, sender))
-				log.Debug(fmt.Sprintf("Adding %d to %x", amount, recipient))
-				ok = false
-				log.Debug(fmt.Sprintf("Transfer Complete. Unlocking %x and %x", sender, recipient))
-				inUseAccounts.Del(sender.String())
-				inUseAccounts.Del(recipient.String())
-
-			} else {
-				log.Debug(fmt.Sprintf("Failed to lock recipient account %x, removing sender %x from lockPool", recipient, sender))
-				inUseAccounts.Del(sender.String())
+				InUseAccounts.Delete(sender.String())
+				InUseAccounts.Delete(recipient.String())
+				return
 			}
+			InUseAccounts.Delete(sender.String())
 		}
+		delay = concurrent.Backoff(delay)
 	}
-
 }

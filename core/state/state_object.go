@@ -299,7 +299,7 @@ func (c *stateObject) ReturnGas(gas *big.Int) {}
 func (self *stateObject) deepCopy(db *StateDB) *stateObject {
 	stateObject := newObject(db, self.address, self.data)
 	if self.trie != nil {
-		stateObject.trie = db.db.CopyTrie(self.trie)
+		stateObject.trie = (*db.db).CopyTrie(self.trie)
 	}
 	stateObject.code = self.code
 	stateObject.dirtyStorage = self.dirtyStorage.Copy()
@@ -336,7 +336,7 @@ func (self *stateObject) Code(db Database) []byte {
 }
 
 func (self *stateObject) SetCode(codeHash common.Hash, code []byte) {
-	prevcode := self.Code(self.db.db)
+	prevcode := self.Code(*self.db.db)
 	self.db.journal.append(codeChange{
 		account:  &self.address,
 		prevhash: self.CodeHash(),

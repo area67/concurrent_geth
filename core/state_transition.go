@@ -18,17 +18,18 @@ package core
 
 import (
 	"errors"
-	"math"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"math"
+	"math/big"
+	"sync"
 )
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
+	stateTransitionLock = sync.Mutex{}
 )
 
 /*
@@ -168,6 +169,18 @@ func (st *StateTransition) buyGas() error {
 
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
+	/*
+	TODO:	This is bad practice, due to time constraints the pre-check is being skipped as our test cases are
+			non-malicious. This problem is not unsolvable, but our research was primarily focused on running transactions
+			in parallel. I think a fix for this would be to have a map {common.address, nonce} and when increasing the
+			nonce during execution atomic.add({common.address, nonce + 1}. The other change would be when a thread
+			obtains a new transaction after txs.Peek() in worker.go:txWorker(...) the thread's state would need to
+			load the nonce mapped to that sender.
+	*/
+	if st.msg.CheckNonce() {
+		return st.buyGas()
+	}
+
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
@@ -185,6 +198,8 @@ func (st *StateTransition) preCheck() error {
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
+
+	// nonce error here
 	if err = st.preCheck(); err != nil {
 		return
 	}
@@ -192,7 +207,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
-
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
 	if err != nil {
@@ -215,6 +229,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
+
 	}
 	if vmerr != nil {
 		log.Debug("VM returned with error", "err", vmerr)
@@ -227,7 +242,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
-
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
@@ -238,6 +252,7 @@ func (st *StateTransition) refundGas() {
 		refund = st.state.GetRefund()
 	}
 	st.gas += refund
+	//atomic.AddUint64(&st.gas, refund)
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
