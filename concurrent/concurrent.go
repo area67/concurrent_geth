@@ -1,6 +1,7 @@
 package concurrent
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -10,12 +11,14 @@ const(
 	MAX_DELAY = 1000
 )
 
+// TODO: This should probably be a constant, it was changed to var to allow for run-time changes for performance evaluation
 var (
 	NumThreads   = 4
 )
 
 func Backoff(delay int) int {
-	time.Sleep(time.Duration(delay) * time.Nanosecond)
+
+	time.Sleep(time.Duration(rand.Intn(delay)) * time.Nanosecond)
 	if delay < MAX_DELAY {
 		delay *= 2
 	}

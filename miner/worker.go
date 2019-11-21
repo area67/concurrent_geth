@@ -716,12 +716,16 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 	if err != nil {
 		log.Debug(fmt.Sprintf("Transaction error, reverting to snapshot %s", err))
-		// This likely does not work correctly at the moment
+		/* TODO:	This likely does not work correctly (non-deterministically). At the moment, I don't have a good fix
+					 for this currently as reverting across a concurrent environment is tricky. This would likely need a
+					 complete rewrite based on what it means to be correct during a parallel execution. Because our
+					 research is mostly focused on parallel transaction execution this stayed in the "nice to have" category.
+		*/
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
 
-	// These locks could be removed if a concurrent datastructure is used to hold the data
+	// These locks could be removed if a concurrent data-structure is used, these are mutex bottlenecks on a multi-core program. bad.
 	w.workerTxnsLock.Lock()
 	w.current.txs = append(w.current.txs, tx)
 	w.workerTxnsLock.Unlock()

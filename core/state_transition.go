@@ -169,8 +169,14 @@ func (st *StateTransition) buyGas() error {
 
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
-
-	// TODO: this is bad
+	/*
+	TODO:	This is bad practice, due to time constraints the pre-check is being skipped as our test cases are
+			non-malicious. This problem is not unsolvable, but our research was primarily focused on running transactions
+			in parallel. I think a fix for this would be to have a map {common.address, nonce} and when increasing the
+			nonce during execution atomic.add({common.address, nonce + 1}. The other change would be when a thread
+			obtains a new transaction after txs.Peek() in worker.go:txWorker(...) the thread's state would need to
+			load the nonce mapped to that sender.
+	*/
 	if st.msg.CheckNonce() {
 		return st.buyGas()
 	}
