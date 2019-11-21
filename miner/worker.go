@@ -484,7 +484,8 @@ func (w *worker) mainLoop() {
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs)
 				w.commitTransactions(txset, coinbase, nil)
 
-				// verification tool could go here?
+
+
 
 				w.updateSnapshot()
 
@@ -901,6 +902,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
+			// add txn to verification tool
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
