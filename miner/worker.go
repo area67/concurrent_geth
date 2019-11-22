@@ -19,6 +19,7 @@ package miner
 import (
 	"bytes"
 	"errors"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -711,7 +712,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
 	}
-
+	var counter int64 = 0
+	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
 	var coalescedLogs []*types.Log
 
 	for {
@@ -783,6 +785,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			coalescedLogs = append(coalescedLogs, logs...)
 			w.current.tcount++
 			txs.Shift()
+			atomic.AddInt64(&counter, 1)
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
