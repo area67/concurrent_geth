@@ -17,37 +17,11 @@ import (
 )
 
 type Status int
-
 var txnCtr AtomicTxnCtr
 
 //var countIterated uint32 = 0
-
-const (
-	PRESENT Status = iota
-	ABSENT
-	LESS = -1
-	EQUAL = 0
-	MORE = 1
-)
-
 type Semantics int
-
-const (
-	FIFO Semantics = iota
-	LIFO
-	SET
-	MAPP
-	PRIORITY
-)
-
 type Types int
-
-const (
-	PRODUCER Types = iota
-	CONSUMER
-	READER
-	WRITER
-)
 
 type Method struct {
 	id          int       // atomic var
@@ -85,40 +59,27 @@ type AtomicTxnCtr struct {
 	lock sync.Mutex
 }
 
-type ConcurrentSlice struct {
-	sync.RWMutex
-	items []interface{}
-	//items []ConcurrentSliceItem
+
+
+
+type Verifier struct {
+	isRunning bool
 }
 
-// Concurrent slice item
-type ConcurrentSliceItem struct {
-	Index int
-	Value interface{}
-}
-
-func (cs *ConcurrentSlice) Append(item interface{}) {
-	cs.Lock()
-	defer cs.Unlock()
-
-	cs.items = append(cs.items, item)
-}
-
-func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
-	c := make(chan ConcurrentSliceItem)
-
-	f := func() {
-		cs.Lock()
-		defer cs.Unlock()
-		for index, value := range cs.items {
-			c <- ConcurrentSliceItem{index, value}
-		}
-		close(c)
+func NewVerifier() *Verifier {
+	return  &Verifier{
+		isRunning: true,
 	}
-	go f()
-
-	return c
 }
+
+func (v *Verifier) AddTxn(txData *TransactionData) {
+
+}
+
+func (v *Verifier) Shutdown() {
+	v.isRunning = false
+}
+
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
@@ -134,282 +95,7 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 	m.txnCtr = txnCtr
 }
 
-type Item struct {
-	key           string // Account Hash ???
-	value         int // Account Balance ???
-	sum           float64
-	numerator     int64
-	denominator   int64
-	exponent      float64
-	status        Status
-	promoteItems  stack.Stack
-	demoteMethods []*Method
-	producer      int // map iterator
 
-	// Failed Consumer
-	sumF         float64
-	numeratorF   int64
-	denominatorF int64
-	exponentF    float64
-
-	// Reader
-	sumR         float64
-	numeratorR   int64
-	denominatorR int64
-	exponentR    float64
-}
-
-func (i *Item) setItem(key string) {
-	i.key = key
-	i.value = math.MinInt32
-	i.sum = 0
-	i.numerator = 0
-	i.denominator = 1
-	i.exponent = 0
-	i.status = PRESENT
-	i.sumF = 0
-	i.numeratorF = 0
-	i.denominatorF = 1
-	i.exponentF = 0
-	i.sumR = 0
-	i.numeratorR = 0
-	i.denominatorR = 1
-	i.exponentR = 0
-}
-
-func (i *Item) setItemKV(key string, value int) {
-	i.key = key
-	i.value = value
-	i.sum = 0
-	i.numerator = 0
-	i.denominator = 1
-	i.exponent = 0
-	i.status = PRESENT
-	i.sumF = 0
-	i.numeratorF = 0
-	i.denominatorF = 1
-	i.exponentF = 0
-	i.sumR = 0
-	i.numeratorR = 0
-	i.denominatorR = 1
-	i.exponentR = 0
-}
-
-func (i *Item) addInt(x int64) {
-
-	// C.printf("Test add function\n")
-	addNum := x * i.denominator
-
-	i.numerator = i.numerator + addNum
-
-	// C.printf("addNum = %ld, numerator/denominator = %ld\n", add_num, numerator/denominator);
-	i.sum = float64(i.numerator / i.denominator)
-
-	// i.sum = i.sum + x
-}
-
-func (i *Item) subInt(x int64) {
-
-	// C.printf("Test add function\n");
-	subNum := x * i.denominator
-
-	i.numerator = i.numerator - subNum
-
-	// C.printf("subNum = %ld, i.numerator/i.denominator = %ld\n", subNum, i.numerator/i.denominator);
-	i.sum = float64(i.numerator / i.denominator)
-
-	// i.sum = i.sum + x
-}
-
-func (i *Item) addFrac(num int64, den int64) {
-
-	// #if DEBUG_
-	// if den == 0 {
-	// 	 C.printf("WARNING: add_frac: den = 0\n")
-	// }
-	// if i.denominator == 0 {
-	//	 C.printf("WARNING: add_frac: 1. denominator = 0\n")
-	// }
-	// #endif
-
-	if i.denominator%den == 0 {
-		i.numerator = i.numerator + num*i.denominator/den
-	} else if den%i.denominator == 0 {
-		i.numerator = i.numerator*den/i.denominator + num
-		i.denominator = den
-	} else {
-		i.numerator = i.numerator*den + num*i.denominator
-		i.denominator = i.denominator * den
-	}
-
-	// #if DEBUG_
-	// if i.denominator == 0 {
-	//   C.printf("WARNING: addFrac: 2. denominator = 0\n")
-	// }
-	// #endif
-
-	i.sum = float64(i.numerator / i.denominator)
-}
-
-func (i *Item) subFrac(num, den int64) {
-
-	// #if DEBUG_
-	// if den == 0
-	// 	 C.printf("WARNING: subFrac: den = 0\n")
-	// if i.denominator == 0
-	//	 C.printf("WARNING: subFrac: 1. denominator = 0\n");
-	// #endif
-
-	if i.denominator%den == 0 {
-		i.numerator = i.numerator - num*i.denominator/den
-	} else if den%i.denominator == 0 {
-		i.numerator = i.numerator*den/i.denominator - num
-		i.denominator = den
-	} else {
-		i.numerator = i.numerator*den - num*i.denominator
-		i.denominator = i.denominator * den
-	}
-
-	// #if DEBUG_
-	// if denominator == 0
-	//	 C.printf("WARNING: subFrac: 2. denominator = 0\n")
-	// #endif
-
-	i.sum = float64(i.numerator / i.denominator)
-}
-
-func (i *Item) demote() {
-	i.exponent = i.exponent + 1
-	den := int64(math.Exp2(i.exponent))
-	// C.printf("denominator = %ld\n", den);
-
-	i.subFrac(1, den)
-}
-
-func (i *Item) promote() {
-	den := int64(math.Exp2(i.exponent))
-
-	// #if DEBUG_
-	// if den == 0
-	//   C.printf("2 ^ %f = %ld?\n", i.exponent, den);
-	// #endif
-
-	if i.exponent < 0 {
-		den = 1
-	}
-
-	// C.printf("denominator = %ld\n", den);
-
-	i.addFrac(1, den)
-	i.exponent = i.exponent - 1
-}
-
-func (i *Item) addFracFailed(num int64, den int64) {
-
-	// #if DEBUG_
-	// if den == 0
-	//   C.printf("WARNING: addFracFailed: den = 0\n");
-	// if denominatorF == 0
-	//   C.printf("WARNING: addFracFailed: 1. denominatorF = 0\n")
-	// #endif
-
-	if i.denominatorF%den == 0 {
-		i.numeratorF = i.numeratorF + num*i.denominatorF/den
-	} else if den%i.denominatorF == 0 {
-		i.numeratorF = i.numeratorF*den/i.denominatorF + num
-		i.denominatorF = den
-	} else {
-		i.numeratorF = i.numeratorF*den + num*i.denominatorF
-		i.denominatorF = i.denominatorF * den
-	}
-
-	// #if DEBUG_
-	// if denominatorF == 0
-	//   C.printf("WARNING: addFracFailed: 2. denominatorF = 0\n");
-	// #endif
-
-	i.sumF = float64(i.numeratorF) / float64(i.denominatorF)
-}
-
-func (i *Item) subFracFailed(num int64, den int64) {
-	// #if DEBUG_
-	// if(den == 0)
-	// C.printf("WARNING: sub_frac_f: den = 0\n");
-	// if(denominator_f == 0)
-	// C.printf("WARNING: sub_frac_f: 1. denominator_f = 0\n");
-	// #endif
-	if i.denominatorF%den == 0 {
-		i.numeratorF = i.numeratorF - num*i.denominatorF/den
-	} else if den%i.denominatorF == 0 {
-		i.numeratorF = i.numeratorF*den/i.denominatorF - num
-		i.denominatorF = den
-	} else {
-		i.numeratorF = i.numeratorF*den - num*i.denominatorF
-		i.denominatorF = i.denominatorF * den
-	}
-	// #if DEBUG_
-	// if(denominator_f == 0)
-	// C.printf("WARNING: sub_frac_f: 2. denominator_f = 0\n");
-	// #endif
-	i.sumF = float64(i.numeratorF) / float64(i.denominatorF)
-}
-
-func (i *Item) demoteFailed() {
-	i.exponentF = i.exponentF + 1
-	var den = int64(math.Exp2(i.exponentF))
-	// C.printf("denominator = %ld\n", den);
-	i.subFracFailed(1, den)
-}
-
-func (i *Item) promoteFailed() {
-	var den = int64(math.Exp2(i.exponentF))
-	// C.printf("denominator = %ld\n", den);
-	i.addFracFailed(1, den)
-	i.exponentF = i.exponentF - 1
-}
-
-//Reader
-func (i *Item) addFracReader(num int64, den int64) {
-	if i.denominatorR%den == 0 {
-		i.numeratorR = i.numeratorR + num*i.denominatorR/den
-	} else if den%i.denominatorR == 0 {
-		i.numeratorR = i.numeratorR*den/i.denominatorR + num
-		i.denominatorR = den
-	} else {
-		i.numeratorR = i.numeratorR*den + num*i.denominatorR
-		i.denominatorR = i.denominatorR * den
-	}
-
-	i.sumR = float64(i.numeratorR / i.denominatorR)
-}
-
-func (i *Item) subFracReader(num int64, den int64) {
-	if i.denominatorR%den == 0 {
-		i.numeratorR = i.numeratorR - num*i.denominatorR/den
-	} else if den%i.denominatorR == 0 {
-		i.denominatorR = i.numeratorR*den/i.denominatorR - num
-		i.denominatorR = den
-	} else {
-		i.numeratorR = i.numeratorR*den - num*i.denominatorR
-		i.denominatorR = i.denominatorR * den
-	}
-
-	i.sumR = float64(i.numeratorR / i.denominatorR)
-}
-
-func (i *Item) demoteReader() {
-	i.exponentR = i.exponentR + 1
-	var den = int64(math.Exp2(i.exponentR))
-	// C.printf("denominator = %ld\n", den);
-	i.subFracReader(1, den)
-}
-
-func (i *Item) promoteReader() {
-	var den = int64(math.Exp2(i.exponentR))
-	// C.printf("denominator = %ld\n", den);
-	i.addFracReader(1, den)
-	i.exponentR = i.exponentR - 1
-}
 
 // End of Item struct
 
@@ -1035,7 +721,6 @@ func verify(doneWG *sync.WaitGroup) {
 
 	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
-
 	// fnPt       := fncomp
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
@@ -1052,8 +737,6 @@ func verify(doneWG *sync.WaitGroup) {
 	var min int64
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
-
-	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
 
 	for {
 		if stop {
@@ -1202,38 +885,6 @@ func verify(doneWG *sync.WaitGroup) {
 		//#if DEBUG_
 			fmt.Printf("All threads finished!\n")
 
-/*
-		itB, err := findBlockKey(mapBlock, "begin")
-		itBEnd, err2 := findBlockKey(mapBlock, "end")
-		if err != nil || err2 != nil {
-			return
-		}
-
-		for ; itB != itBEnd; itB++ {
-			fmt.Printf("Block start = %d, finish = %d\n", mapBlock[itB].start, mapBlock[itB].finish)
-		}
-
-		// How to??? line 1346
-		// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_;
-
-		//for it = map_methods.begin(); it != map_methods.end(); ++it {
-			// How to??? lines 1349 -1356
-			/*
-				std::unordered_map<int,Item>::iterator it_item;
-				it_item = map_items.find(it_->second.item_key);
-				if(it_->second.type == PRODUCER)
-					printf("PRODUCER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
-				else if ((it_->second).type == CONSUMER)
-					printf("CONSUMER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
-				else if ((it_->second).type == READER)
-					printf("READER inv %ld, res %ld, item %d, sum %.2lf, sum_r = %.2lf, sum_f = %.2lf, tid = %d, qperiod = %d\n", it_->second.invocation, it_->second.response, it_->second.item_key, it_item->second.sum, it_item->second.sum_r, it_item->second.sum_f, it_->second.process, it_->second.quiescent_period);
-	*/
-	//}
-
-	// #endif
-
-	// end = std::chrono::high_resolution_clock::now();
-	// auto post_verify = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
 	end = time.Now()
 	postVerify := end.UnixNano()
 

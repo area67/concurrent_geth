@@ -739,7 +739,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	var counter int64 = 0
-	defer concurrent.ProcessTimer(time.Now(), concurrent.OutputFile, &counter)
+	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
 
 	// Short circuit if current is nil
 	if w.current == nil {
