@@ -17,6 +17,8 @@ import (
 )
 
 type Status int
+
+//TODO: This should be a struct field, also could it be an atomic int64 instead of a locking int64?
 var txnCtr AtomicTxnCtr
 
 //var countIterated uint32 = 0
@@ -59,9 +61,6 @@ type AtomicTxnCtr struct {
 	lock sync.Mutex
 }
 
-
-
-
 type Verifier struct {
 	isRunning bool
 }
@@ -95,10 +94,6 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 	m.txnCtr = txnCtr
 }
 
-
-
-// End of Item struct
-
 type Block struct {
 	start  int64
 	finish int64
@@ -108,8 +103,6 @@ func (b *Block) setBlock() {
 	b.start = 0
 	b.finish = 0
 }
-
-// End of Block struct
 
 var finalOutcome bool
 var methodCount int32
@@ -567,7 +560,9 @@ func work(id int, doneWG *sync.WaitGroup) {
 	//// TODO: I'm 84% sure this is correct
 	//startTime := time.Unix(0, start.UnixNano())
 	//startTimeEpoch := time.Since(startTime)
-	//
+
+
+	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
 	txnCtr.lock.Lock()
 	mId := txnCtr.val *2
 	//Atomic.AddInt64(&txnCtr.val, 1)
@@ -924,6 +919,7 @@ func Verify() {
 	var doneWG sync.WaitGroup
 	var control string
 
+	// TODO:
 	txnCtr.val = 0
 
 	for i := 0; i < concurrent.NumThreads; i++ {
@@ -949,10 +945,8 @@ func Verify() {
 	}
 
 	finish := time.Now()                                //auto finish = std::chrono::high_resolution_clock::now();
-	elapsedTime := finish.UnixNano() - start.UnixNano() //auto elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
-
-	var elapsedTimeDouble float64 = float64(elapsedTime) * 0.000000001
-	fmt.Printf("Total Time: %.15f seconds\n", elapsedTimeDouble)
+	elapsedSeconds := time.Since(finish).Seconds()
+	fmt.Println("Total Time: ", elapsedSeconds ," seconds")
 
 	var elapsedTimeMethod int64 = 0
 	var elapsedOverheadTime float64 = 0
