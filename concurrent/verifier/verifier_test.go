@@ -1,6 +1,7 @@
 package correctness_tool
 
 import (
+	"math/big"
 	"math/rand"
 	"sync/atomic"
 	"testing"
@@ -15,7 +16,7 @@ type Data struct {
 
 var data [MAXTXNS]Data
 
-func TestVerifier(t *testing.T) {
+func TestVerifierFunction(t *testing.T) {
 	// Generating 50 random transactions
 	var hexRunes = []rune("123456789abcdef")
 	var transactionSenders = make([]rune,16)
@@ -45,5 +46,10 @@ func TestVerifier(t *testing.T) {
 			data[i].amount = rand.Intn(50)
 		}
 		data[i].tId = int(atomic.LoadInt32(&v.numTxns))
+		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
 	}
+	v.Verify()
+
+	v.Shutdown()
+	for v.isRunning {}
 }

@@ -66,7 +66,7 @@ func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *Transa
 
 type Verifier struct {
 	allSenders      map[string]int
-	transactions    [200]TransactionData
+	transactions    []TransactionData
 	txnCtr          int64
 	methodCount     int32
 	finalOutcome    bool
@@ -74,21 +74,24 @@ type Verifier struct {
 	threadListsSize []atomic.Int32
 	threadLists     ConcurrentSlice
 	numTxns         int32
+	isShuttingDown  bool
 	isRunning       bool
-	txnLock 		sync.Mutex
+	txnLock         sync.Mutex
 }
 
 func NewVerifier() *Verifier {
 	return  &Verifier{
-		allSenders: make(map[string]int),
-		txnCtr: 0,
-		methodCount: 0,
-		finalOutcome: true,
-		done: make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
+		allSenders:      make(map[string]int),
+		txnCtr:          0,
+		transactions:    make([]TransactionData, 200),
+		methodCount:     0,
+		finalOutcome:    true,
+		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
 		threadListsSize: make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads),
-		threadLists: ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),},
-		numTxns: 0,
-		isRunning: true,
+		threadLists:     ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),},
+		numTxns:         0,
+		isRunning:       true,
+		isShuttingDown:  false,
 	}
 }
 
@@ -104,12 +107,12 @@ func (v *Verifier) AddTxn(txData *TransactionData) {
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
-	index := Atomic.AddInt64(&v.txnCtr, 1) - 1
+	index := Atomic.AddInt32(&v.numTxns, 1) - 1
 	v.transactions[index] = *txData
 }
 
 func (v *Verifier) Shutdown() {
-	v.isRunning = false
+	v.isShuttingDown = true
 }
 
 
@@ -548,6 +551,7 @@ func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 		itemAddr1 := v.transactions[index].addrSender
 		itemAddr2 := v.transactions[index].addrReceiver
 		amount := v.transactions[index].amount
+		fmt.Println(v.transactions[index])
 		Atomic.AddInt64(&v.txnCtr, 1)
 		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
@@ -836,11 +840,14 @@ func (v *Verifier) Verify() {
 }
 
 func (v *Verifier) mainLoop() {
+	fmt.Println("start main loop")
+	defer fmt.Println("end main loop")
+
 	methodTime := make([]int64, concurrent.NumThreads)
 	overheadTime := make([]int64, concurrent.NumThreads)
 	currentSize := int64(0)
-
-	for v.isRunning || currentSize != Atomic.LoadInt64(&v.txnCtr) {
+	for v.isRunning {
+		fmt.Println(v.transactions[0])
 		currentSize = Atomic.LoadInt64(&v.txnCtr)
 		if currentSize == 0 {
 			time.Sleep(time.Duration(rand.Intn(concurrent.MAX_DELAY) + concurrent.MIN_DELAY) * time.Nanosecond)
@@ -900,5 +907,9 @@ func (v *Verifier) mainLoop() {
 			}
 		}
 
+		if currentSize == Atomic.LoadInt64(&v.txnCtr) && v.isShuttingDown {
+			fmt.Println("this happened")
+			v.isRunning = false
+		}
 	}
 }
