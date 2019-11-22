@@ -8,6 +8,7 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
+	"math/rand"
 	"sync"
 	Atomic "sync/atomic"
 	"syscall"
@@ -45,6 +46,14 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 	m.txnCtr = txnCtr
 }
 
+type TransactionData struct {
+	addrSender   string
+	addrReceiver string
+	balanceSender int
+	balanceReceiver int
+	amount       *big.Int
+	tId          int32
+}
 
 func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
 	return  &TransactionData{
@@ -53,15 +62,6 @@ func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *Transa
 		amount: new(big.Int).Set(amount),
 		tId: threadID,
 	}
-}
-
-type TransactionData struct {
-	addrSender   string
-	addrReceiver string
-	balanceSender int
-	balanceReceiver int
-	amount       *big.Int
-	tId          int32
 }
 
 type Verifier struct {
@@ -73,7 +73,7 @@ type Verifier struct {
 	done            []atomic.Bool
 	threadListsSize []atomic.Int32
 	threadLists     ConcurrentSlice
-	numTxns          int32
+	numTxns         int32
 	isRunning       bool
 	txnLock 		sync.Mutex
 }
@@ -95,8 +95,17 @@ func NewVerifier() *Verifier {
 func (v *Verifier) AddTxn(txData *TransactionData) {
 	v.txnLock.Lock()
 	defer v.txnLock.Unlock()
+	// TODO : I think we can do  index = Atomic.AddInt64(&v.txnCtr, 1) - 1
+	//		the add function returns the new value, which whill always be the new size of the array, and we want to
+	//		insert at size - 1
+	//		see LockFreeAddTxn
 	v.transactions[v.txnCtr] = *txData
 	v.txnCtr++
+}
+
+func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
+	index := Atomic.AddInt64(&v.txnCtr, 1) - 1
+	v.transactions[index] = *txData
 }
 
 func (v *Verifier) Shutdown() {
@@ -462,13 +471,13 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			}
 
 			//if (math.Ceil(items.items[itVerify].(*Item).sum)+items.items[itVerify].(*Item).sumF)*n < 0 {
-			fmt.Printf("prior to outcome = false, at items[%d] key = %s, sum = %f and sumF = %f and sumR = %f and n = %v and outcome = %b\n",itVerify, items[itVerify].key, items[itVerify].sum, items[itVerify].sumF, items[itVerify].sumR, n, outcome)
+			//fmt.Printf("prior to outcome = false, at items[%d] key = %s, sum = %f and sumF = %f and sumR = %f and n = %v and outcome = %b\n",itVerify, items[itVerify].key, items[itVerify].sum, items[itVerify].sumF, items[itVerify].sumR, n, outcome)
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
 				fmt.Printf("!!!!!!!!!!\n")
 				outcome = false
 				// #if DEBUG_
 				//fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items.items[itVerify].(*Item).key, items.items[itVerify].(*Item).sumF)
-				fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].key, items[itVerify].sumF)
+				//fmt.Printf("WARNING: Item %d, sum_f %.2f\n", items[itVerify].key, items[itVerify].sumF)
 				// #endif
 			}
 
@@ -610,12 +619,9 @@ func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 		var m1 Method
 		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
 
-		// account being subtracted from
-		var amount1 big.Int
-		amount1.Mul(amount, big.NewInt(int64(-1)))
 		Atomic.AddInt64(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Neg(amount), v.transactions[id].tId)
+		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Mul(amount, big.NewInt(int64(-1))), v.transactions[id].tId)
 		Atomic.AddInt64(&mId, 1)
 
 		//Atomic.AddInt32(&numTxns, -1)
@@ -830,10 +836,16 @@ func (v *Verifier) Verify() {
 }
 
 func (v *Verifier) mainLoop() {
-	for v.isRunning {
-		methodTime := make([]int64, concurrent.NumThreads)
-		overheadTime := make([]int64, concurrent.NumThreads)
+	methodTime := make([]int64, concurrent.NumThreads)
+	overheadTime := make([]int64, concurrent.NumThreads)
+	currentSize := int64(0)
 
+	for v.isRunning || currentSize != Atomic.LoadInt64(&v.txnCtr) {
+		currentSize = Atomic.LoadInt64(&v.txnCtr)
+		if currentSize == 0 {
+			time.Sleep(time.Duration(rand.Intn(concurrent.MAX_DELAY) + concurrent.MIN_DELAY) * time.Nanosecond)
+			continue
+		}
 		// will use for i:= range threadLists.iter() in place of findMethodKey.
 		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 		// Whats the deal with the separate items slice?

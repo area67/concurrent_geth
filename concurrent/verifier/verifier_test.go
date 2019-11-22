@@ -46,5 +46,4 @@ func TestVerifier(t *testing.T) {
 		}
 		data[i].tId = int(atomic.LoadInt32(&v.numTxns))
 	}
-	v.mainLoop()
 }

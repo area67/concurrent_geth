@@ -903,7 +903,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
-			go tool.AddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
+			tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
@@ -914,8 +914,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		}
 	}
 }
-
-
 
 // commitNewWork generates several new sealing tasks based on the parent block.
 func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
