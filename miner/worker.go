@@ -40,7 +40,6 @@ import (
 )
 
 
-
 const (
 	// resultQueueSize is the size of channel listening to sealing result.
 	resultQueueSize = 10

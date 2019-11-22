@@ -6,16 +6,16 @@ import matplotlib.pyplot as plt
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-if len(sys.argv) < 3 :
-    print("Expected python <script>.py <desired path for graph> <graphname>")
+if len(sys.argv) < 4 :
+    print("Expected python <script>.py> <csv> <desired path for graph> <graphname>")
     sys.exit()
 
-filename = "results.txt"
-path = sys.argv[1]
+filename = sys.argv[1]
+path = sys.argv[2]
 # End the path with / if it is not given
 if path[-1] != '/' :
     path += '/'
-graphname = sys.argv[2]
+graphname = sys.argv[3]
 
 # Parse the given csv
 df = pd.read_csv(filename,sep="\t", names=['Threads','Throughput'])

@@ -1,24 +1,20 @@
-package concurrent
+package correctness_tool
 
 import (
 	"C"
 	"fmt"
+	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
 	"math"
-	"math/rand"
-	"os"
+	"math/big"
 	"sort"
 	"sync"
 	Atomic "sync/atomic"
 	"syscall"
 	"time"
 )
-
-const numThreads = 32
-
-var testSize uint32
 
 type Status int
 
@@ -68,8 +64,17 @@ type TransactionData struct {
 	addrReceiver string
 	balanceSender int
 	balanceReceiver int
-	amount       int
+	amount       big.Int
 	tId          int32
+}
+
+func NewTxData(sender, reciever string, amount big.Int, threadID int32) *TransactionData {
+	return  &TransactionData{
+		addrSender: sender,
+		addrReceiver: reciever,
+		amount: amount,
+		tId: threadID,
+	}
 }
 
 type AtomicTxnCtr struct {
@@ -110,32 +115,6 @@ func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
 	go f()
 
 	return c
-}
-
-func WriteToFile(filename string, data string) error {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// file does not exist
-		// create file
-		os.Create(filename)
-	}
-
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
-	_, err = fmt.Fprintf(f, "%s", data)
-	return  err
-}
-
-func processTimer(start time.Time, txCount *int32) {
-	nanoseconds := time.Since(start).Nanoseconds()
-	seconds := float64(nanoseconds) / 1e9
-	throughput := float64(*txCount) / seconds
-
-	s := fmt.Sprintf("%d\t%f\n", numThreads, throughput)
-	_ = WriteToFile("results.txt", s)
 }
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
@@ -454,21 +433,21 @@ var q queue.Queue
 var s stack.Stack
 
 var threadLists ConcurrentSlice // empty slice with capacity numThreads
-var threadListsSize= make([]atomic.Int32, numThreads, numThreads) // atomic ops only
-var done = make([]atomic.Bool, 32, numThreads)             // atomic ops only
+var threadListsSize= make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads) // atomic ops only
+var done = make([]atomic.Bool, 32, concurrent.NumThreads)             // atomic ops only
 var barrier int32                                         // atomic int
 
 func wait() {
 	Atomic.AddInt32(&barrier, 1)
-	for Atomic.LoadInt32(&barrier) < numThreads {
+	for Atomic.LoadInt32(&barrier) < int32(concurrent.NumThreads) {
 	}
 }
 
-var methodTime [numThreads]int64
-var overheadTime [numThreads]int64
+var methodTime []int64
+var overheadTime []int64
+
 
 var start time.Time
-
 var elapsedTimeVerify int64
 
 func minOf(vars []int) int {
@@ -1058,7 +1037,7 @@ func verify(doneWG *sync.WaitGroup) {
 	//items := make([]Item, 0, numTxns * 2)
 	fmt.Printf("txnCtr is %v\n", txnCtr.val)
 	items := make([]Item, 0, txnCtr.val * 2)
-	it := make([]int, numThreads, numThreads)
+	it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
 	var itStart int
 
 	stop := false
@@ -1066,7 +1045,7 @@ func verify(doneWG *sync.WaitGroup) {
 
 	var min int64
 	//var oldMin int64
-	var itCount [numThreads]int32
+	itCount := make([]int32, concurrent.NumThreads)
 
 	// std::map<long int,Method,bool(*)(long int,long int)>::iterator it_qstart;
 
@@ -1078,7 +1057,7 @@ func verify(doneWG *sync.WaitGroup) {
 		stop = true
 		min = math.MaxInt64
 
-		for i := 0; i < numThreads; i++ {
+		for i := 0; i < concurrent.NumThreads; i++ {
 			if done[i].Load() == false {
 
 				stop = false
@@ -1267,7 +1246,11 @@ var transactions [200]TransactionData
 var allSenders map[string]int = make(map[string]int)
 var numTxns int32
 
-func main() {
+func Verify() {
+
+	methodTime = make([]int64, concurrent.NumThreads)
+	overheadTime = make([]int64, concurrent.NumThreads)
+
 	// will use for i:= range threadLists.iter() in place of findMethodKey.
 	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 	// Whats the deal with the separate items slice?
@@ -1279,59 +1262,14 @@ func main() {
 	finalOutcome = true
 
 	//threadLists := NewConcurrentSlice()
-	threadLists = ConcurrentSlice{items: make([]interface{}, 0, numThreads),}
+	threadLists = ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),}
 
 	var doneWG sync.WaitGroup
-
-// Generating transaction data
-	var hexRunes = []rune("0123456789abcdef")
-	var transactionSenders = make([]rune,16)
-	var transactionReceivers = make([]rune,16)
 	var control string
 
-	for i := 0; i < 32; i++ {
-		Atomic.AddInt32(&numTxns, 1)
-		for j := 0; j < 16; j++ {
-			transactionSenders[j] = hexRunes[rand.Intn(len(hexRunes))]
-			transactionReceivers[j] = hexRunes[rand.Intn(len(hexRunes))]
-		}
-
-		//fmt.Printf("%s\n", string(transactionSenders))
-
-		if i == 0 {
-			transactions[i].addrSender = string(transactionSenders)
-			transactions[i].addrReceiver = string(transactionReceivers)
-			control = transactions[i].addrSender
-			transactions[i].amount = 1
-		} else if i == 31 {
-			transactions[i].addrSender = control
-			//transactions[i].addrSender = string(transactionSenders)
-			transactions[i].addrReceiver = string(transactionReceivers)
-			transactions[i].amount = 51
-		} else {
-			transactions[i].addrSender = string(transactionSenders)
-			transactions[i].addrReceiver = string(transactionReceivers)
-			transactions[i].amount = 50 - int(Atomic.LoadInt32(&numTxns))
-		}
-		allSenders[string(transactionSenders)] = 0
-		//transactions[i].amount = rand.Intn(50)
-		/*if(i == 0) {
-			transactions[i].amount = 300
-		} else {
-			transactions[i].amount = 200
-		}*/
-		transactions[i].balanceSender = rand.Intn(50)
-		transactions[i].balanceReceiver = rand.Intn(50)
-		transactions[i].tId = Atomic.LoadInt32(&numTxns)
-		//Atomic.AddInt32(&txnCtr.val, 1)
-	}
 	txnCtr.val = 0
-	start := time.Now()
-	defer processTimer(time.Now(), &numTxns)
 
-	//TODO: thread/ channel stuff
-
-	for i := 0; i < numThreads; i++ {
+	for i := 0; i < concurrent.NumThreads; i++ {
 
 		threadLists.Append(make([]Method, 0))
 		threadListsSize[i].Store(0)
@@ -1362,7 +1300,7 @@ func main() {
 	var elapsedTimeMethod int64 = 0
 	var elapsedOverheadTime float64 = 0
 
-	for i := 0; i < numThreads; i++ {
+	for i := 0; i < concurrent.NumThreads; i++ {
 		if methodTime[i] > elapsedTimeMethod {
 			elapsedTimeMethod = methodTime[i]
 		}
