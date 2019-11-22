@@ -25,6 +25,9 @@ var txnCtr AtomicTxnCtr
 const (
 	PRESENT Status = iota
 	ABSENT
+	LESS = -1
+	EQUAL = 0
+	MORE = 1
 )
 
 type Semantics int
@@ -55,7 +58,7 @@ type Method struct {
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
 	senderID    int       // same as itemAddr ??
-	requestAmnt int
+	requestAmnt *big.Int
 	txnCtr      int32
 }
 
@@ -64,15 +67,15 @@ type TransactionData struct {
 	addrReceiver string
 	balanceSender int
 	balanceReceiver int
-	amount       big.Int
+	amount       *big.Int
 	tId          int32
 }
 
-func NewTxData(sender, reciever string, amount big.Int, threadID int32) *TransactionData {
+func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
 	return  &TransactionData{
 		addrSender: sender,
 		addrReceiver: reciever,
-		amount: amount,
+		amount: new(big.Int).Set(amount),
 		tId: threadID,
 	}
 }
@@ -118,7 +121,7 @@ func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
 }
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
-	types Types, status bool, senderID int, requestAmnt int, txnCtr int32) {
+	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
 	m.id = id
 	m.itemAddrS = itemAddrS
 	m.itemAddrR = itemAddrR
@@ -493,9 +496,12 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 		fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and it requestAmnt = %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[it].requestAmnt)
 		// serializability
 		//todo: > or <
-		if (methods[it0].itemAddrS == methods[it].itemAddrS &&
+		/*if (methods[it0].itemAddrS == methods[it].itemAddrS &&
 			math.Abs(float64(methods[it0].requestAmnt)) < math.Abs(float64(methods[it].requestAmnt)) &&
-			methods[it0].id < methods[it].id) {
+			methods[it0].id < methods[it].id) {*/
+		if methods[it0].itemAddrS == methods[it].itemAddrS &&
+			methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+			methods[it0].id < methods[it].id {
 
 			fmt.Printf("Handling failed consumer 2\n")
 
@@ -510,9 +516,9 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 				fmt.Printf("Handling failed consumer 3\n")
 				stackFailed.Push(itemItr0)
 			}
-		} else if (methods[it0].itemAddrS == methods[it].itemAddrS &&
-					math.Abs(float64(methods[it0].requestAmnt)) > math.Abs(float64(methods[it].requestAmnt)) &&
-					methods[it0].id > methods[it].id) {
+		} else if methods[it0].itemAddrS == methods[it].itemAddrS &&
+					methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+					methods[it0].id > methods[it].id {
 
 			fmt.Printf("Handling failed consumer 4\n")
 
@@ -614,7 +620,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 						fmt.Println("MADE IT in 1")
 						// serializability
 						if methods[it0].itemAddrS == methods[it].itemAddrS &&
-							methods[it0].requestAmnt < methods[it].requestAmnt {
+							methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS {
 							fmt.Println("MADE IT in 2")
 							// #endif
 							itItems0 := 0
@@ -981,7 +987,7 @@ func work(id int, doneWG *sync.WaitGroup) {
 		// account being subtracted from
 		Atomic.AddInt64(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId),itemAddr1, itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), -amount, transactions[id].tId)
+		m2.setMethod(int(mId),itemAddr1, itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Neg(amount), transactions[id].tId)
 		Atomic.AddInt64(&mId, 1)
 
 		//Atomic.AddInt32(&numTxns, -1)
