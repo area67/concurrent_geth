@@ -898,7 +898,7 @@ var transactions [200]TransactionData
 var allSenders map[string]int = make(map[string]int)
 var numTxns int32
 
-func Verify() {
+func (v *Verifier) Verify() {
 
 	methodTime = make([]int64, concurrent.NumThreads)
 	overheadTime = make([]int64, concurrent.NumThreads)

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/concurrent"
+	correctness_tool "github.com/ethereum/go-ethereum/concurrent/verifier"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -738,9 +739,11 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+	tool := correctness_tool.NewVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
-
+	go tool.Verify()
+	defer tool.Shutdown()
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -764,12 +767,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// start txnWorkers
 	for i := 1; i < concurrent.NumThreads; i++{
 		workerGroup.Add(1)
-		go txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,threadID,&counter)
+		go txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,threadID,&counter, tool)
 		//fmt.Printf("Started thread %d\n",threadID)
 		threadID++
 	}
 	workerGroup.Add(1)
-	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter)
+	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter, tool)
 	workerGroup.Wait()
 
 	switch loopStatus{
@@ -802,7 +805,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	return false
 }
 
-func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64){
+func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64, tool *correctness_tool.Verifier){
 	defer func() {wg.Done()}()
 	// each thread needs their own state to modify
 	threadState := w.current.state.CopySharedTrie()
@@ -900,6 +903,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
+			go tool.AddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
