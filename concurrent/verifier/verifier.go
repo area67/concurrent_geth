@@ -611,6 +611,8 @@ func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
 
 		// account being subtracted from
+		var amount1 big.Int
+		amount1.Mul(amount, big.NewInt(int64(-1)))
 		Atomic.AddInt64(&mId, 1)
 		var m2 Method
 		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Neg(amount), v.transactions[id].tId)
@@ -837,6 +839,11 @@ func (v *Verifier) mainLoop() {
 		// Whats the deal with the separate items slice?
 		//allSenders := make(map[string]int)
 		Atomic.StoreInt32(&v.numTxns, 0)
+
+		for i := 0; i < len(v.transactions); i++ {
+			Atomic.AddInt32(&v.numTxns, 1)
+			v.allSenders[v.transactions[i].addrSender] = 0
+		}
 
 		//threadLists := NewConcurrentSlice()
 

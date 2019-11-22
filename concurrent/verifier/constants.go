@@ -22,3 +22,5 @@ const (
 	READER
 	WRITER
 )
+
+const MAXTXNS = 300
