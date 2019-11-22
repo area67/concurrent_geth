@@ -4,7 +4,6 @@ import (
 	"C"
 	"fmt"
 	"github.com/ethereum/go-ethereum/concurrent"
-	"github.com/golang-collections/collections/queue"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
 	"math"
@@ -20,10 +19,30 @@ type Status int
 
 //TODO: This should be a struct field, also could it be an atomic int64 instead of a locking int64?
 var txnCtr AtomicTxnCtr
+var finalOutcome bool
+var methodCount int32
+
+//var q queue.Queue
+//var s stack.Stack
+
+var threadLists ConcurrentSlice // empty slice with capacity numThreads
+var threadListsSize= make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads) // atomic ops only
+var done = make([]atomic.Bool, 32, concurrent.NumThreads)             // atomic ops only
+var barrier int32                                         // atomic int
+
+var methodTime []int64
+var overheadTime []int64
+
+var start time.Time
+var elapsedTimeVerify int64
 
 //var countIterated uint32 = 0
 type Semantics int
 type Types int
+
+var transactions [200]TransactionData
+var allSenders map[string]int = make(map[string]int)
+var numTxns int32
 
 type Method struct {
 	id          int       // atomic var
@@ -47,14 +66,6 @@ type TransactionData struct {
 	tId          int32
 }
 
-func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
-	return  &TransactionData{
-		addrSender: sender,
-		addrReceiver: reciever,
-		amount: new(big.Int).Set(amount),
-		tId: threadID,
-	}
-}
 
 type AtomicTxnCtr struct {
 	val int64
@@ -65,13 +76,31 @@ type Verifier struct {
 	isRunning bool
 }
 
+
+type Block struct {
+	start  int64
+	finish int64
+}
+
+
+func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
+	return  &TransactionData{
+		addrSender: sender,
+		addrReceiver: reciever,
+		amount: new(big.Int).Set(amount),
+		tId: threadID,
+	}
+}
+
 func NewVerifier() *Verifier {
 	return  &Verifier{
 		isRunning: true,
+
 	}
 }
 
 func (v *Verifier) AddTxn(txData *TransactionData) {
+
 
 }
 
@@ -94,30 +123,18 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 	m.txnCtr = txnCtr
 }
 
-type Block struct {
-	start  int64
-	finish int64
-}
 
 func (b *Block) setBlock() {
 	b.start = 0
 	b.finish = 0
 }
 
-var finalOutcome bool
-var methodCount int32
+
 
 func fncomp(lhs, rhs int64) bool {
 	return lhs < rhs
 }
 
-var q queue.Queue
-var s stack.Stack
-
-var threadLists ConcurrentSlice // empty slice with capacity numThreads
-var threadListsSize= make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads) // atomic ops only
-var done = make([]atomic.Bool, 32, concurrent.NumThreads)             // atomic ops only
-var barrier int32                                         // atomic int
 
 func wait() {
 	Atomic.AddInt32(&barrier, 1)
@@ -125,12 +142,7 @@ func wait() {
 	}
 }
 
-var methodTime []int64
-var overheadTime []int64
 
-
-var start time.Time
-var elapsedTimeVerify int64
 
 func minOf(vars []int) int {
 	if len(vars) == 0 {
@@ -894,81 +906,78 @@ func verify(doneWG *sync.WaitGroup) {
 	doneWG.Done()
 }
 
-var transactions [200]TransactionData
-var allSenders map[string]int = make(map[string]int)
-var numTxns int32
-
 func (v *Verifier) Verify() {
+	for v.isRunning {
+		methodTime = make([]int64, concurrent.NumThreads)
+		overheadTime = make([]int64, concurrent.NumThreads)
 
-	methodTime = make([]int64, concurrent.NumThreads)
-	overheadTime = make([]int64, concurrent.NumThreads)
+		// will use for i:= range threadLists.iter() in place of findMethodKey.
+		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
+		// Whats the deal with the separate items slice?
+		//allSenders := make(map[string]int)
+		Atomic.StoreInt32(&numTxns, 0)
 
-	// will use for i:= range threadLists.iter() in place of findMethodKey.
-	// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
-	// Whats the deal with the separate items slice?
-	//allSenders := make(map[string]int)
-	Atomic.StoreInt32(&numTxns, 0)
+		methodCount = 0
 
-	methodCount = 0
+		finalOutcome = true
 
-	finalOutcome = true
+		//threadLists := NewConcurrentSlice()
+		threadLists = ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),}
 
-	//threadLists := NewConcurrentSlice()
-	threadLists = ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),}
+		var doneWG sync.WaitGroup
+		var control string
 
-	var doneWG sync.WaitGroup
-	var control string
+		// TODO:
+		txnCtr.val = 0
 
-	// TODO:
-	txnCtr.val = 0
+		for i := 0; i < concurrent.NumThreads; i++ {
 
-	for i := 0; i < concurrent.NumThreads; i++ {
-
-		threadLists.Append(make([]Method, 0))
-		threadListsSize[i].Store(0)
+			threadLists.Append(make([]Method, 0))
+			threadListsSize[i].Store(0)
+			doneWG.Add(1)
+			go work(i, &doneWG)
+			doneWG.Wait()
+		}
+		//doneWG.Wait()
 		doneWG.Add(1)
-		go work(i, &doneWG)
+		go verify(&doneWG)
 		doneWG.Wait()
-	}
-	//doneWG.Wait()
-	doneWG.Add(1)
-	go verify(&doneWG)
-	doneWG.Wait()
-	fmt.Println("finished working and verifying!")
+		fmt.Println("finished working and verifying!")
 
-	fmt.Printf("Control was: %s\n", control)
+		fmt.Printf("Control was: %s\n", control)
 
-	if finalOutcome == true {
-		fmt.Printf("-------------Program Correct Up To This Point-------------\n")
-	} else {
-		fmt.Printf("-------------Program Not Correct-------------\n")
-	}
-
-	finish := time.Now()                                //auto finish = std::chrono::high_resolution_clock::now();
-	elapsedSeconds := time.Since(finish).Seconds()
-	fmt.Println("Total Time: ", elapsedSeconds ," seconds")
-
-	var elapsedTimeMethod int64 = 0
-	var elapsedOverheadTime float64 = 0
-
-	for i := 0; i < concurrent.NumThreads; i++ {
-		if methodTime[i] > elapsedTimeMethod {
-			elapsedTimeMethod = methodTime[i]
+		if finalOutcome == true {
+			fmt.Printf("-------------Program Correct Up To This Point-------------\n")
+		} else {
+			fmt.Printf("-------------Program Not Correct-------------\n")
 		}
-		//we don't change overheadTime[i] anywhere, neither did Christina by the looks of it
-		if float64(overheadTime[i]) > elapsedOverheadTime {
-			elapsedOverheadTime = float64(overheadTime[i])
+
+		finish := time.Now() //auto finish = std::chrono::high_resolution_clock::now();
+		elapsedSeconds := time.Since(finish).Seconds()
+		fmt.Println("Total Time: ", elapsedSeconds, " seconds")
+
+		var elapsedTimeMethod int64 = 0
+		var elapsedOverheadTime float64 = 0
+
+		for i := 0; i < concurrent.NumThreads; i++ {
+			if methodTime[i] > elapsedTimeMethod {
+				elapsedTimeMethod = methodTime[i]
+			}
+			//we don't change overheadTime[i] anywhere, neither did Christina by the looks of it
+			if float64(overheadTime[i]) > elapsedOverheadTime {
+				elapsedOverheadTime = float64(overheadTime[i])
+			}
 		}
+
+		var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
+		//var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
+		var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
+
+		fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
+		//fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
+
+		elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
+
+		//fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
 	}
-
-	var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
-	//var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
-	var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
-
-	fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
-	//fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
-
-	elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
-
-	//fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
 }
