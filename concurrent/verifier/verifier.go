@@ -8,7 +8,6 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
-	"sort"
 	"sync"
 	Atomic "sync/atomic"
 	"syscall"
@@ -16,33 +15,8 @@ import (
 )
 
 type Status int
-
-//TODO: This should be a struct field, also could it be an atomic int64 instead of a locking int64?
-var txnCtr AtomicTxnCtr
-var finalOutcome bool
-var methodCount int32
-
-//var q queue.Queue
-//var s stack.Stack
-
-var threadLists ConcurrentSlice // empty slice with capacity numThreads
-var threadListsSize= make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads) // atomic ops only
-var done = make([]atomic.Bool, 32, concurrent.NumThreads)             // atomic ops only
-var barrier int32                                         // atomic int
-
-var methodTime []int64
-var overheadTime []int64
-
-var start time.Time
-var elapsedTimeVerify int64
-
-//var countIterated uint32 = 0
 type Semantics int
 type Types int
-
-var transactions [200]TransactionData
-var allSenders map[string]int = make(map[string]int)
-var numTxns int32
 
 type Method struct {
 	id          int       // atomic var
@@ -56,58 +30,6 @@ type Method struct {
 	requestAmnt *big.Int
 	txnCtr      int32
 }
-
-type TransactionData struct {
-	addrSender   string
-	addrReceiver string
-	balanceSender int
-	balanceReceiver int
-	amount       *big.Int
-	tId          int32
-}
-
-
-type AtomicTxnCtr struct {
-	val int64
-	lock sync.Mutex
-}
-
-type Verifier struct {
-	isRunning bool
-}
-
-
-type Block struct {
-	start  int64
-	finish int64
-}
-
-
-func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
-	return  &TransactionData{
-		addrSender: sender,
-		addrReceiver: reciever,
-		amount: new(big.Int).Set(amount),
-		tId: threadID,
-	}
-}
-
-func NewVerifier() *Verifier {
-	return  &Verifier{
-		isRunning: true,
-
-	}
-}
-
-func (v *Verifier) AddTxn(txData *TransactionData) {
-
-
-}
-
-func (v *Verifier) Shutdown() {
-	v.isRunning = false
-}
-
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
@@ -124,62 +46,76 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 }
 
 
+func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
+	return  &TransactionData{
+		addrSender: sender,
+		addrReceiver: reciever,
+		amount: new(big.Int).Set(amount),
+		tId: threadID,
+	}
+}
+
+type TransactionData struct {
+	addrSender   string
+	addrReceiver string
+	balanceSender int
+	balanceReceiver int
+	amount       *big.Int
+	tId          int32
+}
+
+type Verifier struct {
+	allSenders      map[string]int
+	transactions    [200]TransactionData
+	txnCtr          int64
+	methodCount     int32
+	finalOutcome    bool
+	done            []atomic.Bool
+	threadListsSize []atomic.Int32
+	threadLists     ConcurrentSlice
+	numTxns          int32
+	isRunning       bool
+	txnLock 		sync.Mutex
+}
+
+func NewVerifier() *Verifier {
+	return  &Verifier{
+		allSenders: make(map[string]int),
+		txnCtr: 0,
+		methodCount: 0,
+		finalOutcome: true,
+		done: make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
+		threadListsSize: make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads),
+		threadLists: ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),},
+		numTxns: 0,
+		isRunning: true,
+	}
+}
+
+func (v *Verifier) AddTxn(txData *TransactionData) {
+	v.txnLock.Lock()
+	defer v.txnLock.Unlock()
+	v.transactions[v.txnCtr] = *txData
+	v.txnCtr++
+}
+
+func (v *Verifier) Shutdown() {
+	v.isRunning = false
+}
+
+
+type Block struct {
+	start  int64
+	finish int64
+}
+
 func (b *Block) setBlock() {
 	b.start = 0
 	b.finish = 0
 }
 
-
-
-func fncomp(lhs, rhs int64) bool {
-	return lhs < rhs
-}
-
-
-func wait() {
-	Atomic.AddInt32(&barrier, 1)
-	for Atomic.LoadInt32(&barrier) < int32(concurrent.NumThreads) {
-	}
-}
-
-
-
-func minOf(vars []int) int {
-	if len(vars) == 0 {
-		return -1
-	}
-	sort.Ints(vars)
-	return vars[0]
-}
-
-func maxOf(vars []int) int {
-	if len(vars) == 0 {
-		return -1
-	}
-	sort.Ints(vars)
-	return vars[len(vars) - 1]
-}
-
-/*func findIndexForMethod(methods []*Method, method Method, field string) int {
-	if field == "itemAddr" {
-		for i, m := range methods {
-			if m.itemAddr == method.itemAddr{
-				return i
-			}
-		}
-	}
-	return -1
-}*/
-
-//
-//func reslice(s []*Method, index int) []*Method {
-//	return append(s[:index], s[index+1:]...)
-//}
-//
-
-
 // methodMapKey and itemMapKey are meant to serve in place of iterators
-func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
+func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
 	fmt.Printf("Handling failed consumer...it is %d\n", it)
 	fmt.Println(methods)
 	begin := 0
@@ -227,18 +163,18 @@ func handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackF
 	}
 }
 
-func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
 	var stackFailed stack.Stack          // stack of map[int64]*Item
 
-	methodCount = int32(len(methods))
+	v.methodCount = int32(len(methods))
 	//for i := range methods.Iter() {
 		//fmt.Printf("methods.items[0].semantics = %v\n", methods.items[0].(Method).semantics)
 	//}
-	if methodCount != 0 {
+	if v.methodCount != 0 {
 
 		it := 0
 		end := len(methods) - 1
@@ -264,10 +200,10 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 			}
 			*/
 
-			if methodCount%5000 == 0 {
-				fmt.Printf("methodCount = %d\n", methodCount)
+			if v.methodCount%5000 == 0 {
+				fmt.Printf("methodCount = %d\n", v.methodCount)
 			}
-			methodCount = methodCount + 1
+			v.methodCount = v.methodCount + 1
 
 			*itStart = it
 			resetItStart = false
@@ -426,7 +362,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 						stackFinishedMethods.Push(items[itItems].producer)
 					}
 				} else {
-					handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
+					v.handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 				}
 			}
 		}
@@ -538,12 +474,12 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 
 		}
 		if outcome == true {
-			finalOutcome = true
+			v.finalOutcome = true
 			// #if DEBUG_
 			 fmt.Println("-------------Program Correct Up To This Point-------------")
 			// #endif
 		} else {
-			finalOutcome = false
+			v.finalOutcome = false
 
 			// #if DEBUG_
 			 fmt.Println("-------------Program Not Correct-------------")
@@ -552,7 +488,7 @@ func verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterate
 	}
 }
 
-func work(id int, doneWG *sync.WaitGroup) {
+func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 	//fmt.Printf("%d is working!!", id)
 	testSize := int32(1)
 	wallTime := 0.0
@@ -575,10 +511,8 @@ func work(id int, doneWG *sync.WaitGroup) {
 
 
 	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
-	txnCtr.lock.Lock()
-	mId := txnCtr.val *2
+	mId := Atomic.LoadInt64(&v.txnCtr) * 2
 	//Atomic.AddInt64(&txnCtr.val, 1)
-	txnCtr.lock.Unlock()
 	//
 	//var end time.Time
 
@@ -587,12 +521,12 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//return;
 	//}
 
-	if numTxns == 0 {
-		done[id].Store(true)
+	if v.numTxns == 0 {
+		v.done[id].Store(true)
 		doneWG.Done()
 		return
 	} else {
-		Atomic.AddInt32(&numTxns, -1)
+		Atomic.AddInt32(&v.numTxns, -1)
 	}
 
 	for i := int32(0); i < testSize; i++ {
@@ -601,12 +535,11 @@ func work(id int, doneWG *sync.WaitGroup) {
 			break;
 		}*/
 		var res bool
-		txnCtr.lock.Lock()
-		itemAddr1 := transactions[Atomic.LoadInt64(&txnCtr.val)].addrSender
-		itemAddr2 := transactions[Atomic.LoadInt64(&txnCtr.val)].addrReceiver
-		amount := transactions[Atomic.LoadInt64(&txnCtr.val)].amount
-		Atomic.AddInt64(&txnCtr.val, 1)
-		txnCtr.lock.Unlock()
+		index := Atomic.LoadInt64(&v.txnCtr)
+		itemAddr1 := v.transactions[index].addrSender
+		itemAddr2 := v.transactions[index].addrReceiver
+		amount := v.transactions[index].amount
+		Atomic.AddInt64(&v.txnCtr, 1)
 		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
 
 		//end = time.Now()
@@ -665,22 +598,22 @@ func work(id int, doneWG *sync.WaitGroup) {
 		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
 
 
-		if allSenders[itemAddr1] == 1 {
-			allSenders[itemAddr1] = 0
+		if v.allSenders[itemAddr1] == 1 {
+			v.allSenders[itemAddr1] = 0
 			res = false
 		} else {
-			allSenders[itemAddr1] = 1
+			v.allSenders[itemAddr1] = 1
 			res = true
 		}
 
 		fmt.Printf("res for %s is %v\n", itemAddr1, res)
 		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, itemAddr2, transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, transactions[id].tId)
+		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
 
 		// account being subtracted from
 		Atomic.AddInt64(&mId, 1)
 		var m2 Method
-		m2.setMethod(int(mId),itemAddr1, itemAddr2, transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Neg(amount), transactions[id].tId)
+		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Neg(amount), v.transactions[id].tId)
 		Atomic.AddInt64(&mId, 1)
 
 		//Atomic.AddInt32(&numTxns, -1)
@@ -700,41 +633,31 @@ func work(id int, doneWG *sync.WaitGroup) {
 		}*/
 		//threadLists.Lock()
 		//TODO: we want to append both...right?
-		threadLists.items[id] = append(threadLists.items[id].([]Method), m1)
-		threadLists.items[id] = append(threadLists.items[id].([]Method), m2)
+		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m1)
+		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m2)
 		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
-		threadListsSize[id].Add(1)
-		Atomic.AddInt64(&methodTime[id], 1)
+		v.threadListsSize[id].Add(1)
+		//Atomic.AddInt64(&methodTime[id], 1)
 		//threadLists.Unlock()
 	}
 
-	done[id].Store(true)
+	v.done[id].Store(true)
 	doneWG.Done()
 }
 
-func verify(doneWG *sync.WaitGroup) {
+func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	//defer processTimer(time.Now(), &txnCtr.val)
 	fmt.Println("Verifying...")
 	//wait()
 	var countIterated uint64 = 0
-
-	startTime := time.Unix(0, start.UnixNano())
-	startTimeEpoch := time.Since(startTime)
-
-	end := time.Now()
-
-	preVerify := time.Unix(0, end.UnixNano())
-	preVerifyEpoch := time.Since(preVerify)
-
-	verifyStart := preVerifyEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
 
 	// fnPt       := fncomp
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
 	blocks := make([]Block, 0)
 	//items := make([]Item, 0, numTxns * 2)
-	fmt.Printf("txnCtr is %v\n", txnCtr.val)
-	items := make([]Item, 0, txnCtr.val * 2)
+	fmt.Printf("txnCtr is %v\n", v.txnCtr)
+	items := make([]Item, 0, v.txnCtr * 2)
 	it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
 	var itStart int
 
@@ -754,7 +677,7 @@ func verify(doneWG *sync.WaitGroup) {
 		min = math.MaxInt64
 
 		for i := 0; i < concurrent.NumThreads; i++ {
-			if done[i].Load() == false {
+			if v.done[i].Load() == false {
 
 				stop = false
 			}
@@ -766,11 +689,11 @@ func verify(doneWG *sync.WaitGroup) {
 
 			for {
 				//threadLists.Lock()
-				fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, threadListsSize[i].Load())
-				if threadListsSize[i].Load() > 0 {
+				fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, v.threadListsSize[i].Load())
+				if v.threadListsSize[i].Load() > 0 {
 
 				}
-				if itCount[i] >= threadListsSize[i].Load() {
+				if itCount[i] >= v.threadListsSize[i].Load() {
 					break
 				} else if itCount[i] == 0 {
 					it[i] = 0 //threadLists[i].Front()
@@ -784,12 +707,12 @@ func verify(doneWG *sync.WaitGroup) {
 				var m2 Method
 
 				//if it[i] < len(threadLists.items[tId].([]Method)) {
-				if it[i] < int(threadListsSize[tId].Load()) {
-					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
-					fmt.Printf("%v\n", threadLists.items[i].([]Method))
-					m = threadLists.items[tId].([]Method)[it[i]]
+				if it[i] < int(v.threadListsSize[tId].Load()) {
+					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
+					fmt.Printf("%v\n", v.threadLists.items[i].([]Method))
+					m = v.threadLists.items[tId].([]Method)[it[i]]
 					it[i]++
-					m2 = threadLists.items[tId].([]Method)[it[i]]
+					m2 = v.threadLists.items[tId].([]Method)[it[i]]
 				} else {
 					fmt.Printf("Verifier threadlist error!\n")
 					break;
@@ -879,11 +802,11 @@ func verify(doneWG *sync.WaitGroup) {
 			*/
 		}
 
-		verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true, blocks)
+		v.verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true, blocks)
 
 	}
 
-	verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false, blocks)
+	v.verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false, blocks)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %v, count iterated = %d, methods size = %d, items size = %d\n", fmt.Sprint(countOverall), countIterated, len(methods), len(items));
@@ -892,61 +815,46 @@ func verify(doneWG *sync.WaitGroup) {
 		//#if DEBUG_
 			fmt.Printf("All threads finished!\n")
 
-	end = time.Now()
-	postVerify := end.UnixNano()
 
-	postVerifyEpoch := time.Now().UnixNano() - postVerify
-	verifyFinish := postVerifyEpoch - startTimeEpoch.Nanoseconds()
 	//a := verifyStart / int64(time.Millisecond)
 	//b := verifyFinish / int64(time.Millisecond)
 	//fmt.Printf("verify start is %d verify finish is %d\n", a, b)
-
-	elapsedTimeVerify = verifyFinish - verifyStart
 
 	doneWG.Done()
 }
 
 func (v *Verifier) Verify() {
 	for v.isRunning {
-		methodTime = make([]int64, concurrent.NumThreads)
-		overheadTime = make([]int64, concurrent.NumThreads)
+		methodTime := make([]int64, concurrent.NumThreads)
+		overheadTime := make([]int64, concurrent.NumThreads)
 
 		// will use for i:= range threadLists.iter() in place of findMethodKey.
 		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 		// Whats the deal with the separate items slice?
 		//allSenders := make(map[string]int)
-		Atomic.StoreInt32(&numTxns, 0)
-
-		methodCount = 0
-
-		finalOutcome = true
+		Atomic.StoreInt32(&v.numTxns, 0)
 
 		//threadLists := NewConcurrentSlice()
-		threadLists = ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),}
 
 		var doneWG sync.WaitGroup
 		var control string
 
-		// TODO:
-		txnCtr.val = 0
-
 		for i := 0; i < concurrent.NumThreads; i++ {
-
-			threadLists.Append(make([]Method, 0))
-			threadListsSize[i].Store(0)
+			v.threadLists.Append(make([]Method, 0))
+			v.threadListsSize[i].Store(0)
 			doneWG.Add(1)
-			go work(i, &doneWG)
+			go v.work(i, &doneWG)
 			doneWG.Wait()
 		}
 		//doneWG.Wait()
 		doneWG.Add(1)
-		go verify(&doneWG)
+		go v.verify(&doneWG)
 		doneWG.Wait()
 		fmt.Println("finished working and verifying!")
 
 		fmt.Printf("Control was: %s\n", control)
 
-		if finalOutcome == true {
+		if v.finalOutcome == true {
 			fmt.Printf("-------------Program Correct Up To This Point-------------\n")
 		} else {
 			fmt.Printf("-------------Program Not Correct-------------\n")
@@ -969,15 +877,5 @@ func (v *Verifier) Verify() {
 			}
 		}
 
-		var elapsedTimeMethodDouble float64 = float64(elapsedTimeMethod) * 0.000000001
-		//var elapsedOverheadTimeDouble float64 = elapsedOverheadTime * 0.000000001
-		var elapsedTimeVerifyDouble float64 = float64(elapsedTimeVerify) * 0.000000001
-
-		fmt.Printf("Total Method Time: %.15f seconds\n", elapsedTimeMethodDouble)
-		//fmt.Printf("Total Overhead Time: %.15f seconds\n", elapsedOverheadTimeDouble)
-
-		elapsedTimeVerifyDouble = elapsedTimeVerifyDouble - elapsedTimeMethodDouble
-
-		//fmt.Printf("Total Verification Time: %.15f seconds\n", elapsedTimeVerifyDouble)
 	}
 }
