@@ -742,7 +742,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	tool := correctness_tool.NewVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
-	go tool.Verify()
+	tool.Verify()
 	defer tool.Shutdown()
 	// Short circuit if current is nil
 	if w.current == nil {

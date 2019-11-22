@@ -824,6 +824,10 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 }
 
 func (v *Verifier) Verify() {
+	go v.mainLoop()
+}
+
+func (v *Verifier) mainLoop() {
 	for v.isRunning {
 		methodTime := make([]int64, concurrent.NumThreads)
 		overheadTime := make([]int64, concurrent.NumThreads)
