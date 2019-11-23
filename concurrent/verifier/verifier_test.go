@@ -48,7 +48,7 @@ func TestVerifierFunction(t *testing.T) {
 		data[i].tId = int(atomic.LoadInt32(&v.numTxns))
 		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
 	}
-	v.Verify()
+	v.verify()
 
 	v.Shutdown()
 	for v.isRunning {}

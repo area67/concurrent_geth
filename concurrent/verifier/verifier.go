@@ -8,10 +8,8 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
-	"math/rand"
 	"sync"
 	Atomic "sync/atomic"
-	"syscall"
 	"time"
 )
 
@@ -42,9 +40,9 @@ type TransactionData struct {
 }
 
 type Verifier struct {
-	allSenders      map[string]int
+	allSenders      sync.Map // have we seen this address before //map[string]int
 	transactions    []TransactionData
-	txnCtr          int64				// what are you?
+	txnCtr          int64				// counts up
 	methodCount     int32
 	finalOutcome    bool
 	done            []atomic.Bool
@@ -56,13 +54,21 @@ type Verifier struct {
 	txnLock         sync.Mutex
 }
 
-/*
-type Block struct {
-	start  int64
-	finish int64
-}
-*/
+// method constructor
+func  NewMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
+	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32)*Method {
+	return &Method{
+		id: id,
+		itemAddrS: itemAddrS,
+		itemAddrR: itemAddrR,
+		itemBalance: itemBalance,
+		semantics: semantics,
+		types: types,
+		status: status,
+		requestAmnt: requestAmnt,
+	}
 
+}
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
 	m.id = id
@@ -79,12 +85,12 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 
 
 // constructor
-func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
+func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *TransactionData {
 	return  &TransactionData{
-		addrSender: sender,
-		addrReceiver: reciever,
-		amount: new(big.Int).Set(amount),
-		tId: threadID,
+		addrSender:   sender,
+		addrReceiver: receiver,
+		amount:       new(big.Int).Set(amount),
+		tId:          threadID,
 	}
 }
 
@@ -92,7 +98,7 @@ func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *Transa
 // constructor
 func NewVerifier() *Verifier {
 	return  &Verifier{
-		allSenders:      make(map[string]int),
+		allSenders:      sync.Map{},//make(map[string]int),
 		txnCtr:          0,
 		transactions:    make([]TransactionData, 200),
 		methodCount:     0,
@@ -120,6 +126,29 @@ func (v *Verifier) AddTxn(txData *TransactionData) {
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	index := Atomic.AddInt32(&v.numTxns, 1) - 1
 	v.transactions[index] = *txData
+	methodIndex := index * 2
+	// could we get what we are looking for
+	var res bool
+	// if seen address before
+	// TODO: Ask Christina. Should this be a toggle every time we see a sender?
+	if _,seen := v.allSenders.LoadOrStore(txData.addrSender,0); seen {
+
+		v.allSenders.Store(txData.addrSender, 0)
+		res = false
+	} else {
+		v.allSenders.Store(txData.addrSender,1)
+		res = true
+	}
+
+	recAmount := big.NewInt(int64(0)).Mul(txData.amount, big.NewInt(int64(-1)))
+
+	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
+	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
+
+	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method1)
+	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
+	v.threadListsSize[txData.tId].Add(1)
+
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
@@ -175,7 +204,7 @@ func (v *Verifier) Shutdown() {
 	v.isShuttingDown = true
 }
 
-func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool) {
+func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, resetItStart bool) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -502,10 +531,12 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 
 
 
-func (v *Verifier) verify(doneWG *sync.WaitGroup) {
-	//defer processTimer(time.Now(), &txnCtr.val)
+func (v *Verifier) verify() {
+
+	// need to iterate on v.transactions
+
 	fmt.Println("Verifying...")
-	//wait()
+
 	var countIterated uint64 = 0
 
 	// fnPt       := fncomp
@@ -521,38 +552,30 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	stop := false
 	var countOverall uint32 = 0
 
-	var min int64
+
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
 
+	// runs once when concurrent history generated for now
 	for !stop{
 
 		stop = true
-		min = math.MaxInt64
+
 
 		for i := 0; i < concurrent.NumThreads; i++ {
-			if v.done[i].Load() == false {
+			// check if concurrent history is done generating in all threads
+			// TODO: figure out
+			//if v.done[i].Load() == false {
+			//	stop = false
+			//}
 
-				stop = false
-			}
+			for itCount[i] < v.threadListsSize[i].Load(){
 
-			tId := i
-
-			// TODO: Correctness not based on time any more, so do we still need response field?
-			//var responseTime int64 = 0
-
-			for {
-				//threadLists.Lock()
 				fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, v.threadListsSize[i].Load())
-				if v.threadListsSize[i].Load() > 0 {
 
-				}
-				if itCount[i] >= v.threadListsSize[i].Load() {
-					break
-				} else if itCount[i] == 0 {
+				if itCount[i] == 0 {
 					it[i] = 0 //threadLists[i].Front()
 				} else {
-					//++it[i]
 					it[i]++
 				}
 				//fmt.Printf("it[i] = %v\n", it[i])
@@ -560,54 +583,29 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 				var m Method
 				var m2 Method
 
-				//if it[i] < len(threadLists.items[tId].([]Method)) {
-				if it[i] < int(v.threadListsSize[tId].Load()) {
-					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[tId].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[tId].([]Method)[it[i] + 1].itemAddrS)
+				//if it[i] < len(threadLists.items[i].([]Method)) {
+				if it[i] < int(v.threadListsSize[i].Load()) {
+					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[i].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[i].([]Method)[it[i] + 1].itemAddrS)
 					fmt.Printf("%v\n", v.threadLists.items[i].([]Method))
-					m = v.threadLists.items[tId].([]Method)[it[i]]
+					// assign methods
+					m = v.threadLists.items[i].([]Method)[it[i]]
 					it[i]++
-					m2 = v.threadLists.items[tId].([]Method)[it[i]]
+					m2 = v.threadLists.items[i].([]Method)[it[i]]
 				} else {
 					fmt.Printf("Verifier threadlist error!\n")
-					break;
+					break
 				}
 				fmt.Printf("m address = %s\nm2 address = %s\n", m.itemAddrS, m2.itemAddrS)
-				//threadLists.Unlock()
 
-				/*mapMethodsEnd, err := findMethodKey(mapMethods, "end")
-				if err != nil{
-					return
-				}
-				*/
-
-				// TODO: Correctness not based on time any more, so do we still need response field?
-				/*itMethod := m.response
-				for {
-					if itMethod == mapMethodsEnd {
-						break
-					}
-					m.response++
-					itMethod = m.response
-				}
-				responseTime = m.response
-
-				mapMethods[m.response] = &m // map_methods.insert ( std::pair<long int,Method>(m.response,m) );
-				*/
-				//methods.Append(ConcurrentSliceItem{int(m.txnCtr), m})
-
-				//methods.Append(m)
 				methods = append(methods, m)
 				methods = append(methods, m2)
 
 				itCount[i]++
 				countOverall++
 
-				//itItem := m.itemKey // it_item = map_items.find(m.item_key);
-				//itItem := findIndexForMethod(methods, m, "itemAddr")
-				// itItem, _ := findMethodKey(mapMethods, m.itemAddr)
 
 				itItem := 0
-				//for i := range items {
+
 				for range items {
 					/*if items[i].key == m.itemAddrS {
 						break
@@ -656,11 +654,11 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 			*/
 		}
 
-		v.verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true)
+		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 
 	}
 
-	v.verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false)
+	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %v, count iterated = %d, methods size = %d, items size = %d\n", fmt.Sprint(countOverall), countIterated, len(methods), len(items));
@@ -674,7 +672,7 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	//b := verifyFinish / int64(time.Millisecond)
 	//fmt.Printf("verify start is %d verify finish is %d\n", a, b)
 
-	doneWG.Done()
+	//doneWG.Done()
 }
 
 func (v *Verifier) Verify() {
@@ -682,206 +680,146 @@ func (v *Verifier) Verify() {
 	go v.mainLoop()
 }
 
-func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
-	//fmt.Printf("%d is working!!", id)
-	testSize := int32(1)
-	wallTime := 0.0
-	var tod syscall.Timeval
-	if err := syscall.Gettimeofday(&tod); err != nil {
-		fmt.Println("Error: get time of day")
-		return
-	}
-	wallTime += float64(tod.Sec)
-	wallTime += float64(tod.Usec) * 1e-6
-
-	//var randomGenOp rand.Rand
-	//randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
-	//s := rand.NewSource(time.Now().UnixNano())
-	//randDistOp := rand.New(s)
-	//
-	//// TODO: I'm 84% sure this is correct
-	//startTime := time.Unix(0, start.UnixNano())
-	//startTimeEpoch := time.Since(startTime)
-
-
-	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
-	mId := Atomic.LoadInt64(&v.txnCtr) * 2
-	//Atomic.AddInt64(&txnCtr.val, 1)
-	//
-	//var end time.Time
-
-	//wait()
-	//if(Atomic.LoadInt32(&numTxns) == 0) {
-	//return;
-	//}
-
-	if v.numTxns == 0 {
-		v.done[id].Store(true)
-		doneWG.Done()
-		return
-	} else {
-		Atomic.AddInt32(&v.numTxns, -1)
-	}
-
-	for i := int32(0); i < testSize; i++ {
-
-		/*if Atomic.LoadInt32(&numTxns) == 0 {
-			break;
-		}*/
-		var res bool
-		index := Atomic.LoadInt64(&v.txnCtr)
-		itemAddr1 := v.transactions[index].addrSender
-		itemAddr2 := v.transactions[index].addrReceiver
-		amount := v.transactions[index].amount
-		fmt.Println(v.transactions[index])
-		Atomic.AddInt64(&v.txnCtr, 1)
-		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
-
-		//end = time.Now()
-
-		//preFunction := time.Unix(0, end.UnixNano())
-		//preFunctionEpoch := time.Since(preFunction)
-
-		// Hmm, do we need .count()??
-		//invocation := pre_function_epoch.count() - start_time_epoch.count()
-		// invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
-
-		// if invocation > (math.MaxInt64 - 10000000000) {
-		//PREPROCESSOR DIRECTIVE lines 864 - 866:
-		/*
-		 * #if DEBUG_
-		 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
-		 * #endif
-		 */
-		// break
-		// }
-
-		//if opDist <= 50 {
-		//	types = CONSUMER
-		//	var itemPop int
-		//	// var itemPopPtr *uint64
-		//
-		//	val := q.Dequeue()
-		//	if val != nil{
-		//		res = true
-		//	} else {
-		//		res = false
-		//	}
-		//	if res {
-		//		q.Dequeue()  // try_pop(item_pop)
-		//		itemKey = itemPop
-		//	}else {
-		//		itemKey = math.MaxInt32
-		//	}
-		//} else {
-		//	types = PRODUCER
-		//	itemKey = mId
-		//	q.Enqueue(itemKey)
-		//}
-
-		// line 890
-		// end = std::chrono::high_resolution_clock::now();
-		//end := time.Now().UnixNano()
-
-		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		//postFunction := end
-
-		// auto post_function_epoch = post_function.time_since_epoch();
-		//postFunctionEpoch := time.Now().UnixNano() - postFunction
-
-		//response := post_function_epoch.count() - start_time_epoch.count()
-		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
-
-
-		if v.allSenders[itemAddr1] == 1 {
-			v.allSenders[itemAddr1] = 0
-			res = false
-		} else {
-			v.allSenders[itemAddr1] = 1
-			res = true
-		}
-
-		fmt.Printf("res for %s is %v\n", itemAddr1, res)
-		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
-
-		Atomic.AddInt64(&mId, 1)
-		var m2 Method
-		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Mul(amount, big.NewInt(int64(-1))), v.transactions[id].tId)
-		Atomic.AddInt64(&mId, 1)
-
-		//Atomic.AddInt32(&numTxns, -1)
-		// mId += numThreads
-
-		//threadLists[id] = append(threadLists[id], m1)
-		//csi := ConcurrentSliceItem{int(i), m1}
-		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
-		/*if(len(threadLists.items) == 0) {
-			threadLists.items[0].(*ConcurrentSlice).Append(m1)
-		} else {
-			for i := range threadLists.Iter() {
-				if i.Index == id {
-					i.Value.(*ConcurrentSlice).Append(csi)
-				}
-			}
-		}*/
-		//threadLists.Lock()
-		//TODO: we want to append both...right?
-		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m1)
-		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m2)
-		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
-		v.threadListsSize[id].Add(1)
-		//Atomic.AddInt64(&methodTime[id], 1)
-		//threadLists.Unlock()
-	}
-
-	v.done[id].Store(true)
-	doneWG.Done()
-}
+// what do you do?
+//
+//func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
+//	//fmt.Printf("%d is working!!", id)
+//	testSize := int32(1)
+//
+//	//var randomGenOp rand.Rand
+//	//randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
+//	//s := rand.NewSource(time.Now().UnixNano())
+//	//randDistOp := rand.New(s)
+//	//
+//	//// TODO: I'm 84% sure this is correct
+//	//startTime := time.Unix(0, start.UnixNano())
+//	//startTimeEpoch := time.Since(startTime)
+//
+//
+//	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
+//	mId := Atomic.LoadInt64(&v.txnCtr) * 2
+//	//Atomic.AddInt64(&txnCtr.val, 1)
+//	//
+//	//var end time.Time
+//
+//	//wait()
+//	//if(Atomic.LoadInt32(&numTxns) == 0) {
+//	//return;
+//	//}
+//
+//	// check if we are done
+//	if v.numTxns == 0 {
+//		v.done[id].Store(true)
+//		doneWG.Done()
+//		return
+//	} else {
+//		Atomic.AddInt32(&v.numTxns, -1)
+//	}
+//
+//	for i := int32(0); i < testSize; i++ {
+//
+//		/*if Atomic.LoadInt32(&numTxns) == 0 {
+//			break;
+//		}*/
+//		var res bool
+//		// gets
+//		index := Atomic.LoadInt64(&v.txnCtr)
+//		itemAddr1 := v.transactions[index].addrSender
+//		itemAddr2 := v.transactions[index].addrReceiver
+//		amount := v.transactions[index].amount
+//		fmt.Println(v.transactions[index])
+//		Atomic.AddInt64(&v.txnCtr, 1)
+//
+//
+//		// if seen address before
+//		if v.allSenders[itemAddr1] == 1 {
+//
+//			v.allSenders[itemAddr1] = 0
+//			res = false
+//		} else {
+//			v.allSenders[itemAddr1] = 1
+//			res = true
+//		}
+//
+//		fmt.Printf("res for %s is %v\n", itemAddr1, res)
+//		var m1 Method
+//		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
+//
+//		Atomic.AddInt64(&mId, 1)
+//		var m2 Method
+//		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Mul(amount, big.NewInt(int64(-1))), v.transactions[id].tId)
+//		Atomic.AddInt64(&mId, 1)
+//
+//		//Atomic.AddInt32(&numTxns, -1)
+//		// mId += numThreads
+//
+//		//threadLists[id] = append(threadLists[id], m1)
+//		//csi := ConcurrentSliceItem{int(i), m1}
+//		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
+//		/*if(len(threadLists.items) == 0) {
+//			threadLists.items[0].(*ConcurrentSlice).Append(m1)
+//		} else {
+//			for i := range threadLists.Iter() {
+//				if i.Index == id {
+//					i.Value.(*ConcurrentSlice).Append(csi)
+//				}
+//			}
+//		}*/
+//		//threadLists.Lock()
+//		//TODO: we want to append both...right?
+//		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m1)
+//		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m2)
+//		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
+//		v.threadListsSize[id].Add(1)
+//		//Atomic.AddInt64(&methodTime[id], 1)
+//		//threadLists.Unlock()
+//	}
+//
+//	v.done[id].Store(true)
+//	doneWG.Done()
+//}
 
 //
 func (v *Verifier) mainLoop() {
 	fmt.Println("start main loop")
 	defer fmt.Println("end main loop")
 
-	methodTime := make([]int64, concurrent.NumThreads)
-	overheadTime := make([]int64, concurrent.NumThreads)
+	//methodTime := make([]int64, concurrent.NumThreads)
+
 	currentSize := int64(0)
 	for v.isRunning {
 		fmt.Println(v.transactions[0])
 		currentSize = Atomic.LoadInt64(&v.txnCtr)
-		if currentSize == 0 {
-			time.Sleep(time.Duration(rand.Intn(concurrent.MAX_DELAY) + concurrent.MIN_DELAY) * time.Nanosecond)
-			continue
-		}
+
 		// will use for i:= range threadLists.iter() in place of findMethodKey.
 		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 		// Whats the deal with the separate items slice?
 		//allSenders := make(map[string]int)
 
 
-		for i := 0; i < len(v.transactions); i++ {
-			// Atomic.AddInt32(&v.numTxns, 1)
-			// set all senders to 0
-			v.allSenders[v.transactions[i].addrSender] = 0
-		}
+
 		Atomic.StoreInt32(&v.numTxns,int32( len(v.transactions)-1))
 
-		//threadLists := NewConcurrentSlice()
 
 		var doneWG sync.WaitGroup
 		var control string
 
+
+		// does this make the concurrent history?
+		/*
 		for i := 0; i < concurrent.NumThreads; i++ {
+			// add empty method to thread list?
 			v.threadLists.Append(make([]Method, 0))
 			v.threadListsSize[i].Store(0)
 			doneWG.Add(1)
 			go v.work(i, &doneWG)
 			doneWG.Wait()
 		}
+		*/
+
 		//doneWG.Wait()
 		doneWG.Add(1)
-		go v.verify(&doneWG)
+		go v.verify()
 		doneWG.Wait()
 		fmt.Println("finished working and verifying!")
 
@@ -897,18 +835,7 @@ func (v *Verifier) mainLoop() {
 		elapsedSeconds := time.Since(finish).Seconds()
 		fmt.Println("Total Time: ", elapsedSeconds, " seconds")
 
-		var elapsedTimeMethod int64 = 0
-		var elapsedOverheadTime float64 = 0
 
-		for i := 0; i < concurrent.NumThreads; i++ {
-			if methodTime[i] > elapsedTimeMethod {
-				elapsedTimeMethod = methodTime[i]
-			}
-			//we don't change overheadTime[i] anywhere, neither did Christina by the looks of it
-			if float64(overheadTime[i]) > elapsedOverheadTime {
-				elapsedOverheadTime = float64(overheadTime[i])
-			}
-		}
 
 		if currentSize == Atomic.LoadInt64(&v.txnCtr) && v.isShuttingDown {
 			fmt.Println("this happened")
