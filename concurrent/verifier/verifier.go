@@ -97,6 +97,11 @@ func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *Transa
 
 // constructor
 func NewVerifier() *Verifier {
+	lists := ConcurrentSlice{items: make([]interface{}, concurrent.NumThreads),}
+
+	for i := 0 ; i < concurrent.NumThreads; i++ {
+		lists.items[i] = make([]Method, 0)
+	}
 	return  &Verifier{
 		allSenders:      sync.Map{},//make(map[string]int),
 		txnCtr:          0,
@@ -105,7 +110,7 @@ func NewVerifier() *Verifier {
 		finalOutcome:    true,
 		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
 		threadListsSize: make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads),
-		threadLists:     ConcurrentSlice{items: make([]interface{}, 0, concurrent.NumThreads),},
+		threadLists:     lists,
 		numTxns:         0,
 		isRunning:       true,
 		isShuttingDown:  false,
@@ -145,7 +150,10 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
-	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method1)
+	// println(v.threadLists.items[0])
+	println(txData.tId)
+
+	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method) , *method1)
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
 	v.threadListsSize[txData.tId].Add(1)
 

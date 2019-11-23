@@ -3,7 +3,6 @@ package correctness_tool
 import (
 	"math/big"
 	"math/rand"
-	"sync/atomic"
 	"testing"
 )
 
@@ -45,11 +44,11 @@ func TestVerifierFunction(t *testing.T) {
 			data[i].receiver = string(transactionReceivers)
 			data[i].amount = rand.Intn(50)
 		}
-		data[i].tId = int(atomic.LoadInt32(&v.numTxns))
+		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
 		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
 	}
 	v.verify()
 
 	v.Shutdown()
-	for v.isRunning {}
+
 }
