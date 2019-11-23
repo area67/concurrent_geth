@@ -29,8 +29,39 @@ type Method struct {
 	status      bool
 	senderID    int       // same as itemAddr ??
 	requestAmnt *big.Int
-	txnCtr      int32
+	// txnCtr      int32
 }
+
+type TransactionData struct {
+	addrSender   string
+	addrReceiver string
+	balanceSender int
+	balanceReceiver int
+	amount       *big.Int
+	tId          int32
+}
+
+type Verifier struct {
+	allSenders      map[string]int
+	transactions    []TransactionData
+	txnCtr          int64				// what are you?
+	methodCount     int32
+	finalOutcome    bool
+	done            []atomic.Bool
+	threadListsSize []atomic.Int32
+	threadLists     ConcurrentSlice
+	numTxns         int32				// what are you?
+	isShuttingDown  bool
+	isRunning       bool
+	txnLock         sync.Mutex
+}
+
+/*
+type Block struct {
+	start  int64
+	finish int64
+}
+*/
 
 func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
 	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
@@ -43,18 +74,11 @@ func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalan
 	m.status = status
 	//m.senderID = senderID
 	m.requestAmnt = requestAmnt
-	m.txnCtr = txnCtr
+	// m.txnCtr = txnCtr
 }
 
-type TransactionData struct {
-	addrSender   string
-	addrReceiver string
-	balanceSender int
-	balanceReceiver int
-	amount       *big.Int
-	tId          int32
-}
 
+// constructor
 func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *TransactionData {
 	return  &TransactionData{
 		addrSender: sender,
@@ -64,21 +88,8 @@ func NewTxData(sender, reciever string, amount *big.Int, threadID int32) *Transa
 	}
 }
 
-type Verifier struct {
-	allSenders      map[string]int
-	transactions    []TransactionData
-	txnCtr          int64
-	methodCount     int32
-	finalOutcome    bool
-	done            []atomic.Bool
-	threadListsSize []atomic.Int32
-	threadLists     ConcurrentSlice
-	numTxns         int32
-	isShuttingDown  bool
-	isRunning       bool
-	txnLock         sync.Mutex
-}
 
+// constructor
 func NewVerifier() *Verifier {
 	return  &Verifier{
 		allSenders:      make(map[string]int),
@@ -109,21 +120,6 @@ func (v *Verifier) AddTxn(txData *TransactionData) {
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	index := Atomic.AddInt32(&v.numTxns, 1) - 1
 	v.transactions[index] = *txData
-}
-
-func (v *Verifier) Shutdown() {
-	v.isShuttingDown = true
-}
-
-
-type Block struct {
-	start  int64
-	finish int64
-}
-
-func (b *Block) setBlock() {
-	b.start = 0
-	b.finish = 0
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
@@ -175,7 +171,11 @@ func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, 
 	}
 }
 
-func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool, mapBlocks []Block) {
+func (v *Verifier) Shutdown() {
+	v.isShuttingDown = true
+}
+
+func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, min int64, resetItStart bool) {
 	//fmt.Println("Verifying Checkpoint...")
 
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -500,162 +500,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 	}
 }
 
-func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
-	//fmt.Printf("%d is working!!", id)
-	testSize := int32(1)
-	wallTime := 0.0
-	var tod syscall.Timeval
-	if err := syscall.Gettimeofday(&tod); err != nil {
-		fmt.Println("Error: get time of day")
-		return
-	}
-	wallTime += float64(tod.Sec)
-	wallTime += float64(tod.Usec) * 1e-6
 
-	//var randomGenOp rand.Rand
-	//randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
-	//s := rand.NewSource(time.Now().UnixNano())
-	//randDistOp := rand.New(s)
-	//
-	//// TODO: I'm 84% sure this is correct
-	//startTime := time.Unix(0, start.UnixNano())
-	//startTimeEpoch := time.Since(startTime)
-
-
-	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
-	mId := Atomic.LoadInt64(&v.txnCtr) * 2
-	//Atomic.AddInt64(&txnCtr.val, 1)
-	//
-	//var end time.Time
-
-	//wait()
-	//if(Atomic.LoadInt32(&numTxns) == 0) {
-		//return;
-	//}
-
-	if v.numTxns == 0 {
-		v.done[id].Store(true)
-		doneWG.Done()
-		return
-	} else {
-		Atomic.AddInt32(&v.numTxns, -1)
-	}
-
-	for i := int32(0); i < testSize; i++ {
-
-		/*if Atomic.LoadInt32(&numTxns) == 0 {
-			break;
-		}*/
-		var res bool
-		index := Atomic.LoadInt64(&v.txnCtr)
-		itemAddr1 := v.transactions[index].addrSender
-		itemAddr2 := v.transactions[index].addrReceiver
-		amount := v.transactions[index].amount
-		fmt.Println(v.transactions[index])
-		Atomic.AddInt64(&v.txnCtr, 1)
-		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
-
-		//end = time.Now()
-
-		//preFunction := time.Unix(0, end.UnixNano())
-		//preFunctionEpoch := time.Since(preFunction)
-
-		// Hmm, do we need .count()??
-		//invocation := pre_function_epoch.count() - start_time_epoch.count()
-		// invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
-
-		// if invocation > (math.MaxInt64 - 10000000000) {
-		//PREPROCESSOR DIRECTIVE lines 864 - 866:
-		/*
-		 * #if DEBUG_
-		 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
-		 * #endif
-		 */
-		// break
-		// }
-
-		//if opDist <= 50 {
-		//	types = CONSUMER
-		//	var itemPop int
-		//	// var itemPopPtr *uint64
-		//
-		//	val := q.Dequeue()
-		//	if val != nil{
-		//		res = true
-		//	} else {
-		//		res = false
-		//	}
-		//	if res {
-		//		q.Dequeue()  // try_pop(item_pop)
-		//		itemKey = itemPop
-		//	}else {
-		//		itemKey = math.MaxInt32
-		//	}
-		//} else {
-		//	types = PRODUCER
-		//	itemKey = mId
-		//	q.Enqueue(itemKey)
-		//}
-
-		// line 890
-		// end = std::chrono::high_resolution_clock::now();
-		//end := time.Now().UnixNano()
-
-		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
-		//postFunction := end
-
-		// auto post_function_epoch = post_function.time_since_epoch();
-		//postFunctionEpoch := time.Now().UnixNano() - postFunction
-
-		//response := post_function_epoch.count() - start_time_epoch.count()
-		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
-
-
-		if v.allSenders[itemAddr1] == 1 {
-			v.allSenders[itemAddr1] = 0
-			res = false
-		} else {
-			v.allSenders[itemAddr1] = 1
-			res = true
-		}
-
-		fmt.Printf("res for %s is %v\n", itemAddr1, res)
-		var m1 Method
-		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
-
-		Atomic.AddInt64(&mId, 1)
-		var m2 Method
-		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Mul(amount, big.NewInt(int64(-1))), v.transactions[id].tId)
-		Atomic.AddInt64(&mId, 1)
-
-		//Atomic.AddInt32(&numTxns, -1)
-		// mId += numThreads
-
-		//threadLists[id] = append(threadLists[id], m1)
-		//csi := ConcurrentSliceItem{int(i), m1}
-		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
-		/*if(len(threadLists.items) == 0) {
-			threadLists.items[0].(*ConcurrentSlice).Append(m1)
-		} else {
-			for i := range threadLists.Iter() {
-				if i.Index == id {
-					i.Value.(*ConcurrentSlice).Append(csi)
-				}
-			}
-		}*/
-		//threadLists.Lock()
-		//TODO: we want to append both...right?
-		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m1)
-		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m2)
-		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
-		v.threadListsSize[id].Add(1)
-		//Atomic.AddInt64(&methodTime[id], 1)
-		//threadLists.Unlock()
-	}
-
-	v.done[id].Store(true)
-	doneWG.Done()
-}
 
 func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	//defer processTimer(time.Now(), &txnCtr.val)
@@ -666,7 +511,7 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	// fnPt       := fncomp
 	methods := make([]Method, 0)
 	//methods := NewConcurrentSlice()
-	blocks := make([]Block, 0)
+	//blocks := make([]Block, 0)
 	//items := make([]Item, 0, numTxns * 2)
 	fmt.Printf("txnCtr is %v\n", v.txnCtr)
 	items := make([]Item, 0, v.txnCtr * 2)
@@ -680,10 +525,7 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
 
-	for {
-		if stop {
-			break
-		}
+	for !stop{
 
 		stop = true
 		min = math.MaxInt64
@@ -814,11 +656,11 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 			*/
 		}
 
-		v.verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true, blocks)
+		v.verifyCheckpoint(methods, items, &itStart, &countIterated, int64(min), true)
 
 	}
 
-	v.verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false, blocks)
+	v.verifyCheckpoint(methods, items, &itStart, &countIterated, math.MaxInt64, false)
 
 			//#if DEBUG_
 				fmt.Printf("Count overall = %v, count iterated = %d, methods size = %d, items size = %d\n", fmt.Sprint(countOverall), countIterated, len(methods), len(items));
@@ -836,9 +678,168 @@ func (v *Verifier) verify(doneWG *sync.WaitGroup) {
 }
 
 func (v *Verifier) Verify() {
+
 	go v.mainLoop()
 }
 
+func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
+	//fmt.Printf("%d is working!!", id)
+	testSize := int32(1)
+	wallTime := 0.0
+	var tod syscall.Timeval
+	if err := syscall.Gettimeofday(&tod); err != nil {
+		fmt.Println("Error: get time of day")
+		return
+	}
+	wallTime += float64(tod.Sec)
+	wallTime += float64(tod.Usec) * 1e-6
+
+	//var randomGenOp rand.Rand
+	//randomGenOp.Seed(int64(wallTime + float64(id) + 1000))
+	//s := rand.NewSource(time.Now().UnixNano())
+	//randDistOp := rand.New(s)
+	//
+	//// TODO: I'm 84% sure this is correct
+	//startTime := time.Unix(0, start.UnixNano())
+	//startTimeEpoch := time.Since(startTime)
+
+
+	//TODO: could this be Atomic.LoadInt64(&txnCtr) * 2
+	mId := Atomic.LoadInt64(&v.txnCtr) * 2
+	//Atomic.AddInt64(&txnCtr.val, 1)
+	//
+	//var end time.Time
+
+	//wait()
+	//if(Atomic.LoadInt32(&numTxns) == 0) {
+	//return;
+	//}
+
+	if v.numTxns == 0 {
+		v.done[id].Store(true)
+		doneWG.Done()
+		return
+	} else {
+		Atomic.AddInt32(&v.numTxns, -1)
+	}
+
+	for i := int32(0); i < testSize; i++ {
+
+		/*if Atomic.LoadInt32(&numTxns) == 0 {
+			break;
+		}*/
+		var res bool
+		index := Atomic.LoadInt64(&v.txnCtr)
+		itemAddr1 := v.transactions[index].addrSender
+		itemAddr2 := v.transactions[index].addrReceiver
+		amount := v.transactions[index].amount
+		fmt.Println(v.transactions[index])
+		Atomic.AddInt64(&v.txnCtr, 1)
+		//opDist := uint32(1 + randDistOp.Intn(100))  // uniformly distributed pseudo-random number between 1 - 100 ??
+
+		//end = time.Now()
+
+		//preFunction := time.Unix(0, end.UnixNano())
+		//preFunctionEpoch := time.Since(preFunction)
+
+		// Hmm, do we need .count()??
+		//invocation := pre_function_epoch.count() - start_time_epoch.count()
+		// invocation := preFunctionEpoch.Nanoseconds() - startTimeEpoch.Nanoseconds()
+
+		// if invocation > (math.MaxInt64 - 10000000000) {
+		//PREPROCESSOR DIRECTIVE lines 864 - 866:
+		/*
+		 * #if DEBUG_
+		 *		printf("WARNING: TIME LIMIT REACHED! TERMINATING PROGRAM\n");
+		 * #endif
+		 */
+		// break
+		// }
+
+		//if opDist <= 50 {
+		//	types = CONSUMER
+		//	var itemPop int
+		//	// var itemPopPtr *uint64
+		//
+		//	val := q.Dequeue()
+		//	if val != nil{
+		//		res = true
+		//	} else {
+		//		res = false
+		//	}
+		//	if res {
+		//		q.Dequeue()  // try_pop(item_pop)
+		//		itemKey = itemPop
+		//	}else {
+		//		itemKey = math.MaxInt32
+		//	}
+		//} else {
+		//	types = PRODUCER
+		//	itemKey = mId
+		//	q.Enqueue(itemKey)
+		//}
+
+		// line 890
+		// end = std::chrono::high_resolution_clock::now();
+		//end := time.Now().UnixNano()
+
+		// auto post_function = std::chrono::time_point_cast<std::chrono::nanoseconds>(end);
+		//postFunction := end
+
+		// auto post_function_epoch = post_function.time_since_epoch();
+		//postFunctionEpoch := time.Now().UnixNano() - postFunction
+
+		//response := post_function_epoch.count() - start_time_epoch.count()
+		//response := postFunctionEpoch - startTimeEpoch.Nanoseconds()
+
+
+		if v.allSenders[itemAddr1] == 1 {
+			v.allSenders[itemAddr1] = 0
+			res = false
+		} else {
+			v.allSenders[itemAddr1] = 1
+			res = true
+		}
+
+		fmt.Printf("res for %s is %v\n", itemAddr1, res)
+		var m1 Method
+		m1.setMethod(int(mId), itemAddr1, itemAddr2, v.transactions[id].balanceSender, FIFO, PRODUCER, res, int(mId), amount, v.transactions[id].tId)
+
+		Atomic.AddInt64(&mId, 1)
+		var m2 Method
+		m2.setMethod(int(mId),itemAddr1, itemAddr2, v.transactions[id].balanceReceiver, FIFO, CONSUMER, res, int(mId), amount.Mul(amount, big.NewInt(int64(-1))), v.transactions[id].tId)
+		Atomic.AddInt64(&mId, 1)
+
+		//Atomic.AddInt32(&numTxns, -1)
+		// mId += numThreads
+
+		//threadLists[id] = append(threadLists[id], m1)
+		//csi := ConcurrentSliceItem{int(i), m1}
+		//threadLists.items[id].(*ConcurrentSliceItem).Value.(*ConcurrentSlice).Append(csi)
+		/*if(len(threadLists.items) == 0) {
+			threadLists.items[0].(*ConcurrentSlice).Append(m1)
+		} else {
+			for i := range threadLists.Iter() {
+				if i.Index == id {
+					i.Value.(*ConcurrentSlice).Append(csi)
+				}
+			}
+		}*/
+		//threadLists.Lock()
+		//TODO: we want to append both...right?
+		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m1)
+		v.threadLists.items[id] = append(v.threadLists.items[id].([]Method), m2)
+		//fmt.Printf("threadlist %d: %v\n", id, threadLists.items[id])
+		v.threadListsSize[id].Add(1)
+		//Atomic.AddInt64(&methodTime[id], 1)
+		//threadLists.Unlock()
+	}
+
+	v.done[id].Store(true)
+	doneWG.Done()
+}
+
+//
 func (v *Verifier) mainLoop() {
 	fmt.Println("start main loop")
 	defer fmt.Println("end main loop")
@@ -857,12 +858,14 @@ func (v *Verifier) mainLoop() {
 		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 		// Whats the deal with the separate items slice?
 		//allSenders := make(map[string]int)
-		Atomic.StoreInt32(&v.numTxns, 0)
+
 
 		for i := 0; i < len(v.transactions); i++ {
-			Atomic.AddInt32(&v.numTxns, 1)
+			// Atomic.AddInt32(&v.numTxns, 1)
+			// set all senders to 0
 			v.allSenders[v.transactions[i].addrSender] = 0
 		}
+		Atomic.StoreInt32(&v.numTxns,int32( len(v.transactions)-1))
 
 		//threadLists := NewConcurrentSlice()
 

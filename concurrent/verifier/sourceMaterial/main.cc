@@ -1412,6 +1412,7 @@ int main(int argc,char* argv[])
 
 	start = std::chrono::high_resolution_clock::now();
 
+	// generate work to verify
 	for(int i = 0; i < NUM_THRDS; i++)
 	{
 		if(TBB_QUEUE)
