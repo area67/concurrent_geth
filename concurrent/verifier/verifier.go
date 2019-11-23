@@ -8,7 +8,6 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
-	"math/rand"
 	"sync"
 	Atomic "sync/atomic"
 	"syscall"
@@ -94,7 +93,7 @@ func NewVerifier() *Verifier {
 	return  &Verifier{
 		allSenders:      make(map[string]int),
 		txnCtr:          0,
-		transactions:    make([]TransactionData, 200),
+		transactions:    make([]TransactionData, 0, 200),
 		methodCount:     0,
 		finalOutcome:    true,
 		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
@@ -118,8 +117,8 @@ func (v *Verifier) AddTxn(txData *TransactionData) {
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
-	index := Atomic.AddInt32(&v.numTxns, 1) - 1
-	v.transactions[index] = *txData
+	//index := Atomic.AddInt32(&v.numTxns, 1) - 1
+	v.transactions = append(v.transactions, *txData)
 }
 
 // methodMapKey and itemMapKey are meant to serve in place of iterators
@@ -794,7 +793,7 @@ func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 
 
 		if v.allSenders[itemAddr1] == 1 {
-			v.allSenders[itemAddr1] = 0
+			//v.allSenders[itemAddr1] = 0
 			res = false
 		} else {
 			v.allSenders[itemAddr1] = 1
@@ -842,18 +841,21 @@ func (v *Verifier) work(id int, doneWG *sync.WaitGroup) {
 //
 func (v *Verifier) mainLoop() {
 	fmt.Println("start main loop")
+	fmt.Printf("numThreads is %d\n", concurrent.NumThreads)
 	defer fmt.Println("end main loop")
 
 	methodTime := make([]int64, concurrent.NumThreads)
 	overheadTime := make([]int64, concurrent.NumThreads)
 	currentSize := int64(0)
 	for v.isRunning {
-		fmt.Println(v.transactions[0])
-		currentSize = Atomic.LoadInt64(&v.txnCtr)
+		fmt.Printf("RUNNING\n")
+		fmt.Printf("%d\n", len(v.transactions))
+		/*currentSize = Atomic.LoadInt64(&v.txnCtr)
 		if currentSize == 0 {
+			fmt.Println("currentSize = 0")
 			time.Sleep(time.Duration(rand.Intn(concurrent.MAX_DELAY) + concurrent.MIN_DELAY) * time.Nanosecond)
 			continue
-		}
+		}*/
 		// will use for i:= range threadLists.iter() in place of findMethodKey.
 		// Should we make methods, items, and blocks ConcurrentSliceItems or slap RWlocks around where we use them?
 		// Whats the deal with the separate items slice?

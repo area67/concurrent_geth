@@ -1,6 +1,7 @@
 package correctness_tool
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sync/atomic"
@@ -34,7 +35,7 @@ func TestVerifierFunction(t *testing.T) {
 		if i == 0 {
 			data[i].sender = string(transactionSenders)
 			data[i].receiver = string(transactionReceivers)
-			data[i].amount = 50
+			data[i].amount = 1
 			control = data[i].sender
 		} else if i == 1 {
 			data[i].sender = control
@@ -46,10 +47,22 @@ func TestVerifierFunction(t *testing.T) {
 			data[i].amount = rand.Intn(50)
 		}
 		data[i].tId = int(atomic.LoadInt32(&v.numTxns))
-		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
+		fmt.Printf("%v\n", data[i])
+		newData := NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId))
+		v.LockFreeAddTxn(newData)
 	}
-	v.Verify()
 
+	v.Verify()
+	res := true
+	for {
+		for i := 0; i < len(v.done); i++ {
+			if v.done[i].Load() != true {
+				res = false
+			}
+		}
+		if res == true {
+			break
+		}
+	}
 	v.Shutdown()
-	for v.isRunning {}
 }
