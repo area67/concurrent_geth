@@ -139,7 +139,7 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
 	// println(v.threadLists.items[0])
-	println(txData.tId)
+	//println(txData.tId)
 
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method) , *method1)
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
@@ -147,18 +147,14 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 
 }
 
-// methodMapKey and itemMapKey are meant to serve in place of iterators
 func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
-	fmt.Printf("Handling failed consumer...it is %d\n", it)
-	fmt.Println(methods)
+	//fmt.Printf("Handling failed consumer...it is %d\n", it)
+	//fmt.Println(methods)
 
 	for it0 := 0; it0 != it + 1; it0++ {
-		fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and it requestAmnt = %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[it].requestAmnt)
+		//fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and it requestAmnt = %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[it].requestAmnt)
 		// serializability
 		//todo: > or <
-		/*if (methods[it0].itemAddrS == methods[it].itemAddrS &&
-			math.Abs(float64(methods[it0].requestAmnt)) < math.Abs(float64(methods[it].requestAmnt)) &&
-			methods[it0].id < methods[it].id) {*/
 		if methods[it0].itemAddrS == methods[it].itemAddrS &&
 			methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
 			methods[it0].id < methods[it].id {
@@ -212,14 +208,14 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		it := 0
 		end := len(methods) - 1
 
-		fmt.Printf("end of methods = %d\n", end)
+		// fmt.Printf("end of methods = %d\n", end)
 
 		//TODO: corner case
 		if *countIterated == 0 {
-			fmt.Printf("setting resetItStart to false\n")
+			// fmt.Printf("setting resetItStart to false\n")
 			resetItStart = false
 		} else if it != end {
-			fmt.Printf("Incrementing itStart and it\n")
+			// fmt.Printf("Incrementing itStart and it\n")
 			*itStart = *itStart + 1
 			it = *itStart
 		}
@@ -228,7 +224,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			fmt.Printf("it is %d and len items is %d len methods is %d\n", it, len(items), len(methods))
 
 			if v.methodCount%5000 == 0 {
-				fmt.Printf("methodCount = %d\n", v.methodCount)
+				// fmt.Printf("methodCount = %d\n", v.methodCount)
 			}
 			v.methodCount = v.methodCount + 1
 
@@ -240,7 +236,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			itItems := it //methods[it].itemAddr
 
 			if methods[it].types == PRODUCER {
-				fmt.Printf("PRODUCER\n")
+				// fmt.Printf("PRODUCER\n")
 				items[it].producer = it
 
 				if items[itItems].status == ABSENT {
@@ -253,13 +249,13 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				items[it].addInt(1)
 
 				if methods[it].semantics == FIFO {
-					fmt.Println("MADE IT")
+					// fmt.Println("MADE IT")
 					for it0 := 0; it0 != it + 1; it0++ {
-						fmt.Println("MADE IT in 1")
+						// fmt.Println("MADE IT in 1")
 						// serializability
 						if methods[it0].itemAddrS == methods[it].itemAddrS &&
 							methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS {
-							fmt.Println("MADE IT in 2")
+							// fmt.Println("MADE IT in 2")
 							// #endif
 							itItems0 := 0
 
@@ -325,9 +321,9 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		}
 
 		for stackFailed.Len() != 0 {
-			fmt.Printf("stackFailed length non zero:\n")
+			// fmt.Printf("stackFailed length non zero:\n")
 			for i := 0; i < stackFailed.Len(); i++ {
-				fmt.Println(stackFailed.Pop())
+				//fmt.Println(stackFailed.Pop())
 			}
 
 			temp := stackFailed.Peek().(string)
@@ -336,7 +332,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				//if items.items[itTop].(*Item).status == PRESENT {
 				if items[itTop].key == temp && items[itTop].status == PRESENT {
 					//items.items[itTop].(*Item).demoteFailed()
-					fmt.Printf("Demoting item...\n")
+					//fmt.Printf("Demoting item...\n")
 					items[itTop].demoteFailed()
 				}
 				stackFailed.Pop()
@@ -354,7 +350,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		itEnd := len(items)
 
 		if items[itVerify].sum < 0 {
-			fmt.Printf("Negative sum!\n")
+			//fmt.Printf("Negative sum!\n")
 		}
 		for ; itVerify != itEnd; itVerify++ {
 			if items[itVerify].sum < 0 {
@@ -376,7 +372,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			}
 
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
-				fmt.Printf("!!!!!!!!!!\n")
+				//fmt.Printf("!!!!!!!!!!\n")
 				outcome = false
 			}
 
@@ -423,7 +419,7 @@ func (v *Verifier) verify() {
 		for i := 0; i < concurrent.NumThreads; i++ {
 			for itCount[i] < v.threadListsSize[i].Load(){
 
-				fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, v.threadListsSize[i].Load())
+				//fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, v.threadListsSize[i].Load())
 
 				if itCount[i] == 0 {
 					it[i] = 0 //threadLists[i].Front()
@@ -436,17 +432,17 @@ func (v *Verifier) verify() {
 
 				//if it[i] < len(threadLists.items[i].([]Method)) {
 				if it[i] < int(v.threadListsSize[i].Load()) {
-					fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[i].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[i].([]Method)[it[i] + 1].itemAddrS)
-					fmt.Printf("%v\n", v.threadLists.items[i].([]Method))
+					//fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[i].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[i].([]Method)[it[i] + 1].itemAddrS)
+					//fmt.Printf("%v\n", v.threadLists.items[i].([]Method))
 					// assign methods
 					m = v.threadLists.items[i].([]Method)[it[i]]
 					it[i]++
 					m2 = v.threadLists.items[i].([]Method)[it[i]]
 				} else {
-					fmt.Printf("Verifier threadlist error!\n")
+					//fmt.Printf("Verifier threadlist error!\n")
 					break
 				}
-				fmt.Printf("m address = %s\nm2 address = %s\n", m.itemAddrS, m2.itemAddrS)
+				//fmt.Printf("m address = %s\nm2 address = %s\n", m.itemAddrS, m2.itemAddrS)
 
 				methods = append(methods, m)
 				methods = append(methods, m2)
@@ -467,11 +463,11 @@ func (v *Verifier) verify() {
 				for range methods {
 					mapMethodsEnd++
 				}
-				fmt.Printf("%d\t%d\n", itItem, mapItemsEnd)
+				//fmt.Printf("%d\t%d\n", itItem, mapItemsEnd)
 				if itItem == mapItemsEnd {
 					var item Item
 					var item2 Item
-					fmt.Printf("appending addresses to items: %v\t%v\n", m.itemAddrS, m2.itemAddrS)
+					//fmt.Printf("appending addresses to items: %v\t%v\n", m.itemAddrS, m2.itemAddrS)
 					item.setItem(m.itemAddrS)
 					item2.setItem(m2.itemAddrS)
 					item.producer = mapMethodsEnd
