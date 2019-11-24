@@ -120,11 +120,13 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 		res = true
 	}
 
-	recAmount := big.NewInt(int64(0)).Mul(txData.amount, big.NewInt(int64(-1)))
+	recAmount := big.NewInt(int64(1))
+	recAmount.Mul(txData.amount, big.NewInt(int64(-1)))
 
 	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
+	//println(txData.amount.String(), ", ", recAmount.String())
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method) , *method1)
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
 
@@ -356,6 +358,16 @@ func (v *Verifier) verify() {
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
 
+
+	for j := range v.threadLists.items{
+
+		temp := v.threadLists.items[j].([]Method)
+		for t := range temp{
+
+			println(t)
+		}
+	}
+
 	for !stop{
 		stop = true
 
@@ -365,7 +377,7 @@ func (v *Verifier) verify() {
 			// TODO: This is where Christina has her thread.done() checking
 			// iterate thorough each thread's methods
 			//for itCount[i] < v.threadListsSize[i].Load() {
-			for j := range v.threadLists.items{
+			//for j := range v.threadLists.items{
 				// TODO: This can be cleaned up some
 				//if itCount[i] == 0 {
 				//	it[i] = 0 //threadLists[i].Front()
@@ -376,11 +388,11 @@ func (v *Verifier) verify() {
 				var m Method
 				//var m2 Method
 				// TODO: ????? line 1259
-				if j < int(v.threadListsSize[i].Load()) {
+				if i < int(v.threadListsSize[i].Load()) {
 					// read methods
 					// TODO can we do this one at a time b/c we iterate through every method, maybe not #lol
 					// get thread i's it[i]th method
-					m = v.threadLists.items[i].([]Method)[j/*it[i]*/]
+					m = v.threadLists.items[i].([]Method)[i/*it[i]*/]
 					//it[i]++
 					//m2 = v.threadLists.items[i].([]Method)[it[i]]
 				}
@@ -388,9 +400,13 @@ func (v *Verifier) verify() {
 				// TODO: There is a block of code missing on line 1258 of the tool here
 
 				m.id = len(methods)
+				//println("thread:", i, "method[",j,"].amount=", m.requestAmnt.String())
 				methods = append(methods, m)
 				// methods = append(methods, m2)
-
+				for x := range methods {
+					println("thread[", i, "] methods[", x, "]=",methods[x].requestAmnt.String())
+				}
+				println("finished printing methods array")
 				itCount[i]++
 				countOverall++
 
@@ -420,7 +436,7 @@ func (v *Verifier) verify() {
 
 
 				}
-			}
+			//}
 		}
 
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
@@ -440,6 +456,8 @@ func (v *Verifier) ConcurrentVerify() {
 }
 
 func (v *Verifier) correctnessCondition(index0, index1 int, methods []Method) bool {
+	//println(index0,": ",index1,": ",len(methods))
+	//println(methods[index0].requestAmnt.String(), " ", methods[index1].requestAmnt.String())
 	return methods[index0].itemAddrS == methods[index1].itemAddrS &&
 		methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
 }
