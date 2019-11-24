@@ -33,7 +33,7 @@ func TestVerifierFunction(t *testing.T) {
 		if i == 0 {
 			data[i].sender = string(transactionSenders)
 			data[i].receiver = string(transactionReceivers)
-			data[i].amount = 50
+			data[i].amount = 52
 			control = data[i].sender
 		} else if i == 1 {
 			data[i].sender = control
@@ -45,7 +45,7 @@ func TestVerifierFunction(t *testing.T) {
 			data[i].amount = rand.Intn(50)
 		}
 		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
-		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
+		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(int64(data[i].amount)), int32(data[i].tId)))
 	}
 
 	var result bool = v.Verify()
@@ -55,6 +55,16 @@ func TestVerifierFunction(t *testing.T) {
 		t.Errorf("Bad history passes verifier")
 	}
 
-	//v.Shutdown()
+	// TODO: make test case that we expect to pass
+	v = NewVerifier()
+
+	// TODO: transactions we expect to pass
+	//result = v.Verify()
+	//
+	if ! result{
+		//t.Errorf("Good history failed verifier")
+	}
+
+
 
 }

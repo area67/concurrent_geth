@@ -309,26 +309,17 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			stackFinishedMethods.Pop()
 		}
 
-		// TODO: ---------------------------------------------------
-		// TODO: 				RESUME HERE
-		// TODO: ---------------------------------------------------
-
 		// verify sums
 		outcome := true
-		itVerify := 0
-		itEnd := len(items)
 
-		if items[itVerify].sum < 0 {
-		}
-		for ; itVerify != itEnd; itVerify++ {
+		for itVerify := 0; itVerify < len(items); itVerify++ {
 			if items[itVerify].sum < 0 {
 				outcome = false
-			}
-			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
+			}else if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
 				outcome = false
 			}
 
-			var n float64
+			var n int
 			//if items.items[itVerify].(*Item).sumF == 0 {
 			if items[itVerify].sumF == 0 {
 				n = 0
@@ -336,18 +327,18 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				n = -1
 			}
 
-			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
+			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*float64(n) < 0 {
 				outcome = false
 			}
 
 		}
 		if outcome == true {
 			v.finalOutcome = true
-			 fmt.Println("-------------Program Correct Up To This Point-------------")
+			 //fmt.Println("-------------Program Correct Up To This Point-------------")
 		} else {
 			v.finalOutcome = false
 
-			 fmt.Println("-------------Program Not Correct-------------")
+			 //fmt.Println("-------------Program Not Correct-------------")
 		}
 	}
 }
