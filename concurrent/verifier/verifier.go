@@ -138,28 +138,21 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
-	// println(v.threadLists.items[0])
-	//println(txData.tId)
-
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method) , *method1)
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
-	v.threadListsSize[txData.tId].Add(1)
+
+	// TODO: This was v.threadListsSize[txData.tId].Add(1), it should be 2 right?
+	v.threadListsSize[txData.tId].Add(2)
 
 }
 
 func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
-	//fmt.Printf("Handling failed consumer...it is %d\n", it)
-	//fmt.Println(methods)
-
 	for it0 := 0; it0 != it + 1; it0++ {
-		//fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and it requestAmnt = %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[it].requestAmnt)
 		// serializability
 		//todo: > or <
 		if methods[it0].itemAddrS == methods[it].itemAddrS &&
 			methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
 			methods[it0].id < methods[it].id {
-
-			fmt.Printf("Handling failed consumer 2\n")
 
 			itemItr0 := methods[it0].itemAddrS
 
@@ -169,14 +162,12 @@ func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, 
 				methods[it0].semantics == FIFO ||
 				methods[it0].semantics == LIFO ||
 				methods[it].itemAddrS == methods[it0].itemAddrS {
-				fmt.Printf("Handling failed consumer 3\n")
 				stackFailed.Push(itemItr0)
 			}
 		} else if methods[it0].itemAddrS == methods[it].itemAddrS &&
 					methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
 					methods[it0].id > methods[it].id {
 
-			fmt.Printf("Handling failed consumer 4\n")
 
 			itemItr0 := methods[it0].itemAddrS
 
@@ -185,7 +176,6 @@ func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, 
 				methods[it0].semantics == FIFO ||
 				methods[it0].semantics == LIFO ||
 				methods[it].itemAddrS == methods[it0].itemAddrS {
-				fmt.Printf("Handling failed consumer 5\n")
 				stackFailed.Push(itemItr0)
 			}
 		}
@@ -198,65 +188,66 @@ func (v *Verifier) Shutdown() {
 
 func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, resetItStart bool) {
 
+	// TODO: This looks like a divergence from her code
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
 	var stackFailed stack.Stack          // stack of map[int64]*Item
 
+	// TODO: is there a reason for inconsistency between int, int32, and int64?
+	//		minor grievance, but it makes reading harder to understand
 	v.methodCount = int32(len(methods))
 	if v.methodCount != 0 {
 
 		it := 0
 		end := len(methods) - 1
 
-		// fmt.Printf("end of methods = %d\n", end)
-
 		//TODO: corner case
 		if *countIterated == 0 {
-			// fmt.Printf("setting resetItStart to false\n")
+			// TODO: in her code: it=map_methods.begin();
+			//		shouldn't this be it = 0?
 			resetItStart = false
 		} else if it != end {
-			// fmt.Printf("Incrementing itStart and it\n")
 			*itStart = *itStart + 1
 			it = *itStart
 		}
 
+		// TODO: isnt len(methods) equal to "end" in this code?
 		for ; it != len(methods); it++ {
-			fmt.Printf("it is %d and len items is %d len methods is %d\n", it, len(items), len(methods))
 
+			// TODO: What is this?
 			if v.methodCount%5000 == 0 {
-				// fmt.Printf("methodCount = %d\n", v.methodCount)
 			}
+			// TODO: Minor, but v.methodCount++
 			v.methodCount = v.methodCount + 1
 
+			// TODO in her code itStart is an iterator, because this is a sequential program, does itStart need to be a pointer?
 			*itStart = it
 			resetItStart = false
 			*countIterated++
 
-
-			itItems := it //methods[it].itemAddr
-
+			// TODO: This diverges from her code i believe. it_item = map_items.find(it->second.item_key);
+			//			it could contain this value, but if it does im a little confused by it
+			itItems := it
+			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			if methods[it].types == PRODUCER {
-				// fmt.Printf("PRODUCER\n")
 				items[it].producer = it
 
 				if items[itItems].status == ABSENT {
 
 					// reset item parameters
 					items[it].status = PRESENT
+					// TODO: Minor, but this should probably be a go List object to better mirror her code, go slices are very expensive
 					items[it].demoteMethods = nil
 				}
 
 				items[it].addInt(1)
-
+				// TODO: If our semantics are constant can we remove this?
 				if methods[it].semantics == FIFO {
-					// fmt.Println("MADE IT")
+					// TODO: This starts on line 575, ill come back to it and review
 					for it0 := 0; it0 != it + 1; it0++ {
-						// fmt.Println("MADE IT in 1")
 						// serializability
 						if methods[it0].itemAddrS == methods[it].itemAddrS &&
 							methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS {
-							// fmt.Println("MADE IT in 2")
-							// #endif
 							itItems0 := 0
 
 							// Demotion
@@ -274,28 +265,28 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				}
 			}
 
+			// TODO: we are missing a section about a READER line 603, are we not supporting this?
+			//			I'd guess our semnatics only support PRODUCER CONSUMER
 
 			if methods[it].types == CONSUMER {
-				fmt.Printf("CONSUMER\n")
 
 				if methods[it].status == true {
-					fmt.Printf("methods[%d].status == true (ABSENT)\n", it)
-
 					if items[itItems].sum > 0 {
 						items[itItems].sumR = 0
 					}
-
-					fmt.Printf("subInt at items[%d] which has key %s, resulting in sum of %f\n", itItems, items[itItems].key, items[itItems].sum)
+					// TODO: this is missing: it_item->second.sub_int(1); // line 637
 					items[itItems].status = ABSENT
 
 					stackConsumer.Push(itItems)
 					stackFinishedMethods.Push(it)
 
+					// TODO: Isnt end already set to this?
 					end = len(methods) - 1
 					if items[itItems].producer != end {
 						stackFinishedMethods.Push(items[itItems].producer)
 					}
 				} else {
+					// TODO she passes it, why are we pssing it + 1?
 					v.handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
 				}
 			}
@@ -307,11 +298,13 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		for stackConsumer.Len() != 0 {
 
 			itTop, ok := stackConsumer.Peek().(int)
+			// TODO: what is this for?
 			if !ok {
 				return
 			}
 
 			for items[itTop].promoteItems.Len() != 0 {
+				// TODO: Review this section in her code, it may diverge slightly in logic. Line 718
 				itemPromote := items[itTop].promoteItems.Peek().(int)
 				itPromoteItem := itemPromote
 				items[itPromoteItem].promote()
@@ -321,18 +314,17 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		}
 
 		for stackFailed.Len() != 0 {
-			// fmt.Printf("stackFailed length non zero:\n")
 			for i := 0; i < stackFailed.Len(); i++ {
-				//fmt.Println(stackFailed.Pop())
+				// TODO: What is this for?
+				// 	line 750 in her code, missing some items here
 			}
 
+			// TODO this diverges some,
 			temp := stackFailed.Peek().(string)
 			for itTop := range items {
 
 				//if items.items[itTop].(*Item).status == PRESENT {
 				if items[itTop].key == temp && items[itTop].status == PRESENT {
-					//items.items[itTop].(*Item).demoteFailed()
-					//fmt.Printf("Demoting item...\n")
 					items[itTop].demoteFailed()
 				}
 				stackFailed.Pop()
@@ -344,23 +336,23 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			stackFinishedMethods.Pop()
 		}
 
+		// TODO: ---------------------------------------------------
+		// TODO: 				RESUME HERE
+		// TODO: ---------------------------------------------------
+
 		// verify sums
 		outcome := true
 		itVerify := 0
 		itEnd := len(items)
 
 		if items[itVerify].sum < 0 {
-			//fmt.Printf("Negative sum!\n")
 		}
 		for ; itVerify != itEnd; itVerify++ {
 			if items[itVerify].sum < 0 {
 				outcome = false
-				fmt.Printf("WARNING1: Item %s (items[%d]), sum %.2f\n", items[itVerify].key, itVerify, items[itVerify].sum)
 			}
 			if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
 				outcome = false
-
-				fmt.Printf("WARNING2: Item %s, sum_r %.2f\n", items[itVerify].key, items[itVerify].sumR)
 			}
 
 			var n float64
@@ -372,16 +364,13 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			}
 
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*n < 0 {
-				//fmt.Printf("!!!!!!!!!!\n")
 				outcome = false
 			}
 
 		}
 		if outcome == true {
 			v.finalOutcome = true
-			// #if DEBUG_
 			 fmt.Println("-------------Program Correct Up To This Point-------------")
-			// #endif
 		} else {
 			v.finalOutcome = false
 
@@ -393,11 +382,15 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 
 
 func (v *Verifier) verify() {
+	fmt.Println("Total Transactions: ", v.numTxns)
+	fmt.Println("Methods = 2*Txs: ", v.numTxns * 2)
+	defer fmt.Println("txnCtr: ", v.txnCtr)
+
 
 	fmt.Println("Verifying...")
 
 	var countIterated uint64 = 0
-
+	Atomic.StoreInt64(&v.txnCtr, int64(Atomic.LoadInt32(&v.numTxns)))
 	methods := make([]Method, 0)
 	fmt.Printf("txnCtr is %v\n", v.txnCtr)
 	items := make([]Item, 0, v.txnCtr * 2)
@@ -412,15 +405,15 @@ func (v *Verifier) verify() {
 	itCount := make([]int32, concurrent.NumThreads)
 
 	for !stop{
-
 		stop = true
 
-
 		for i := 0; i < concurrent.NumThreads; i++ {
-			for itCount[i] < v.threadListsSize[i].Load(){
 
-				//fmt.Printf("itCount[%d]: %d\tthreadListsSize[%d]: %d\n", i, itCount[i], i, v.threadListsSize[i].Load())
+			// TODO: This is where Christina has her thread.done() checking
 
+			for itCount[i] < v.threadListsSize[i].Load() {
+
+				// TODO: This can be cleaned up some
 				if itCount[i] == 0 {
 					it[i] = 0 //threadLists[i].Front()
 				} else {
@@ -429,30 +422,27 @@ func (v *Verifier) verify() {
 
 				var m Method
 				var m2 Method
-
-				//if it[i] < len(threadLists.items[i].([]Method)) {
+				// TODO: ????? line 1259
 				if it[i] < int(v.threadListsSize[i].Load()) {
-					//fmt.Printf("Address of methods txn sender at thread %d index %d: %s and at index %d: %s\n", i, it[i], v.threadLists.items[i].([]Method)[it[i]].itemAddrS, it[i] + 1, v.threadLists.items[i].([]Method)[it[i] + 1].itemAddrS)
-					//fmt.Printf("%v\n", v.threadLists.items[i].([]Method))
 					// assign methods
 					m = v.threadLists.items[i].([]Method)[it[i]]
 					it[i]++
 					m2 = v.threadLists.items[i].([]Method)[it[i]]
-				} else {
-					//fmt.Printf("Verifier threadlist error!\n")
+				} else {  // TODO: I think this is wrong this will break from the loop entirely, i think the loop conditions need to be looked at
 					break
 				}
-				//fmt.Printf("m address = %s\nm2 address = %s\n", m.itemAddrS, m2.itemAddrS)
 
+				// TODO: There is a block of code missing on line 1258 of the tool here
+
+				// TODO: Arent these already appended to the thread lists, by our addTxn function
 				methods = append(methods, m)
 				methods = append(methods, m2)
 
 				itCount[i]++
 				countOverall++
 
-
+				// TODO: this loop is not needed, it could be len(items) also this doenst really map to her code at all
 				itItem := 0
-
 				for range items {
 					itItem++
 				}
@@ -460,14 +450,17 @@ func (v *Verifier) verify() {
 
 				mapItemsEnd := len(items)
 				mapMethodsEnd := 0
+				// TODO: another unnecessary loop mapMethodsEnd = len(methods)
 				for range methods {
 					mapMethodsEnd++
 				}
-				//fmt.Printf("%d\t%d\n", itItem, mapItemsEnd)
+
 				if itItem == mapItemsEnd {
+					// TODO: look at the logic of this section, in her code she uses a map(k,v)
+					// 		to map item keys to items, why are we not using a map? there also is no
+					// 		key stored here. is that not important?
 					var item Item
 					var item2 Item
-					//fmt.Printf("appending addresses to items: %v\t%v\n", m.itemAddrS, m2.itemAddrS)
 					item.setItem(m.itemAddrS)
 					item2.setItem(m2.itemAddrS)
 					item.producer = mapMethodsEnd
@@ -475,6 +468,7 @@ func (v *Verifier) verify() {
 					items = append(items, item)
 					items = append(items, item2)
 
+					// TODO: This is not in her code at all, what is it for?
 					for i := range methods {
 						if methods[i].itemAddrS == m.itemAddrS {
 							itItem = i
@@ -485,17 +479,16 @@ func (v *Verifier) verify() {
 		}
 
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
-
 	}
 
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 	fmt.Printf("All threads finished!\n")
-
-
-	//fmt.Printf("verify start is %d verify finish is %d\n", a, b)
 }
 
 func (v *Verifier) Verify() {
-
 	v.verify()
+}
+
+func (v *Verifier) ConcurrentVerify() {
+	go v.verify()
 }
