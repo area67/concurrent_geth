@@ -66,20 +66,6 @@ func  NewMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, sem
 		status: status,
 		requestAmnt: requestAmnt,
 	}
-
-}
-func (m *Method) setMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
-	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32) {
-	m.id = id
-	m.itemAddrS = itemAddrS
-	m.itemAddrR = itemAddrR
-	m.itemBalance = itemBalance
-	m.semantics = semantics
-	m.types = types
-	m.status = status
-	//m.senderID = senderID
-	m.requestAmnt = requestAmnt
-	// m.txnCtr = txnCtr
 }
 
 
@@ -407,10 +393,11 @@ func (v *Verifier) verify() {
 	for !stop{
 		stop = true
 
+		// for each thread
 		for i := 0; i < concurrent.NumThreads; i++ {
 
 			// TODO: This is where Christina has her thread.done() checking
-
+			// iterate thorough each thread's methods
 			for itCount[i] < v.threadListsSize[i].Load() {
 
 				// TODO: This can be cleaned up some
@@ -424,38 +411,32 @@ func (v *Verifier) verify() {
 				var m2 Method
 				// TODO: ????? line 1259
 				if it[i] < int(v.threadListsSize[i].Load()) {
-					// assign methods
+					// read methods
+					// TODO can we do this one at a time b/c we iterate through every method, maybe not #lol
 					m = v.threadLists.items[i].([]Method)[it[i]]
 					it[i]++
 					m2 = v.threadLists.items[i].([]Method)[it[i]]
-				} else {  // TODO: I think this is wrong this will break from the loop entirely, i think the loop conditions need to be looked at
-					break
 				}
 
 				// TODO: There is a block of code missing on line 1258 of the tool here
 
-				// TODO: Arent these already appended to the thread lists, by our addTxn function
 				methods = append(methods, m)
 				methods = append(methods, m2)
 
 				itCount[i]++
 				countOverall++
 
-				// TODO: this loop is not needed, it could be len(items) also this doenst really map to her code at all
-				itItem := 0
-				for range items {
-					itItem++
-				}
+				// look up item with given method, parallel arrays, use index
+
+				itItemIndex :=  m.id //len(items) // items at m.item_key
 
 
-				mapItemsEnd := len(items)
-				mapMethodsEnd := 0
-				// TODO: another unnecessary loop mapMethodsEnd = len(methods)
-				for range methods {
-					mapMethodsEnd++
-				}
+				itemsEndIndex := len(items)-1
+				methodsEndIndex := len(methods)-1
 
-				if itItem == mapItemsEnd {
+				// line 1277
+				// do something if current item is last item
+				if itItemIndex == itemsEndIndex {
 					// TODO: look at the logic of this section, in her code she uses a map(k,v)
 					// 		to map item keys to items, why are we not using a map? there also is no
 					// 		key stored here. is that not important?
@@ -463,7 +444,7 @@ func (v *Verifier) verify() {
 					var item2 Item
 					item.setItem(m.itemAddrS)
 					item2.setItem(m2.itemAddrS)
-					item.producer = mapMethodsEnd
+					item.producer = methodsEndIndex
 
 					items = append(items, item)
 					items = append(items, item2)
@@ -471,7 +452,7 @@ func (v *Verifier) verify() {
 					// TODO: This is not in her code at all, what is it for?
 					for i := range methods {
 						if methods[i].itemAddrS == m.itemAddrS {
-							itItem = i
+							itItemIndex = i
 						}
 					}
 				}
