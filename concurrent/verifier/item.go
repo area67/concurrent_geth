@@ -6,7 +6,7 @@ import (
 )
 
 type Item struct {
-	key           string // Account Hash ???
+	key           int // Account Hash ???
 	value         int // Account Balance ???
 	sum           float64
 	numerator     int64
@@ -30,7 +30,7 @@ type Item struct {
 	exponentR    float64
 }
 
-func (i *Item) setItem(key string) {
+func (i *Item) setItem(key int) {
 	i.key = key
 	i.value = math.MinInt32
 	i.sum = 0
@@ -48,7 +48,7 @@ func (i *Item) setItem(key string) {
 	i.exponentR = 0
 }
 
-func (i *Item) setItemKV(key string, value int) {
+func (i *Item) setItemKV(key int, value int) {
 	i.key = key
 	i.value = value
 	i.sum = 0

@@ -534,6 +534,7 @@ void verify_checkpoint(std::map<long int,Method,bool(*)(long int,long int)>& map
 			count_iterated = count_iterated + 1;
 
 			std::unordered_map<int,Item>::iterator it_item;
+			// find item in map with it's key
 			it_item = map_items.find(it->second.item_key);
 			//(it_item->second).sum = (it_item->second).sum - 1;
 

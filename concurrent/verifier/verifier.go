@@ -217,25 +217,24 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			if methods[it].types == PRODUCER {
 
-				items[it].producer = it
+				items[itItems].producer = it
 
 				if items[itItems].status == ABSENT {
 
 					// reset item parameters
-					items[it].status = PRESENT
+					items[itItems].status = PRESENT
 					// TODO: Minor, but this should probably be a go List object to better mirror her code, go slices are very expensive
-					items[it].demoteMethods = nil
+					items[itItems].demoteMethods = nil
 				}
 
-				items[it].addInt(1)
+				items[itItems].addInt(1)
 				// TODO: If our semantics are constant can we remove this?
 				if methods[it].semantics == FIFO {
-					// TODO: This starts on line 575, ill come back to it and review
-					for it0 := 0; it0 != it + 1; it0++ {
-						// serializability
-						if methods[it0].itemAddrS == methods[it].itemAddrS &&
-							methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS {
-							itItems0 := 0
+					// TODO: This starts on line 568, ill come back to it and review
+					for it0 := 0; it0 != it; it0++ {
+						// serializability, correctness condition. 576 TODO
+						if v.correctnessCondition(it0,it,methods) {
+							itItems0 := it0
 
 							// Demotion
 							// FIFO Semantics
@@ -252,29 +251,25 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				}
 			}
 
-			// TODO: we are missing a section about a READER line 603, are we not supporting this?
-			//			I'd guess our semnatics only support PRODUCER CONSUMER
-
 			if methods[it].types == CONSUMER {
 
 				if methods[it].status == true {
 					if items[itItems].sum > 0 {
 						items[itItems].sumR = 0
 					}
-					// TODO: this is missing: it_item->second.sub_int(1); // line 637
+
+					// line 637
+					items[itItems].subInt(1)
 					items[itItems].status = ABSENT
 
 					stackConsumer.Push(itItems)
 					stackFinishedMethods.Push(it)
 
-					// TODO: Isnt end already set to this?
-					end = len(methods) - 1
 					if items[itItems].producer != end {
 						stackFinishedMethods.Push(items[itItems].producer)
 					}
 				} else {
-					// TODO she passes it, why are we pssing it + 1?
-					v.handleFailedConsumer(methods, items, it + 1, itItems, &stackFailed)
+					v.handleFailedConsumer(methods, items, it, itItems, &stackFailed)
 				}
 			}
 		}
@@ -284,42 +279,33 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 
 		for stackConsumer.Len() != 0 {
 
-			itTop, ok := stackConsumer.Peek().(int)
-			// TODO: what is this for?
-			if !ok {
-				return
-			}
+			itTop, _ := stackConsumer.Peek().(int)
 
+			// 717
 			for items[itTop].promoteItems.Len() != 0 {
 				// TODO: Review this section in her code, it may diverge slightly in logic. Line 718
 				itemPromote := items[itTop].promoteItems.Peek().(int)
-				itPromoteItem := itemPromote
-				items[itPromoteItem].promote()
+				items[itemPromote].promote()
 				items[itTop].promoteItems.Pop()
 			}
 			stackConsumer.Pop()
 		}
 
 		for stackFailed.Len() != 0 {
-			for i := 0; i < stackFailed.Len(); i++ {
-				// TODO: What is this for?
-				// 	line 750 in her code, missing some items here
-			}
 
-			// TODO this diverges some,
-			temp := stackFailed.Peek().(string)
-			for itTop := range items {
+			itTop := stackFailed.Peek().(int)
 
 				//if items.items[itTop].(*Item).status == PRESENT {
-				if items[itTop].key == temp && items[itTop].status == PRESENT {
+				if items[itTop].status == PRESENT {
 					items[itTop].demoteFailed()
 				}
 				stackFailed.Pop()
-			}
+
 		}
 
-		//TODO: DANGER, this is the removal optimization that can cause segfaults, commented out the dangerous contents for now.
+		// remove methods from
 		for stackFinishedMethods.Len() != 0 {
+			// TODO: may need to remove items from methods
 			stackFinishedMethods.Pop()
 		}
 
@@ -446,7 +432,7 @@ func (v *Verifier) verify() {
 					// 		key stored here. is that not important?
 					var item Item
 					//var item2 Item
-					item.setItem(m.itemAddrS)
+					item.setItem(m.id)
 					//item2.setItem(m2.itemAddrS)
 					item.producer = methodsEndIndex
 
@@ -472,4 +458,9 @@ func (v *Verifier) Verify() bool{
 
 func (v *Verifier) ConcurrentVerify() {
 	go v.verify()
+}
+
+func (v *Verifier) correctnessCondition(index0, index1 int, methods []Method) bool {
+	return methods[index0].itemAddrS == methods[index1].itemAddrS &&
+		methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
 }
