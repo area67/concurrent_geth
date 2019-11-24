@@ -163,8 +163,8 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
 	fmt.Printf("Handling failed consumer...it is %d\n", it)
 	fmt.Println(methods)
-	begin := 0
-	for it0 := begin; it0 != it + 1; it0++ {
+
+	for it0 := 0; it0 != it + 1; it0++ {
 		fmt.Printf("it0 address = %s and it address = %s\nit0 requestAmnt = %d and it requestAmnt = %d\n", methods[it0].itemAddrS, methods[it].itemAddrS, methods[it0].requestAmnt, methods[it].requestAmnt)
 		// serializability
 		//todo: > or <
