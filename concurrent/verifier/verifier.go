@@ -2,7 +2,6 @@ package correctness_tool
 
 import (
 	"C"
-	"fmt"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
@@ -336,17 +335,10 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 
 
 func (v *Verifier) verify() {
-	fmt.Println("Total Transactions: ", v.numTxns)
-	fmt.Println("Methods = 2*Txs: ", v.numTxns * 2)
-	defer fmt.Println("txnCtr: ", v.txnCtr)
-
-
-	fmt.Println("Verifying...")
 
 	var countIterated uint64 = 0
 	Atomic.StoreInt64(&v.txnCtr, int64(Atomic.LoadInt32(&v.numTxns)))
 	methods := make([]Method, 0)
-	fmt.Printf("txnCtr is %v\n", v.txnCtr)
 	items := make([]Item, 0, v.txnCtr * 2)
 	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
 	var itStart int
@@ -358,61 +350,34 @@ func (v *Verifier) verify() {
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
 
-
-	for j := range v.threadLists{
-
-		temp := v.threadLists[j]
-		for t := range temp{
-
-			println(t)
-		}
-	}
-
 	for !stop{
 		stop = true
 
 		// for each thread
-		for i := 0; i < concurrent.NumThreads; i++ {
+		for tId := 0; tId < concurrent.NumThreads; tId++ {
 
 			// TODO: This is where Christina has her thread.done() checking
 			// iterate thorough each thread's methods
 			//for itCount[i] < v.threadListsSize[i].Load() {
-			//for j := range v.threadLists.items{
-				// TODO: This can be cleaned up some
-				//if itCount[i] == 0 {
-				//	it[i] = 0 //threadLists[i].Front()
-				//} else {
-				//	it[i]++
-				//}
+			for j := range v.threadLists[tId]{
 
 				var m Method
-				//var m2 Method
-				// TODO: ????? line 1259
-				if i < int(v.threadListsSize[i].Load()) {
-					// read methods
-					// TODO can we do this one at a time b/c we iterate through every method, maybe not #lol
+				// line 1259
+				if j < int(v.threadListsSize[tId].Load()) {
 					// get thread i's it[i]th method
-					m = v.threadLists[i][i/*it[i]*/]
-					//it[i]++
-					//m2 = v.threadLists.items[i].([]Method)[it[i]]
+					m = v.threadLists[tId][j]
 				}
-
-				// TODO: There is a block of code missing on line 1258 of the tool here
 
 				m.id = len(methods)
-				//println("thread:", i, "method[",j,"].amount=", m.requestAmnt.String())
+
 				methods = append(methods, m)
-				// methods = append(methods, m2)
-				for x := range methods {
-					println("thread[", i, "] methods[", x, "]=",methods[x].requestAmnt.String())
-				}
-				println("finished printing methods array")
-				itCount[i]++
+
+				itCount[tId]++
 				countOverall++
 
 				// look up item with given method, parallel arrays, use index
 
-				itItemIndex :=  m.id //len(items) // items at m.item_key
+				itItemIndex :=  m.id
 
 
 				itemsEndIndex := len(items)
@@ -420,30 +385,26 @@ func (v *Verifier) verify() {
 
 				// line 1277
 				// do something if current item is last item
-				// println(itItemIndex," ", itemsEndIndex )
 				if itItemIndex == itemsEndIndex {
 					// TODO: look at the logic of this section, in her code she uses a map(k,v)
 					// 		to map item keys to items, why are we not using a map? there also is no
 					// 		key stored here. is that not important?
 					var item Item
-					//var item2 Item
+
 					item.setItem(m.id)
-					//item2.setItem(m2.itemAddrS)
+
 					item.producer = methodsEndIndex
 
 					items = append(items, item)
-					//items = append(items, item2)
-
 
 				}
-			//}
+			}
 		}
 
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
 
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
-	fmt.Printf("All threads finished!\n")
 }
 
 func (v *Verifier) Verify() bool{
@@ -456,8 +417,6 @@ func (v *Verifier) ConcurrentVerify() {
 }
 
 func (v *Verifier) correctnessCondition(index0, index1 int, methods []Method) bool {
-	//println(index0,": ",index1,": ",len(methods))
-	//println(methods[index0].requestAmnt.String(), " ", methods[index1].requestAmnt.String())
 	return methods[index0].itemAddrS == methods[index1].itemAddrS &&
 		methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
 }

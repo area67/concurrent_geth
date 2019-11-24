@@ -58,11 +58,7 @@ func TestVerifierFunction(t *testing.T) {
 		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
 		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(int64(data[i].amount)), int32(data[i].tId)))
 	}
-	for  i := 0; i < int(v.numTxns); i++ {
-		println("txns[", i, "].amount=", v.transactions[i].amount.String(), " tid=", v.transactions[i].tId)
 
-	}
-	println("---After Test--")
 
 	var result bool = v.Verify()
 
