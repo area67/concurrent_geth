@@ -47,7 +47,7 @@ type Verifier struct {
 	finalOutcome    bool
 	done            []atomic.Bool
 	threadListsSize []atomic.Int32
-	threadLists     ConcurrentSlice
+	threadLists     [][]Method
 	numTxns         int32				// what are you?
 	isShuttingDown  bool
 	isRunning       bool
@@ -83,10 +83,10 @@ func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *Transa
 
 // constructor
 func NewVerifier() *Verifier {
-	lists := ConcurrentSlice{items: make([]interface{}, concurrent.NumThreads),}
+	lists :=  make([][]Method, concurrent.NumThreads)
 
 	for i := 0 ; i < concurrent.NumThreads; i++ {
-		lists.items[i] = make([]Method, 0)
+		lists[i] = make([]Method, 0)
 	}
 	return  &Verifier{
 		allSenders:      sync.Map{},//make(map[string]int),
@@ -127,8 +127,8 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
 	//println(txData.amount.String(), ", ", recAmount.String())
-	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method) , *method1)
-	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
+	v.threadLists[txData.tId] = append(v.threadLists[txData.tId] , *method1)
+	v.threadLists[txData.tId] = append(v.threadLists[txData.tId], *method2)
 
 	// TODO: This was v.threadListsSize[txData.tId].Add(1), it should be 2 right?
 	// yes - Ross
@@ -359,9 +359,9 @@ func (v *Verifier) verify() {
 	itCount := make([]int32, concurrent.NumThreads)
 
 
-	for j := range v.threadLists.items{
+	for j := range v.threadLists{
 
-		temp := v.threadLists.items[j].([]Method)
+		temp := v.threadLists[j]
 		for t := range temp{
 
 			println(t)
@@ -392,7 +392,7 @@ func (v *Verifier) verify() {
 					// read methods
 					// TODO can we do this one at a time b/c we iterate through every method, maybe not #lol
 					// get thread i's it[i]th method
-					m = v.threadLists.items[i].([]Method)[i/*it[i]*/]
+					m = v.threadLists[i][i/*it[i]*/]
 					//it[i]++
 					//m2 = v.threadLists.items[i].([]Method)[it[i]]
 				}
