@@ -47,8 +47,14 @@ func TestVerifierFunction(t *testing.T) {
 		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
 		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(50), int32(data[i].tId)))
 	}
-	v.verify()
 
-	v.Shutdown()
+	var result bool = v.Verify()
+
+	// assert false
+	if result{
+		t.Errorf("Bad history passes verifier")
+	}
+
+	//v.Shutdown()
 
 }

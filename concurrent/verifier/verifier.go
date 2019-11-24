@@ -128,6 +128,7 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	v.threadLists.items[txData.tId] = append(v.threadLists.items[txData.tId].([]Method), *method2)
 
 	// TODO: This was v.threadListsSize[txData.tId].Add(1), it should be 2 right?
+	// yes - Ross
 	v.threadListsSize[txData.tId].Add(2)
 
 }
@@ -198,15 +199,14 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		}
 
 		// TODO: isnt len(methods) equal to "end" in this code?
-		for ; it != len(methods); it++ {
+		for ; it < len(methods); it++ {
 
-			// TODO: What is this?
-			if v.methodCount%5000 == 0 {
-			}
+
 			// TODO: Minor, but v.methodCount++
 			v.methodCount = v.methodCount + 1
 
 			// TODO in her code itStart is an iterator, because this is a sequential program, does itStart need to be a pointer?
+			// 532
 			*itStart = it
 			resetItStart = false
 			*countIterated++
@@ -216,6 +216,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			itItems := it
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			if methods[it].types == PRODUCER {
+
 				items[it].producer = it
 
 				if items[itItems].status == ABSENT {
@@ -380,7 +381,7 @@ func (v *Verifier) verify() {
 	methods := make([]Method, 0)
 	fmt.Printf("txnCtr is %v\n", v.txnCtr)
 	items := make([]Item, 0, v.txnCtr * 2)
-	it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
+	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
 	var itStart int
 
 	stop := false
@@ -398,30 +399,32 @@ func (v *Verifier) verify() {
 
 			// TODO: This is where Christina has her thread.done() checking
 			// iterate thorough each thread's methods
-			for itCount[i] < v.threadListsSize[i].Load() {
-
+			//for itCount[i] < v.threadListsSize[i].Load() {
+			for j := range v.threadLists.items{
 				// TODO: This can be cleaned up some
-				if itCount[i] == 0 {
-					it[i] = 0 //threadLists[i].Front()
-				} else {
-					it[i]++
-				}
+				//if itCount[i] == 0 {
+				//	it[i] = 0 //threadLists[i].Front()
+				//} else {
+				//	it[i]++
+				//}
 
 				var m Method
-				var m2 Method
+				//var m2 Method
 				// TODO: ????? line 1259
-				if it[i] < int(v.threadListsSize[i].Load()) {
+				if j < int(v.threadListsSize[i].Load()) {
 					// read methods
 					// TODO can we do this one at a time b/c we iterate through every method, maybe not #lol
-					m = v.threadLists.items[i].([]Method)[it[i]]
-					it[i]++
-					m2 = v.threadLists.items[i].([]Method)[it[i]]
+					// get thread i's it[i]th method
+					m = v.threadLists.items[i].([]Method)[j/*it[i]*/]
+					//it[i]++
+					//m2 = v.threadLists.items[i].([]Method)[it[i]]
 				}
 
 				// TODO: There is a block of code missing on line 1258 of the tool here
 
+				m.id = len(methods)
 				methods = append(methods, m)
-				methods = append(methods, m2)
+				// methods = append(methods, m2)
 
 				itCount[i]++
 				countOverall++
@@ -431,30 +434,26 @@ func (v *Verifier) verify() {
 				itItemIndex :=  m.id //len(items) // items at m.item_key
 
 
-				itemsEndIndex := len(items)-1
+				itemsEndIndex := len(items)
 				methodsEndIndex := len(methods)-1
 
 				// line 1277
 				// do something if current item is last item
+				// println(itItemIndex," ", itemsEndIndex )
 				if itItemIndex == itemsEndIndex {
 					// TODO: look at the logic of this section, in her code she uses a map(k,v)
 					// 		to map item keys to items, why are we not using a map? there also is no
 					// 		key stored here. is that not important?
 					var item Item
-					var item2 Item
+					//var item2 Item
 					item.setItem(m.itemAddrS)
-					item2.setItem(m2.itemAddrS)
+					//item2.setItem(m2.itemAddrS)
 					item.producer = methodsEndIndex
 
 					items = append(items, item)
-					items = append(items, item2)
+					//items = append(items, item2)
 
-					// TODO: This is not in her code at all, what is it for?
-					for i := range methods {
-						if methods[i].itemAddrS == m.itemAddrS {
-							itItemIndex = i
-						}
-					}
+
 				}
 			}
 		}
@@ -466,8 +465,9 @@ func (v *Verifier) verify() {
 	fmt.Printf("All threads finished!\n")
 }
 
-func (v *Verifier) Verify() {
+func (v *Verifier) Verify() bool{
 	v.verify()
+	return v.finalOutcome
 }
 
 func (v *Verifier) ConcurrentVerify() {
