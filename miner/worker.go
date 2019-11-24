@@ -742,7 +742,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	tool := correctness_tool.NewVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
-	tool.Verify()
 	defer tool.Shutdown()
 	// Short circuit if current is nil
 	if w.current == nil {
@@ -774,6 +773,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	workerGroup.Add(1)
 	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter, tool)
 	workerGroup.Wait()
+	tool.Verify()
 
 	switch loopStatus{
 		case RETURN:
