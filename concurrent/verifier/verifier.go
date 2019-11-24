@@ -12,6 +12,7 @@ import (
 	Atomic "sync/atomic"
 )
 
+
 type Status int
 type Semantics int
 type Types int
@@ -51,6 +52,7 @@ type Verifier struct {
 	isShuttingDown  bool
 	isRunning       bool
 	txnLock         sync.Mutex
+	globalCount 	int32
 }
 
 // method constructor
@@ -99,6 +101,7 @@ func NewVerifier() *Verifier {
 		numTxns:         0,
 		isRunning:       true,
 		isShuttingDown:  false,
+		globalCount:     0,
 	}
 }
 
@@ -110,15 +113,15 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	var res bool
 	// if seen address before
 	// TODO: Ask Christina. Should this be a toggle every time we see a sender?
-	if _,seen := v.allSenders.LoadOrStore(txData.addrSender,0); seen {
-
-		v.allSenders.Store(txData.addrSender, 0)
-		res = false
-	} else {
-		v.allSenders.Store(txData.addrSender,1)
-		res = true
-	}
-
+	//if _,seen := v.allSenders.LoadOrStore(txData.addrSender,1); seen {
+	//	//
+	//	v.allSenders.Store(txData.addrSender, 0)
+	//	res = false
+	//} else {
+	//	v.allSenders.Store(txData.addrSender,1)
+	//	res = true
+	//}
+	res = true
 	recAmount := big.NewInt(int64(1))
 	recAmount.Mul(txData.amount, big.NewInt(int64(-1)))
 
@@ -221,6 +224,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				if methods[it].semantics == FIFO {
 					// TODO: This starts on line 568, ill come back to it and review
 					for it0 := 0; it0 != it; it0++ {
+
 						// serializability, correctness condition. 576 TODO
 						if v.correctnessCondition(it0,it,methods) {
 							itItems0 := it0
@@ -246,7 +250,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 					if items[itItems].sum > 0 {
 						items[itItems].sumR = 0
 					}
-
+					println("251")
 					// line 637
 					items[itItems].subInt(1)
 					items[itItems].status = ABSENT
@@ -302,6 +306,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		outcome := true
 
 		for itVerify := 0; itVerify < len(items); itVerify++ {
+			v.globalCount++
 			if items[itVerify].sum < 0 {
 				outcome = false
 			}else if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
@@ -405,6 +410,8 @@ func (v *Verifier) verify() {
 	}
 
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
+	println(v.globalCount)
+	println()
 }
 
 func (v *Verifier) Verify() bool{
@@ -417,6 +424,6 @@ func (v *Verifier) ConcurrentVerify() {
 }
 
 func (v *Verifier) correctnessCondition(index0, index1 int, methods []Method) bool {
-	return methods[index0].itemAddrS == methods[index1].itemAddrS &&
-		methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
+	//return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
+	return true
 }
