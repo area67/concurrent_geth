@@ -250,7 +250,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 					if items[itItems].sum > 0 {
 						items[itItems].sumR = 0
 					}
-					println("251")
+					//println("251")
 					// line 637
 					items[itItems].subInt(1)
 					items[itItems].status = ABSENT
