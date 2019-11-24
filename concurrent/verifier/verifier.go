@@ -8,6 +8,7 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 	Atomic "sync/atomic"
 )
@@ -133,36 +134,23 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 
 }
 
-func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, mk int, it int, stackFailed *stack.Stack) {
-	for it0 := 0; it0 != it + 1; it0++ {
+func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, it int, itItem int, stackFailed *stack.Stack) {
+	for it0 := 0; it0 != it; it0++ {
 		// serializability
-		//todo: > or <
-		if methods[it0].itemAddrS == methods[it].itemAddrS &&
-			methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
-			methods[it0].id < methods[it].id {
+		//451
+		if  v.correctnessCondition(it0,it,methods){
 
-			itemItr0 := methods[it0].itemAddrS
+		 	//methods[it0].itemAddrS == methods[itItem].itemAddrS &&
+			//methods[it0].requestAmnt.Cmp(methods[itItem].requestAmnt) == LESS &&
+			//methods[it0].id < methods[itItem].id
+
+			itemItr0 := items[it0].key
 
 			//if methods[it0].types == PRODUCER &&
 			if methods[it0].types == CONSUMER &&
-				items[it].status == PRESENT &&
+				items[itItem].status == PRESENT &&
 				methods[it0].semantics == FIFO ||
-				methods[it0].semantics == LIFO ||
-				methods[it].itemAddrS == methods[it0].itemAddrS {
-				stackFailed.Push(itemItr0)
-			}
-		} else if methods[it0].itemAddrS == methods[it].itemAddrS &&
-					methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
-					methods[it0].id > methods[it].id {
-
-
-			itemItr0 := methods[it0].itemAddrS
-
-			if methods[it0].types == CONSUMER &&
-				items[it].status == PRESENT &&
-				methods[it0].semantics == FIFO ||
-				methods[it0].semantics == LIFO ||
-				methods[it].itemAddrS == methods[it0].itemAddrS {
+				strings.Compare(methods[itItem].itemAddrS,methods[it0].itemAddrS) == EQUAL{
 				stackFailed.Push(itemItr0)
 			}
 		}
