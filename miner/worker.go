@@ -903,7 +903,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
-			tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
+			//tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
