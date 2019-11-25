@@ -2,6 +2,7 @@ package correctness_tool
 
 import (
 	"C"
+	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
 	"go.uber.org/atomic"
@@ -47,7 +48,7 @@ type Verifier struct {
 	finalOutcome    bool
 	done            []atomic.Bool
 	threadListsSize []atomic.Int32
-	threadLists     [][]Method
+	threadLists     []*list.List
 	numTxns         int32				// what are you?
 	isShuttingDown  bool
 	isRunning       bool
@@ -84,10 +85,10 @@ func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *Transa
 
 // constructor
 func NewVerifier() *Verifier {
-	lists :=  make([][]Method, concurrent.NumThreads)
+	lists :=  make([]*list.List, concurrent.NumThreads)
 
 	for i := 0 ; i < concurrent.NumThreads; i++ {
-		lists[i] = make([]Method, 0)
+		lists[i] = list.New()
 	}
 	return  &Verifier{
 		allSenders:      sync.Map{},//make(map[string]int),
@@ -129,8 +130,8 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
 	//println(txData.amount.String(), ", ", recAmount.String())
-	v.threadLists[txData.tId] = append(v.threadLists[txData.tId] , *method1)
-	v.threadLists[txData.tId] = append(v.threadLists[txData.tId], *method2)
+	v.threadLists[txData.tId].PushBack(*method1)
+	v.threadLists[txData.tId].PushBack(*method2)
 
 	// TODO: This was v.threadListsSize[txData.tId].Add(1), it should be 2 right?
 	// yes - Ross
@@ -138,7 +139,7 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 
 }
 
-func (v *Verifier) handleFailedConsumer(methods []Method, items []Item, it int, itItem int, stackFailed *stack.Stack) {
+func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int, itItem int, stackFailed *stack.Stack) {
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
 		//451
@@ -165,7 +166,7 @@ func (v *Verifier) Shutdown() {
 	v.isShuttingDown = true
 }
 
-func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int, countIterated *uint64, resetItStart bool) {
+func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
 
 	// TODO: This looks like a divergence from her code
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
@@ -208,7 +209,6 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 			itItems := it
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			if methods[it].types == PRODUCER {
-
 				items[itItems].producer = it
 
 				if items[itItems].status == ABSENT {
@@ -237,7 +237,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 
 								items[itItems0].promoteItems.Push(items[itItems].key)
 								items[itItems].demote()
-								items[itItems].demoteMethods = append(items[itItems].demoteMethods, &methods[it0])
+								items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
 							}
 						}
 					}
@@ -343,8 +343,10 @@ func (v *Verifier) verify() {
 
 	var countIterated uint64 = 0
 	Atomic.StoreInt64(&v.txnCtr, int64(Atomic.LoadInt32(&v.numTxns)))
-	methods := make([]Method, 0)
-	items := make([]Item, 0, v.txnCtr * 2)
+	//methods := make([]Method, 0)
+	methods := make(map[int]*Method)
+	//items := make([]Item, 0, v.txnCtr * 2)
+	items := make(map[int]*Item)
 	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
 	var itStart int
 
@@ -364,19 +366,14 @@ func (v *Verifier) verify() {
 			// TODO: This is where Christina has her thread.done() checking
 			// iterate thorough each thread's methods
 			//for itCount[i] < v.threadListsSize[i].Load() {
-			for j := range v.threadLists[tId]{
-
+			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
 				var m Method
 				// line 1259
-				if j < int(v.threadListsSize[tId].Load()) {
-					// get thread i's it[i]th method
-					m = v.threadLists[tId][j]
-				}
+				m = e.Value.(Method)
 
 				m.id = len(methods)
 
-				methods = append(methods, m)
-
+				methods[m.id] = &m
 				itCount[tId]++
 				countOverall++
 
@@ -400,7 +397,8 @@ func (v *Verifier) verify() {
 
 					item.producer = methodsEndIndex
 
-					items = append(items, item)
+					//items = append(items, item)
+					items[item.key] = &item
 
 				}
 			}
@@ -410,8 +408,6 @@ func (v *Verifier) verify() {
 	}
 
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
-	println(v.globalCount)
-	println()
 }
 
 func (v *Verifier) Verify() bool{
@@ -423,7 +419,6 @@ func (v *Verifier) ConcurrentVerify() {
 	go v.verify()
 }
 
-func (v *Verifier) correctnessCondition(index0, index1 int, methods []Method) bool {
-	//return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
-	return true
+func (v *Verifier) correctnessCondition(index0, index1 int, methods map[int]*Method) bool {
+	return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
 }
