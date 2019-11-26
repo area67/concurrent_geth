@@ -182,7 +182,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 					items[it].demoteMethods.Init()
 				}
 
-				// What does addInt do in this context? something to do with promotion/demotion scheme?
 				items[it].addInt(1)
 				if methods[it].semantics == FIFO {
 					// TODO: This starts on line 568, ill come back to it and review
@@ -191,16 +190,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						// increment global count for big Oh calculation
 						v.GlobalCount++
 						// serializability, correctness condition. 576 TODO
-						if v.correctnessCondition(it0,it,methods) {
-							// itItems0 := it0
-
-							// Demotion if meet correctness condition?
-							// FIFO Semantics
-							//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
-
-							// promote/ demote based on amount that is being transfered
-							//if (methods[it0].types == PRODUCER && items[it0].status == PRESENT) &&
-							//	(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+						if methods[it0].itemAddrS == methods[it].itemAddrS {
 							//TODO: Ask christina why demoteMethods is never emptied
 							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
@@ -212,7 +202,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 								items[it0].demote()
 								items[it0].demoteMethods.PushBack(methods[it])
 							}
-
 						}
 					}
 				}
@@ -385,5 +374,5 @@ func (v *Verifier) ConcurrentVerify() {
 
 // transfer ampount < balance
 func (v *Verifier) correctnessCondition(index0, index1 int, methods map[int]*Method) bool {
-	return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
+	return methods[index0].itemAddrS == methods[index1].itemAddrS
 }

@@ -15,7 +15,7 @@ type Item struct {
 	exponent      float64
 	status        Status
 	promoteItems  stack.Stack
-	demoteMethods list.List // TODO: Convert this to a list
+	demoteMethods list.List
 	producer      int // map iterator
 
 	// Failed Consumer
