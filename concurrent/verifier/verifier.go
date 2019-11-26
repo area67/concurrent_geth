@@ -104,19 +104,14 @@ func NewVerifier() *Verifier {
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	index := Atomic.AddInt32(&v.numTxns, 1) - 1
-	methodIndex := index * 2
 	// could we get what we are looking for
 	var res bool
 
 	res = true
-	recAmount := big.NewInt(int64(1))
-	recAmount.Mul(txData.amount, big.NewInt(int64(-1)))
 
-	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
-	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
+	method1 := NewMethod(int(index),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(index), txData.amount,txData.tId)
 
 	v.threadLists[txData.tId].PushBack(*method1)
-	v.threadLists[txData.tId].PushBack(*method2)
 }
 
 func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int, itItem int, stackFailed *stack.Stack) {
@@ -207,13 +202,21 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 							// Demotion if meet correctness condition?
 							// FIFO Semantics
 							//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
-							if (methods[it0].types == PRODUCER && items[it0].status == PRESENT) &&
-								(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
+							// promote/ demote based on amount that is being transfered
+							//if (methods[it0].types == PRODUCER && items[it0].status == PRESENT) &&
+							//	(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
 								items[it].demote()
 								items[it].demoteMethods = append(items[it].demoteMethods, methods[it0])
+
+							} 	else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+								items[it].promoteItems.Push(items[it0].key)
+								items[it0].demote()
+								items[it0].demoteMethods = append(items[it0].demoteMethods, methods[it])
 							}
+
 						}
 					}
 				}
