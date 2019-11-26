@@ -208,7 +208,11 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						}
 					}
 				}
-			} else if methods[it].types == CONSUMER {
+				// set as consumer when done?
+				methods[it].types =CONSUMER
+
+			}
+			if methods[it].types == CONSUMER {
 				// Do what if method is a consumer
 				if methods[it].status == true {
 					// promote reads
@@ -231,6 +235,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 					v.handleFailedConsumer(methods, items, it, it, &stackFailed)
 				}
 			}
+			// do we change back to producer
 		}
 		if resetItStart {
 			*itStart--
