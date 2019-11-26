@@ -224,7 +224,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 				if methods[it].semantics == FIFO {
 					// TODO: This starts on line 568, ill come back to it and review
 					for it0 := 0; it0 != it; it0++ {
-
+						v.globalCount++
 						// serializability, correctness condition. 576 TODO
 						if v.correctnessCondition(it0,it,methods) {
 							itItems0 := it0
@@ -306,7 +306,7 @@ func (v *Verifier) verifyCheckpoint(methods []Method, items []Item, itStart *int
 		outcome := true
 
 		for itVerify := 0; itVerify < len(items); itVerify++ {
-			v.globalCount++
+
 			if items[itVerify].sum < 0 {
 				outcome = false
 			}else if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
@@ -410,8 +410,8 @@ func (v *Verifier) verify() {
 	}
 
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
-	println(v.globalCount)
-	println()
+	//println(v.globalCount)
+	//println()
 }
 
 func (v *Verifier) Verify() bool{
