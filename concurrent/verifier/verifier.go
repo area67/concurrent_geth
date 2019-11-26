@@ -179,61 +179,67 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 			resetItStart = false
 			*countIterated++
 
-			itItems := it
+			// itItems := it
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
+			// do what if method is a producer?
 			if methods[it].types == PRODUCER {
-				items[itItems].producer = it
+				// set the itItems producer to it. indexes used as keys
+				items[it].producer = it
 
-				if items[itItems].status == ABSENT {
+				if items[it].status == ABSENT {
 
 					// reset item parameters
-					items[itItems].status = PRESENT
-					items[itItems].demoteMethods = nil
+					items[it].status = PRESENT
+					// clear item's demote methods
+					items[it].demoteMethods = nil
 				}
 
-				items[itItems].addInt(1)
+				// What does addInt do in this context? something to do with promotion/demotion scheme?
+				items[it].addInt(1)
 				if methods[it].semantics == FIFO {
 					// TODO: This starts on line 568, ill come back to it and review
 					for it0 := 0; it0 != it; it0++ {
+						// starts at first index and works up to current index
+						// increment global count for big Oh calculation
 						v.GlobalCount++
 						// serializability, correctness condition. 576 TODO
 						if v.correctnessCondition(it0,it,methods) {
-							itItems0 := it0
+							// itItems0 := it0
 
-							// Demotion
+							// Demotion if meet correctness condition?
 							// FIFO Semantics
 							//if (methods.items[it0].(Method).types == PRODUCER && items.items[int(itItems0)].(Item).status == PRESENT) &&
-							if (methods[it0].types == PRODUCER && items[itItems0].status == PRESENT) &&
+							if (methods[it0].types == PRODUCER && items[it0].status == PRESENT) &&
 								(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
 
-								items[itItems0].promoteItems.Push(items[itItems].key)
-								items[itItems].demote()
-								items[itItems].demoteMethods = append(items[itItems].demoteMethods, methods[it0])
+								items[it0].promoteItems.Push(items[it].key)
+								items[it].demote()
+								items[it].demoteMethods = append(items[it].demoteMethods, methods[it0])
 							}
 						}
 					}
 				}
-			}
-
-			if methods[it].types == CONSUMER {
-
+			} else if methods[it].types == CONSUMER {
+				// Do what if method is a consumer
 				if methods[it].status == true {
-					if items[itItems].sum > 0 {
-						items[itItems].sumR = 0
+					// promote reads
+					if items[it].sum > 0 {
+						items[it].sumR = 0
 					}
 					//println("251")
 					// line 637
-					items[itItems].subInt(1)
-					items[itItems].status = ABSENT
+					// sub on consumer?
+					items[it].subInt(1)
+					items[it].status = ABSENT
 
-					stackConsumer.Push(itItems)
+					stackConsumer.Push(it)
 					stackFinishedMethods.Push(it)
 
-					if items[itItems].producer != end {
-						stackFinishedMethods.Push(items[itItems].producer)
+					if items[it].producer != end {
+						stackFinishedMethods.Push(items[it].producer)
 					}
 				} else {
-					v.handleFailedConsumer(methods, items, it, itItems, &stackFailed)
+					v.handleFailedConsumer(methods, items, it, it, &stackFailed)
 				}
 			}
 		}
@@ -243,13 +249,19 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 		for stackConsumer.Len() != 0 {
 
+			// get next item index to whose demoted items need to be promoted
+			// itTop not a good var name in this case
 			itTop, _ := stackConsumer.Peek().(int)
 
 			// 717
+
 			for items[itTop].promoteItems.Len() != 0 {
 				// TODO: Review this section in her code, it may diverge slightly in logic. Line 718
+				// get the top item to promote from items's stack of items to promote
 				itemPromote := items[itTop].promoteItems.Peek().(int)
+				// promote item
 				items[itemPromote].promote()
+				// finished. pop and move to next item to promote
 				items[itTop].promoteItems.Pop()
 			}
 			stackConsumer.Pop()
@@ -269,8 +281,8 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 		// remove methods from
 		for stackFinishedMethods.Len() != 0 {
-			// TODO: may need to remove items from methods
-			//delete(methods, ??)
+			// TODO: may need to remove items from methods. if we want to delete need to convert methods and items to map
+			//delete(methods, key) // problem: keys are indexes which would change if we remove items from slice
 			stackFinishedMethods.Pop()
 		}
 

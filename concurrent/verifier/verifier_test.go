@@ -18,6 +18,10 @@ type Data struct {
 
 var data [MAXTXNS]Data
 
+func TestSimpleVerifierFunction(t *testing.T){
+
+}
+
 func TestVerifierFunction(t *testing.T) {
 	// Generating 50 random transactions
 	//var hexRunes = []rune("123456789abcdef")
@@ -28,15 +32,15 @@ func TestVerifierFunction(t *testing.T) {
 	//var transactions [50]TransactionData
 	var numAccounts = 50
 	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var reciverKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
 	var transactionSenders = make([]common.Address,numAccounts)
 	var transactionReceivers = make([]common.Address,numAccounts)
 
 	for i := 0; i<numAccounts; i++{
 		senderKeys[i],_ = crypto.GenerateKey()
-		reciverKeys[i],_ = crypto.GenerateKey()
+		receiverKeys[i],_ = crypto.GenerateKey()
 		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
-		transactionReceivers[i] = crypto.PubkeyToAddress(reciverKeys[i].PublicKey)
+		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
 	}
 
 	for i := 0; i < concurrent.NumThreads; i++ {
