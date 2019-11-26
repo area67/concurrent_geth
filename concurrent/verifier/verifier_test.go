@@ -129,33 +129,3 @@ func TestValidHistory(t *testing.T) {
 		t.Errorf("Good history fails verifier")
 	}
 }
-
-func TestCorrectnessConditionPass(t *testing.T){
-	var result bool
-	v := NewVerifier()
-
-	methods := make(map[int]*Method)
-	// large txn first
-	methods[0]= NewMethod(0,"a","b",FIFO,PRODUCER,true,big.NewInt(10))
-	methods[1]= NewMethod(1,"a","c",FIFO,PRODUCER,true,big.NewInt(9))
-	result = v.correctnessCondition(0,1,methods)
-
-	if !result{
-		t.Errorf("Failed correctness condition when we should pass")
-	}
-}
-
-func TestCorrectnessConditionFail(t *testing.T){
-	var result bool
-	v := NewVerifier()
-
-	methods := make(map[int]*Method)
-	// small txn first
-	methods[0]= NewMethod(0,"a","b",FIFO,PRODUCER,true,big.NewInt(10))
-	methods[1]= NewMethod(1,"a","c",FIFO,PRODUCER,true,big.NewInt(11))
-	result = v.correctnessCondition(0,1,methods)
-
-	if result{
-		t.Errorf("Passed correctness condition when we should fail")
-	}
-}

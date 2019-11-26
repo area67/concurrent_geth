@@ -8,7 +8,6 @@ import (
 	"go.uber.org/atomic"
 	"math"
 	"math/big"
-	"strings"
 	"sync"
 	Atomic "sync/atomic"
 )
@@ -110,23 +109,31 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	v.threadLists[txData.tId].PushBack(*method1)
 }
 
-func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int, itItem int, stackFailed *stack.Stack) {
+func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
+
+		// TODO: Ask Christina, if handle failed consumer uses the same set of if statements from verifyCheckpoint
+		/*
+		if methods[it0].itemAddrS == methods[it].itemAddrS {
+			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+
+
+			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+
+			}
+		}
+
+		*/
 		//451
 		if  v.correctnessCondition(it0,it,methods){
-
-		 	//methods[it0].itemAddrS == methods[itItem].itemAddrS &&
-			//methods[it0].requestAmnt.Cmp(methods[itItem].requestAmnt) == LESS &&
-			//methods[it0].id < methods[itItem].id
-
 			itemItr0 := items[it0].key
 
 			//if methods[it0].types == PRODUCER &&
 			if methods[it0].types == CONSUMER &&
-				items[itItem].status == PRESENT &&
+				items[it].status == PRESENT &&
 				methods[it0].semantics == FIFO ||
-				strings.Compare(methods[itItem].itemAddrS,methods[it0].itemAddrS) == EQUAL{
+				methods[it].itemAddrS == methods[it0].itemAddrS {
 				stackFailed.Push(itemItr0)
 			}
 		}
@@ -208,7 +215,9 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						}
 					}
 				}
-			} else if methods[it].types == CONSUMER {
+			}
+
+			if methods[it].types == CONSUMER {
 				// Do what if method is a consumer
 				if methods[it].status == true {
 					// promote reads
@@ -228,7 +237,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						stackFinishedMethods.Push(items[it].producer)
 					}
 				} else {
-					v.handleFailedConsumer(methods, items, it, it, &stackFailed)
+					v.handleFailedConsumer(methods, items, it, &stackFailed)
 				}
 			}
 		}
