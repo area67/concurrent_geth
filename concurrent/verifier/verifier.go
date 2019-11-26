@@ -22,11 +22,9 @@ type Method struct {
 	id          int       // atomic var
 	itemAddrS    string       // sender account address
 	itemAddrR    string   // receiver account address
-	itemBalance int       // account balance
 	semantics   Semantics // hardcode as FIFO per last email
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
-	senderID    int       // same as itemAddr ??
 	requestAmnt *big.Int
 	// txnCtr      int32
 }
@@ -55,13 +53,11 @@ type Verifier struct {
 }
 
 // method constructor
-func  NewMethod(id int, itemAddrS string, itemAddrR string, itemBalance int, semantics Semantics,
-	types Types, status bool, senderID int, requestAmnt *big.Int, txnCtr int32)*Method {
+func  NewMethod(id int, itemAddrS string, itemAddrR string, semantics Semantics, types Types, status bool, requestAmnt *big.Int) *Method {
 	return &Method{
 		id: id,
 		itemAddrS: itemAddrS,
 		itemAddrR: itemAddrR,
-		itemBalance: itemBalance,
 		semantics: semantics,
 		types: types,
 		status: status,
@@ -108,8 +104,7 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	var res bool
 
 	res = true
-
-	method1 := NewMethod(int(index),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(index), txData.amount,txData.tId)
+	method1 := NewMethod(int(index), txData.addrSender, txData.addrReceiver, FIFO, PRODUCER, res, txData.amount)
 
 	v.threadLists[txData.tId].PushBack(*method1)
 }
@@ -184,7 +179,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 					// reset item parameters
 					items[it].status = PRESENT
 					// clear item's demote methods
-					items[it].demoteMethods = nil
+					items[it].demoteMethods.Init()
 				}
 
 				// What does addInt do in this context? something to do with promotion/demotion scheme?
@@ -206,15 +201,16 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 							// promote/ demote based on amount that is being transfered
 							//if (methods[it0].types == PRODUCER && items[it0].status == PRESENT) &&
 							//	(methods[it].types == PRODUCER && methods[it0].semantics == FIFO) {
+							//TODO: Ask christina why demoteMethods is never emptied
 							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
 								items[it].demote()
-								items[it].demoteMethods = append(items[it].demoteMethods, methods[it0])
+								items[it].demoteMethods.PushBack(methods[it0])
 
 							} 	else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it].promoteItems.Push(items[it0].key)
 								items[it0].demote()
-								items[it0].demoteMethods = append(items[it0].demoteMethods, methods[it])
+								items[it0].demoteMethods.PushBack(methods[it])
 							}
 
 						}

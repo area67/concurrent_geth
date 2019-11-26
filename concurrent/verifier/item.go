@@ -1,6 +1,7 @@
 package correctness_tool
 
 import (
+	"container/list"
 	"github.com/golang-collections/collections/stack"
 	"math"
 )
@@ -14,7 +15,7 @@ type Item struct {
 	exponent      float64
 	status        Status
 	promoteItems  stack.Stack
-	demoteMethods []*Method // TODO: Convert this to a list
+	demoteMethods list.List // TODO: Convert this to a list
 	producer      int // map iterator
 
 	// Failed Consumer
@@ -47,6 +48,7 @@ func NewItem(key int) *Item {
 		numeratorR: 0,
 		denominatorR: 1,
 		exponentR: 0,
+		demoteMethods: list.List{},
 	}
 }
 
