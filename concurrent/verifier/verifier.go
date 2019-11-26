@@ -42,18 +42,16 @@ type TransactionData struct {
 
 type Verifier struct {
 	allSenders      sync.Map // have we seen this address before //map[string]int
-	transactions    []TransactionData
 	txnCtr          int64				// counts up
 	methodCount     int32
 	finalOutcome    bool
 	done            []atomic.Bool
-	threadListsSize []atomic.Int32
 	threadLists     []*list.List
 	numTxns         int32				// what are you?
 	isShuttingDown  bool
 	isRunning       bool
 	txnLock         sync.Mutex
-	globalCount 	int32
+	GlobalCount     int32
 }
 
 // method constructor
@@ -93,35 +91,23 @@ func NewVerifier() *Verifier {
 	return  &Verifier{
 		allSenders:      sync.Map{},//make(map[string]int),
 		txnCtr:          0,
-		transactions:    make([]TransactionData, 200),
 		methodCount:     0,
 		finalOutcome:    true,
 		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
-		threadListsSize: make([]atomic.Int32, concurrent.NumThreads, concurrent.NumThreads),
 		threadLists:     lists,
 		numTxns:         0,
 		isRunning:       true,
 		isShuttingDown:  false,
-		globalCount:     0,
+		GlobalCount:     0,
 	}
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	index := Atomic.AddInt32(&v.numTxns, 1) - 1
-	v.transactions[index] = *txData
 	methodIndex := index * 2
 	// could we get what we are looking for
 	var res bool
-	// if seen address before
-	// TODO: Ask Christina. Should this be a toggle every time we see a sender?
-	//if _,seen := v.allSenders.LoadOrStore(txData.addrSender,1); seen {
-	//	//
-	//	v.allSenders.Store(txData.addrSender, 0)
-	//	res = false
-	//} else {
-	//	v.allSenders.Store(txData.addrSender,1)
-	//	res = true
-	//}
+
 	res = true
 	recAmount := big.NewInt(int64(1))
 	recAmount.Mul(txData.amount, big.NewInt(int64(-1)))
@@ -129,14 +115,8 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	method1 := NewMethod(int(methodIndex),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,PRODUCER,res,int(methodIndex), txData.amount,txData.tId)
 	method2 := NewMethod(int(methodIndex + 1),txData.addrSender,txData.addrReceiver,txData.balanceSender,FIFO,CONSUMER,res,int(methodIndex+1),recAmount,txData.tId)
 
-	//println(txData.amount.String(), ", ", recAmount.String())
 	v.threadLists[txData.tId].PushBack(*method1)
 	v.threadLists[txData.tId].PushBack(*method2)
-
-	// TODO: This was v.threadListsSize[txData.tId].Add(1), it should be 2 right?
-	// yes - Ross
-	v.threadListsSize[txData.tId].Add(2)
-
 }
 
 func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int, itItem int, stackFailed *stack.Stack) {
@@ -168,7 +148,6 @@ func (v *Verifier) Shutdown() {
 
 func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
 
-	// TODO: This looks like a divergence from her code
 	var stackConsumer = stack.New()      // stack of map[int64]*Item
 	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
 	var stackFailed stack.Stack          // stack of map[int64]*Item
@@ -183,29 +162,23 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 		//TODO: corner case
 		if *countIterated == 0 {
-			// TODO: in her code: it=map_methods.begin();
-			//		shouldn't this be it = 0?
 			resetItStart = false
 		} else if it != end {
 			*itStart = *itStart + 1
 			it = *itStart
 		}
 
-		// TODO: isnt len(methods) equal to "end" in this code?
 		for ; it < len(methods); it++ {
 
 
 			// TODO: Minor, but v.methodCount++
-			v.methodCount = v.methodCount + 1
+			v.methodCount++
 
-			// TODO in her code itStart is an iterator, because this is a sequential program, does itStart need to be a pointer?
 			// 532
 			*itStart = it
 			resetItStart = false
 			*countIterated++
 
-			// TODO: This diverges from her code i believe. it_item = map_items.find(it->second.item_key);
-			//			it could contain this value, but if it does im a little confused by it
 			itItems := it
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			if methods[it].types == PRODUCER {
@@ -215,16 +188,14 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 					// reset item parameters
 					items[itItems].status = PRESENT
-					// TODO: Minor, but this should probably be a go List object to better mirror her code, go slices are very expensive
 					items[itItems].demoteMethods = nil
 				}
 
 				items[itItems].addInt(1)
-				// TODO: If our semantics are constant can we remove this?
 				if methods[it].semantics == FIFO {
 					// TODO: This starts on line 568, ill come back to it and review
 					for it0 := 0; it0 != it; it0++ {
-
+						v.GlobalCount++
 						// serializability, correctness condition. 576 TODO
 						if v.correctnessCondition(it0,it,methods) {
 							itItems0 := it0
@@ -299,6 +270,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 		// remove methods from
 		for stackFinishedMethods.Len() != 0 {
 			// TODO: may need to remove items from methods
+			//delete(methods, ??)
 			stackFinishedMethods.Pop()
 		}
 
@@ -306,7 +278,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 		outcome := true
 
 		for itVerify := 0; itVerify < len(items); itVerify++ {
-			v.globalCount++
 			if items[itVerify].sum < 0 {
 				outcome = false
 			}else if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
@@ -324,20 +295,14 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 			if (math.Ceil(items[itVerify].sum)+items[itVerify].sumF)*float64(n) < 0 {
 				outcome = false
 			}
-
 		}
 		if outcome == true {
 			v.finalOutcome = true
-			 //fmt.Println("-------------Program Correct Up To This Point-------------")
 		} else {
 			v.finalOutcome = false
-
-			 //fmt.Println("-------------Program Not Correct-------------")
-		}
+			}
 	}
 }
-
-
 
 func (v *Verifier) verify() {
 
@@ -353,7 +318,6 @@ func (v *Verifier) verify() {
 	stop := false
 	var countOverall uint32 = 0
 
-
 	//var oldMin int64
 	itCount := make([]int32, concurrent.NumThreads)
 
@@ -364,9 +328,12 @@ func (v *Verifier) verify() {
 		for tId := 0; tId < concurrent.NumThreads; tId++ {
 
 			// TODO: This is where Christina has her thread.done() checking
+			// can maybe use the shutdown function here, this object may need a wait group to signal when verify has finished
+
 			// iterate thorough each thread's methods
 			//for itCount[i] < v.threadListsSize[i].Load() {
 			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
+				// TODO: For concurrent execution can potentially store the list, atomic swap in a new list then evaluate.
 				var m Method
 				// line 1259
 				m = e.Value.(Method)
@@ -381,16 +348,12 @@ func (v *Verifier) verify() {
 
 				itItemIndex :=  m.id
 
-
 				itemsEndIndex := len(items)
 				methodsEndIndex := len(methods)-1
 
 				// line 1277
 				// do something if current item is last item
 				if itItemIndex == itemsEndIndex {
-					// TODO: look at the logic of this section, in her code she uses a map(k,v)
-					// 		to map item keys to items, why are we not using a map? there also is no
-					// 		key stored here. is that not important?
 					var item Item
 
 					item.setItem(m.id)
@@ -399,11 +362,9 @@ func (v *Verifier) verify() {
 
 					//items = append(items, item)
 					items[item.key] = &item
-
 				}
 			}
 		}
-
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
 
@@ -419,6 +380,7 @@ func (v *Verifier) ConcurrentVerify() {
 	go v.verify()
 }
 
+// transfer ampount < balance
 func (v *Verifier) correctnessCondition(index0, index1 int, methods map[int]*Method) bool {
 	return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
 }

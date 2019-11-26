@@ -63,30 +63,30 @@ for index in threadVals :
 
 
 # get control data
-ctlData = pd.read_csv("control.txt",sep="\t", names=['Threads','Throughput'])
+#ctlData = pd.read_csv("control.txt",sep="\t", names=['Threads','Throughput'])
 # An array of threadcount values
-ctlThreadVals = ctlData.sort_values(by=['Threads']).Threads.unique()
+#ctlThreadVals = ctlData.sort_values(by=['Threads']).Threads.unique()
 # The array which will be filled with the average throughput of a given threadcount.
-ctlAverage = []
+#ctlAverage = []
 # The array which will be filled with the std dev throughput of a given threadcount.
-ctlStdError = []
+#ctlStdError = []
 
 # foreach threadcount with data
-for index in ctlThreadVals :
+#for index in ctlThreadVals :
     #get the throughput values for a given threadcount
-    row = ctlData[ctlData["Threads"] == index].Throughput
-    #compute the mean
-    ctlAverage.append(row.mean())
+ #   row = ctlData[ctlData["Threads"] == index].Throughput
+  #  #compute the mean
+   # ctlAverage.append(row.mean())
     #compute the std dev
-    ctlStdError.append(row.std())
+    #ctlStdError.append(row.std())
 
 # Build the barplot
 x_pos = np.arange(len(threadVals))
 fig, ax = plt.subplots()
 # ctlLine, = ax.plot(x_pos,ctlAverage,color="red",linewidth=2.5, linestyle="--")
 
-dataBars = ax.bar(x_pos-.15, toolAverage, yerr=toolStdError, width=.3 , alpha=0.5, ecolor='black', capsize=10)
-dataBars2 = ax.bar(x_pos+.15, noToolAverage, yerr=noToolStdError, width=.3 , alpha=0.5, ecolor='black', capsize=10)
+dataBars = ax.bar(x_pos-.15, toolAverage, yerr=toolStdError, color='#5c584f', align='center', width=.3 , alpha=0.5, ecolor='black', capsize=10)
+dataBars2 = ax.bar(x_pos+.15, noToolAverage, yerr=noToolStdError, color='#d49402', align='center', width=.3 , alpha=0.5, ecolor='black', capsize=10)
 
 ax.set_ylabel('Txns / Second')
 ax.set_xlabel('Threads')

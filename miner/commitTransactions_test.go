@@ -59,7 +59,7 @@ func init() {
 				// dont send to self
 				recipientIndex =(recipientIndex+1)% len(addresses)
 			}
-			t , _ := types.SignTx(types.NewTransaction(uint64(i), addresses[recipientIndex], big.NewInt(1), params.TxGas, nil, nil), types.HomesteadSigner{}, keys[a])
+			t , _ := types.SignTx(types.NewTransaction(uint64(i), addresses[recipientIndex], big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, keys[a])
 			//nonce++
 			txs = append(txs, t )
 			allTxs = append(allTxs, t )
