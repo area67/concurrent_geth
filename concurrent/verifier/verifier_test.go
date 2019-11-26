@@ -9,14 +9,61 @@ import (
 	"testing"
 )
 
-type Data struct {
+type TxnTestData struct {
 	sender string
 	receiver string
 	amount int
 	tId int
 }
 
-var data [MAXTXNS]Data
+var transactionData [MAXTXNS]TxnTestData
+
+/*
+called before each test case?
+*/
+func init(){
+
+}
+
+/*
+The dumbest, smallest test case possible
+*/
+func TestSimpleVerifierFunction(t *testing.T){
+
+	var numAccounts = 2
+	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	var transactionSenders = make([]common.Address,numAccounts)
+	var transactionReceivers = make([]common.Address,numAccounts)
+	var txnDatum TxnTestData
+	//var numTestThreads = 2
+	var result bool
+	v := NewVerifier()
+
+	for i := 0; i<numAccounts; i++{
+		senderKeys[i],_ = crypto.GenerateKey()
+		receiverKeys[i],_ = crypto.GenerateKey()
+		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
+		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
+	}
+
+	// single thread, single txn
+	txnDatum.sender = transactionSenders[0].String()
+	txnDatum.receiver =  transactionReceivers[0].String()
+	txnDatum.tId = 0
+	txnDatum.amount = 50
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+
+	result = v.Verify()
+	// expect true
+	if !result{
+		t.Errorf("Single transaction on sigle thread failed verifier")
+	}
+
+
+
+
+}
 
 func TestVerifierFunction(t *testing.T) {
 	// Generating 50 random transactions
@@ -28,35 +75,35 @@ func TestVerifierFunction(t *testing.T) {
 	//var transactions [50]TransactionData
 	var numAccounts = 50
 	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var reciverKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
 	var transactionSenders = make([]common.Address,numAccounts)
 	var transactionReceivers = make([]common.Address,numAccounts)
 
 	for i := 0; i<numAccounts; i++{
 		senderKeys[i],_ = crypto.GenerateKey()
-		reciverKeys[i],_ = crypto.GenerateKey()
+		receiverKeys[i],_ = crypto.GenerateKey()
 		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
-		transactionReceivers[i] = crypto.PubkeyToAddress(reciverKeys[i].PublicKey)
+		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
 	}
 
 	for i := 0; i < concurrent.NumThreads; i++ {
 
 		if i == 0 {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 50
-			control = data[i].sender
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 50
+			control = transactionData[i].sender
 		} else if i == 1 {
-			data[i].sender = control
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 51
+			transactionData[i].sender = control
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 51
 		} else {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 49
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 49
 		}
-		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
-		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(int64(data[i].amount)), int32(data[i].tId)))
+		transactionData[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
+		v.LockFreeAddTxn(NewTxData(transactionData[i].sender, transactionData[i].receiver,  big.NewInt(int64(transactionData[i].amount)), int32(transactionData[i].tId)))
 	}
 
 
@@ -74,21 +121,21 @@ func TestVerifierFunction(t *testing.T) {
 	for i := 0; i < concurrent.NumThreads; i++ {
 
 		if i == 0 {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 50
-			control = data[i].sender
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 50
+			control = transactionData[i].sender
 		} else if i == 1 {
-			data[i].sender = control
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 51
+			transactionData[i].sender = control
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 51
 		} else {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 52
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 52
 		}
-		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
-		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(int64(data[i].amount)), int32(data[i].tId)))
+		transactionData[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
+		v.LockFreeAddTxn(NewTxData(transactionData[i].sender, transactionData[i].receiver,  big.NewInt(int64(transactionData[i].amount)), int32(transactionData[i].tId)))
 	}
 
 	result = v.Verify()
@@ -104,21 +151,21 @@ func TestVerifierFunction(t *testing.T) {
 	for i := 0; i < concurrent.NumThreads; i++ {
 
 		if i == 0 {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 52
-			control = data[i].sender
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 52
+			control = transactionData[i].sender
 		} else if i == 1 {
-			data[i].sender = control
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 51
+			transactionData[i].sender = control
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 51
 		} else {
-			data[i].sender = transactionSenders[i].String()
-			data[i].receiver = transactionReceivers[i].String()
-			data[i].amount = 50
+			transactionData[i].sender = transactionSenders[i].String()
+			transactionData[i].receiver = transactionReceivers[i].String()
+			transactionData[i].amount = 50
 		}
-		data[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
-		v.LockFreeAddTxn(NewTxData(data[i].sender, data[i].receiver,  big.NewInt(int64(data[i].amount)), int32(data[i].tId)))
+		transactionData[i].tId = i%4 //int(atomic.LoadInt32(&v.numTxns))
+		v.LockFreeAddTxn(NewTxData(transactionData[i].sender, transactionData[i].receiver,  big.NewInt(int64(transactionData[i].amount)), int32(transactionData[i].tId)))
 	}
 	// TODO: transactions we expect to pass
 	result = v.Verify()

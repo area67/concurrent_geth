@@ -68,6 +68,9 @@ func (i *Item) SetItemKV(key int, value int) {
 	i.exponentR = 0
 }
 
+/*
+modify sum
+*/
 func (i *Item) addInt(x int64) {
 
 	// C.printf("Test add function\n")
