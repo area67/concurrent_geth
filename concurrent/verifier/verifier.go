@@ -99,6 +99,7 @@ func NewVerifier() *Verifier {
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
+	// ordering of when transactions come in. used for ordering?
 	index := Atomic.AddInt32(&v.numTxns, 1) - 1
 	// could we get what we are looking for
 	var res bool
@@ -192,6 +193,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						v.GlobalCount++
 						// serializability, correctness condition. 576 TODO
 						if v.correctnessCondition(it0,it,methods) {
+							println("Pass Correctness condition")
 							// itItems0 := it0
 
 							// Demotion if meet correctness condition?
@@ -205,11 +207,13 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
 								items[it].demote()
+								println("at demotion 1")
 								items[it].demoteMethods.PushBack(methods[it0])
 
-							} 	else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+							} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it].promoteItems.Push(items[it0].key)
 								items[it0].demote()
+								println("at demotion 2")
 								items[it0].demoteMethods.PushBack(methods[it])
 							}
 
@@ -347,7 +351,6 @@ func (v *Verifier) verify() {
 				// line 1259
 				m = e.Value.(Method)
 
-				m.id = len(methods)
 
 				// Add the method and items to the map, both use m.id as the key
 
@@ -385,5 +388,5 @@ func (v *Verifier) ConcurrentVerify() {
 
 // transfer ampount < balance
 func (v *Verifier) correctnessCondition(index0, index1 int, methods map[int]*Method) bool {
-	return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index0].requestAmnt.Cmp(methods[index1].requestAmnt) == LESS
+	return methods[index0].itemAddrS == methods[index1].itemAddrS && methods[index1].requestAmnt.Cmp(methods[index0].requestAmnt) == LESS
 }

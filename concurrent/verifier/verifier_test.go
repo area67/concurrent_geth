@@ -3,7 +3,7 @@ package correctness_tool
 import (
 	"crypto/ecdsa"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concurrent"
+	//"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"testing"
@@ -16,13 +16,22 @@ type TxnTestData struct {
 	tId int
 }
 
-var transactionData [MAXTXNS]TxnTestData
-
+//var transactionData [MAXTXNS]TxnTestData
+var numAccounts = 50
+var transactionSenders = make([]common.Address,numAccounts)
+var transactionReceivers = make([]common.Address,numAccounts)
 /*
 called before each test case?
 */
 func init(){
-
+	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
+	for i := 0; i<numAccounts; i++{
+		senderKeys[i],_ = crypto.GenerateKey()
+		receiverKeys[i],_ = crypto.GenerateKey()
+		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
+		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
+	}
 }
 
 /*
@@ -30,22 +39,14 @@ The dumbest, smallest test case possible
 */
 func TestSimpleVerifierFunction(t *testing.T){
 
-	var numAccounts = 2
-	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var transactionSenders = make([]common.Address,numAccounts)
-	var transactionReceivers = make([]common.Address,numAccounts)
+	//var numAccounts = 2
+
 	var txnDatum TxnTestData
 	//var numTestThreads = 2
 	var result bool
 	v := NewVerifier()
 
-	for i := 0; i<numAccounts; i++{
-		senderKeys[i],_ = crypto.GenerateKey()
-		receiverKeys[i],_ = crypto.GenerateKey()
-		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
-		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
-	}
+
 
 	// single thread, single txn
 	txnDatum.sender = transactionSenders[0].String()
@@ -66,77 +67,95 @@ func TestSimpleVerifierFunction(t *testing.T){
 }
 
 func TestBadHistory(t *testing.T) {
-	// Generating 50 random transactions
-	//var hexRunes = []rune("123456789abcdef")
-	//var transactionSenders = make([]rune,16)
-	//var transactionReceivers = make([]rune,16)
-	var control string
+	var txnDatum TxnTestData
+	//var numTestThreads = 2
+	var result bool
 	v := NewVerifier()
-	//var transactions [50]TransactionData
-	var numAccounts = 50
-	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var transactionSenders = make([]common.Address,numAccounts)
-	var transactionReceivers = make([]common.Address,numAccounts)
-
-	for i := 0; i<numAccounts; i++{
-		senderKeys[i],_ = crypto.GenerateKey()
-		receiverKeys[i],_ = crypto.GenerateKey()
-		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
-		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
-	}
 
 
-	var result bool = v.Verify()
 
-	// assert false
+	// single thread, 2 txns
+	txnDatum.sender = transactionSenders[0].String()
+	txnDatum.receiver =  transactionReceivers[0].String()
+	txnDatum.tId = 0
+	txnDatum.amount = 50
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+
+
+	txnDatum.sender = transactionSenders[0].String()
+	txnDatum.receiver =  transactionReceivers[1].String()
+	txnDatum.tId = 0
+	txnDatum.amount = 55
+	// larger transaction comes after smaller on. should fail verifier
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+
+
+	result = v.Verify()
+
+	// expect to fail verifier
 	if result{
 		t.Errorf("Bad history passes verifier")
 	}
 }
 
 func TestValidHistory(t *testing.T) {
-	// Generating 50 random transactions
-	//var hexRunes = []rune("123456789abcdef")
-	//var transactionSenders = make([]rune,16)
-	//var transactionReceivers = make([]rune,16)
+	var txnDatum TxnTestData
+	//var numTestThreads = 2
 	var result bool
-	var control string
 	v := NewVerifier()
-	//var transactions [50]TransactionData
-	var numAccounts = 50
-	var senderKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var receiverKeys = make([]*ecdsa.PrivateKey,numAccounts)
-	var transactionSenders = make([]common.Address,numAccounts)
-	var transactionReceivers = make([]common.Address,numAccounts)
 
-	for i := 0; i<numAccounts; i++{
-		senderKeys[i],_ = crypto.GenerateKey()
-		receiverKeys[i],_ = crypto.GenerateKey()
-		transactionSenders[i] = crypto.PubkeyToAddress(senderKeys[i].PublicKey)
-		transactionReceivers[i] = crypto.PubkeyToAddress(receiverKeys[i].PublicKey)
-	}
 
-	// simple case we expect to pass
-	v = NewVerifier()
 
+	// single thread, 2 txns
+	txnDatum.sender = transactionSenders[0].String()
+	txnDatum.receiver =  transactionReceivers[0].String()
+	txnDatum.tId = 0
+	txnDatum.amount = 50
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+
+
+	txnDatum.sender = transactionSenders[0].String()
+	txnDatum.receiver =  transactionReceivers[1].String()
+	txnDatum.tId = 0
+	txnDatum.amount = 45
+	// larger transaction comes after smaller on. should fail verifier
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
 
 
 	result = v.Verify()
 
-	if ! result{
-		t.Errorf("Good history failed verifier")
+	// expect to pass verifier
+	if !result{
+		t.Errorf("Good history fails verifier")
 	}
+}
 
+func TestCorrectnessConditionPass(t *testing.T){
+	var result bool
+	v := NewVerifier()
 
-	// TODO: make test case that we expect to pass
-	v = NewVerifier()
+	methods := make(map[int]*Method)
+	// large txn first
+	methods[0]= NewMethod(0,"a","b",FIFO,PRODUCER,true,big.NewInt(10))
+	methods[1]= NewMethod(1,"a","c",FIFO,PRODUCER,true,big.NewInt(9))
+	result = v.correctnessCondition(0,1,methods)
 
+	if !result{
+		t.Errorf("Failed correctness condition when we should pass")
+	}
+}
 
-	// TODO: transactions we expect to pass
-	result = v.Verify()
+func TestCorrectnessConditionFail(t *testing.T){
+	var result bool
+	v := NewVerifier()
 
-	if ! result{
-		t.Errorf("Good history failed verifier")
+	methods := make(map[int]*Method)
+	// small txn first
+	methods[0]= NewMethod(0,"a","b",FIFO,PRODUCER,true,big.NewInt(10))
+	methods[1]= NewMethod(1,"a","c",FIFO,PRODUCER,true,big.NewInt(11))
+	result = v.correctnessCondition(0,1,methods)
+
+	if result{
+		t.Errorf("Passed correctness condition when we should fail")
 	}
 }
