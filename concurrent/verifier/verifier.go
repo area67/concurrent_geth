@@ -170,8 +170,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 		for ; it < len(methods); it++ {
 
-
-			// TODO: Minor, but v.methodCount++
 			v.methodCount++
 
 			// 532
@@ -300,7 +298,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 			v.finalOutcome = true
 		} else {
 			v.finalOutcome = false
-			}
+		}
 	}
 }
 
@@ -340,34 +338,28 @@ func (v *Verifier) verify() {
 
 				m.id = len(methods)
 
+				// Add the method and items to the map, both use m.id as the key
+
 				methods[m.id] = &m
 				itCount[tId]++
 				countOverall++
 
-				// look up item with given method, parallel arrays, use index
-
 				itItemIndex :=  m.id
 
+
 				itemsEndIndex := len(items)
-				methodsEndIndex := len(methods)-1
 
 				// line 1277
 				// do something if current item is last item
 				if itItemIndex == itemsEndIndex {
-					var item Item
-
-					item.setItem(m.id)
-
-					item.producer = methodsEndIndex
-
-					//items = append(items, item)
-					items[item.key] = &item
+					item := NewItem(m.id)
+					item.producer = m.id
+					items[item.key] = item
 				}
 			}
 		}
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
-
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 }
 

@@ -28,7 +28,7 @@ threadVals = toolDf.sort_values(by=['Threads']).Threads.unique()
 toolAverage = []
 # The array which will be filled with the std dev throughput of a given threadcount.
 toolStdError = []
-
+performanceDifference = []
 
 # foreach threadcount with data
 for index in threadVals :
@@ -38,7 +38,6 @@ for index in threadVals :
     toolAverage.append(row.mean())
     #compute the std dev
     toolStdError.append(row.std())
-
 
 
 # Parse the given csv
@@ -61,6 +60,9 @@ for index in threadVals :
     #compute the std dev
     noToolStdError.append(row.std())
 
+
+for index in range(len(threadVals)) :
+    performanceDifference.append(toolAverage[index] / noToolAverage[index] * 100)
 
 # get control data
 #ctlData = pd.read_csv("control.txt",sep="\t", names=['Threads','Throughput'])
@@ -98,3 +100,19 @@ fig.set_tight_layout(True)
 ax.legend((dataBars,dataBars2),('With Tool','W/o Tool'))
 # Save the figure
 plt.savefig(path + graphname +'.png')
+
+
+
+fig, ax = plt.subplots()
+differenceLine, = ax.plot(x_pos, performanceDifference,linewidth=2.5, color='#696969')
+ax.fill_between(x_pos, 50, performanceDifference, color='#b8b8b8')
+ax.set_ylim([50,100])
+ax.set_ylabel('Percent Efficiency')
+ax.set_xlabel('Threads')
+ax.set_xticks(x_pos)
+ax.set_xticklabels(threadVals)
+ax.set_title('Correctness Tool Efficiency')
+ax.yaxis.grid(True)
+fig.set_tight_layout(True)
+# Save the figure
+plt.savefig(path + graphname + 'Difference.png')

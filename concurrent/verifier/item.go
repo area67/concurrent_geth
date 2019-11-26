@@ -14,7 +14,7 @@ type Item struct {
 	exponent      float64
 	status        Status
 	promoteItems  stack.Stack
-	demoteMethods []*Method
+	demoteMethods []*Method // TODO: Convert this to a list
 	producer      int // map iterator
 
 	// Failed Consumer
@@ -30,25 +30,27 @@ type Item struct {
 	exponentR    float64
 }
 
-func (i *Item) setItem(key int) {
-	i.key = key
-	i.value = math.MinInt32
-	i.sum = 0
-	i.numerator = 0
-	i.denominator = 1
-	i.exponent = 0
-	i.status = PRESENT
-	i.sumF = 0
-	i.numeratorF = 0
-	i.denominatorF = 1
-	i.exponentF = 0
-	i.sumR = 0
-	i.numeratorR = 0
-	i.denominatorR = 1
-	i.exponentR = 0
+func NewItem(key int) *Item {
+	return &Item{
+		key: key,
+		value: math.MinInt32,
+		sum: 0,
+		numerator: 0,
+		denominator: 1,
+		exponent: 0,
+		status: PRESENT,
+		sumF: 0,
+		numeratorF: 0,
+		denominatorF: 1,
+		exponentF: 0,
+		sumR: 0,
+		numeratorR: 0,
+		denominatorR: 1,
+		exponentR: 0,
+	}
 }
 
-func (i *Item) setItemKV(key int, value int) {
+func (i *Item) SetItemKV(key int, value int) {
 	i.key = key
 	i.value = value
 	i.sum = 0
