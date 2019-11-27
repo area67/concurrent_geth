@@ -1,9 +1,9 @@
 package correctness_tool
 
 import (
+	"container/heap"
 	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
-	"github.com/golang-collections/collections/stack"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -71,8 +71,6 @@ func (v *Verifier) WaitVerifier() bool {
 	return v.finalOutcome
 }
 
-
-
 func (v *Verifier) verify() {
 	defer v.done.Done()
 
@@ -93,7 +91,7 @@ func (v *Verifier) verify() {
 		for tId := 0; tId < concurrent.NumThreads; tId++ {
 
 			if atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
-				stop = false
+				//stop = false
 			}
 
 			// TODO: This is where Christina has her thread.done() checking
@@ -124,14 +122,15 @@ func (v *Verifier) verify() {
 		}
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
-	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
+	//v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 }
 
 func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
 
-	var stackConsumer = stack.New()      // stack of map[int64]*Item
-	var stackFinishedMethods stack.Stack // stack of map[int64]*Method
-	var stackFailed stack.Stack          // stack of map[int64]*Item
+	//var stackFinishedMethods stack.Stack // stack of map[int64]*Method
+	//var stackFailed stack.Stack          // stack of map[int64]*Item
+	pq := PriorityQueue{}
+	heap.Init(&pq)
 
 	// TODO: is there a reason for inconsistency between int, int32, and int64?
 	//		minor grievance, but it makes reading harder to understand
@@ -182,97 +181,53 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 						// serializability, correctness condition. 576 TODO
 						if methods[it0].itemAddrS == methods[it].itemAddrS {
 							//TODO: Ask christina why demoteMethods is never emptied
-							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
+									items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
 								items[it].demote()
-								items[it].demoteMethods.PushBack(methods[it0])
 
-							} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+							} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+									items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+
 								items[it].promoteItems.Push(items[it0].key)
 								items[it0].demote()
-								items[it0].demoteMethods.PushBack(methods[it])
+							} else {
 							}
 						}
 					}
 				}
-
-				// set as consumer when done?
-				methods[it].types =CONSUMER
-
 			}
-
-			if methods[it].types == CONSUMER {
-				// Do what if method is a consumer
-				if methods[it].status == true {
-					// promote reads
-					if items[it].sum > 0 {
-						items[it].sumR = 0
-					}
-					//println("251")
-					// line 637
-					// sub on consumer?
-					items[it].subInt(1)
-					items[it].status = ABSENT
-
-					stackConsumer.Push(it)
-					stackFinishedMethods.Push(it)
-
-					if items[it].producer != end {
-						stackFinishedMethods.Push(items[it].producer)
-					}
-				} else {
-					v.handleFailedConsumer(methods, items, it, &stackFailed)
-				}
-			}
-			// do we change back to producer
+			heap.Push(&pq, NewQueueItem(it, methods[it].requestAmnt))
 		}
+
 		if resetItStart {
 			*itStart--
 		}
 
-		for stackConsumer.Len() != 0 {
-
-			// get next item index to whose demoted items need to be promoted
-			// itTop not a good var name in this case
-			itTop, _ := stackConsumer.Peek().(int)
-
-			// 717
-
-			for items[itTop].promoteItems.Len() != 0 {
-				// TODO: Review this section in her code, it may diverge slightly in logic. Line 718
-				// get the top item to promote from items's stack of items to promote
-				itemPromote := items[itTop].promoteItems.Peek().(int)
-				// promote item
-				items[itemPromote].promote()
-				// finished. pop and move to next item to promote
-				items[itTop].promoteItems.Pop()
-			}
-			stackConsumer.Pop()
-		}
-
-		for stackFailed.Len() != 0 {
-
-			itTop := stackFailed.Peek().(int)
-
-			//if items.items[itTop].(*Item).status == PRESENT {
-			if items[itTop].status == PRESENT {
-				items[itTop].demoteFailed()
-			}
-			stackFailed.Pop()
-
-		}
+		//for stackFailed.Len() != 0 {
+		//
+		//	itTop := stackFailed.Peek().(int)
+		//
+		//	//if items.items[itTop].(*Item).status == PRESENT {
+		//	if items[itTop].status == PRESENT {
+		//		items[itTop].demoteFailed()
+		//	}
+		//	stackFailed.Pop()
+		//
+		//}
 
 		// remove methods from
-		for stackFinishedMethods.Len() != 0 {
-			// TODO: may need to remove items from methods. if we want to delete need to convert methods and items to map
-			//delete(methods, key) // problem: keys are indexes which would change if we remove items from slice
-			stackFinishedMethods.Pop()
-		}
+		//for stackFinishedMethods.Len() != 0 {
+		//	// TODO: may need to remove items from methods. if we want to delete need to convert methods and items to map
+		//	//delete(methods, key) // problem: keys are indexes which would change if we remove items from slice
+		////	stackFinishedMethods.Pop()
+		//}
 
 		// verify sums
-		outcome := true
-
+		outcome := v.handlePriorityQueue(pq, methods, items)
 		for itVerify := 0; itVerify < len(items); itVerify++ {
+			//println("it: ", itVerify,"Sender: ", methods[itVerify].itemAddrS, " Reciever: ", methods[itVerify].itemAddrR, " Amount: ", methods[itVerify].requestAmnt.String()," Sum: ", items[itVerify].sum)
+
 			if items[itVerify].sum < 0 {
 				outcome = false
 			}else if (math.Ceil(items[itVerify].sum) + items[itVerify].sumR) < 0 {
@@ -299,29 +254,36 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 	}
 }
 
-func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
-	for it0 := 0; it0 != it; it0++ {
-		// serializability
-		if methods[it0].itemAddrS == methods[it].itemAddrS {
-			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
-				items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
-				items[it0].status == PRESENT && methods[it0].semantics == FIFO {
-
+func (v *Verifier) handlePriorityQueue(pq PriorityQueue, methods map[int]*Method, items map[int]*Item) bool {
+	result := true
+	for it := 0; it < len(items); it++ {
+		// Do what if method is a consumer
+		if methods[it].status == true {
+			// promote reads
+			if items[it].sum > 0 {
+				items[it].sumR = 0
 			}
-		}
+			//println("251")
+			// line 637
+			// sub on consumer?
+			items[it].subInt(1)
+			if items[it].sum < 0 {
+				result = false
+				v.finalOutcome = false
+			}
+			items[it].status = ABSENT
 
-		if methods[it].itemAddrS == methods[it0].itemAddrS {
-			itemItr0 := items[it0].key
-
-			//if methods[it0].types == PRODUCER &&
-			if methods[it0].types == CONSUMER &&
-				items[it].status == PRESENT &&
-				methods[it0].semantics == FIFO ||
-				methods[it].itemAddrS == methods[it0].itemAddrS {
-				stackFailed.Push(itemItr0)
+			for items[it].promoteItems.Len() != 0 {
+				// TODO: Review this section in her code, it may diverge slightly in logic. Line 718
+				// get the top item to promote from items's stack of items to promote
+				itemPromote := items[it].promoteItems.Peek().(int)
+				// promote item
+				items[itemPromote].promote()
+				// finished. pop and move to next item to promote
+				items[it].promoteItems.Pop()
 			}
 		}
 	}
+	return result
 }

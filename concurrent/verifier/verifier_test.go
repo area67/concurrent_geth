@@ -1,6 +1,7 @@
 package correctness_tool
 
 import (
+	"container/heap"
 	"crypto/ecdsa"
 	"github.com/ethereum/go-ethereum/common"
 	//"github.com/ethereum/go-ethereum/concurrent"
@@ -63,24 +64,45 @@ func TestSimpleVerifierFunction(t *testing.T){
 
 }
 
+func TestPQ(t *testing.T) {
+	var pq = PriorityQueue{}
+	heap.Init(&pq)
+	index1 := 0
+	amount1 := big.NewInt(51)
+	heap.Push(&pq, NewQueueItem(index1,amount1))
+	index2 := 1
+	amount2 := big.NewInt(50)
+	heap.Push(&pq, NewQueueItem(index2,amount2))
+
+	index3 := 2
+	amount3 := big.NewInt(49)
+	heap.Push(&pq, NewQueueItem(index3,amount3))
+
+	index4 := 3
+	amount4 := big.NewInt(55)
+	heap.Push(&pq, NewQueueItem(index4,amount4))
+
+	for pq.Len() > 0 {
+		heap.Pop(&pq)
+	}
+}
+
 func TestBadHistory(t *testing.T) {
 	var txnDatum TxnTestData
 	//var numTestThreads = 2
 	var result bool
 	v := NewVerifier()
 
-
-
 	// single thread, 2 txns
-	txnDatum.sender = transactionSenders[0].String()
-	txnDatum.receiver =  transactionReceivers[0].String()
+	txnDatum.sender = "alice"
+	txnDatum.receiver = "lily"
 	txnDatum.tId = 0
 	txnDatum.amount = 50
 	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
 
 
-	txnDatum.sender = transactionSenders[0].String()
-	txnDatum.receiver =  transactionReceivers[1].String()
+	txnDatum.sender = "alice"
+	txnDatum.receiver =  "bob"
 	txnDatum.tId = 0
 	txnDatum.amount = 55
 	// larger transaction comes after smaller on. should fail verifier
