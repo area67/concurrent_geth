@@ -1,7 +1,6 @@
 package correctness_tool
 
 import (
-	"container/heap"
 	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"math"
@@ -95,10 +94,6 @@ func (v *Verifier) verify() {
 			}
 
 			// TODO: This is where Christina has her thread.done() checking
-			// can maybe use the shutdown function here, this object may need a wait group to signal when verify has finished
-
-			// iterate thorough each thread's methods
-			//for itCount[i] < v.threadListsSize[i].Load() {
 			maxTxs := int(atomic.LoadInt32(&v.numTxnsAdded))
 			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
 				// TODO: For concurrent execution can potentially store the list, atomic swap in a new list then evaluate.
@@ -120,18 +115,12 @@ func (v *Verifier) verify() {
 				items[item.key] = item
 			}
 		}
-		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
+		//v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
-	//v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
+	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 }
 
 func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
-
-	//var stackFinishedMethods stack.Stack // stack of map[int64]*Method
-	//var stackFailed stack.Stack          // stack of map[int64]*Item
-	pq := PriorityQueue{}
-	heap.Init(&pq)
-
 	// TODO: is there a reason for inconsistency between int, int32, and int64?
 	//		minor grievance, but it makes reading harder to understand
 	v.methodCount = int32(len(methods))
@@ -197,36 +186,15 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 					}
 				}
 			}
-			heap.Push(&pq, NewQueueItem(it, methods[it].requestAmnt))
 		}
 
 		if resetItStart {
 			*itStart--
 		}
 
-		//for stackFailed.Len() != 0 {
-		//
-		//	itTop := stackFailed.Peek().(int)
-		//
-		//	//if items.items[itTop].(*Item).status == PRESENT {
-		//	if items[itTop].status == PRESENT {
-		//		items[itTop].demoteFailed()
-		//	}
-		//	stackFailed.Pop()
-		//
-		//}
-
-		// remove methods from
-		//for stackFinishedMethods.Len() != 0 {
-		//	// TODO: may need to remove items from methods. if we want to delete need to convert methods and items to map
-		//	//delete(methods, key) // problem: keys are indexes which would change if we remove items from slice
-		////	stackFinishedMethods.Pop()
-		//}
-
 		// verify sums
-		outcome := v.handlePriorityQueue(pq, methods, items)
+		outcome := v.handlePriorityQueue(methods, items)
 		for itVerify := 0; itVerify < len(items); itVerify++ {
-			//println("it: ", itVerify,"Sender: ", methods[itVerify].itemAddrS, " Reciever: ", methods[itVerify].itemAddrR, " Amount: ", methods[itVerify].requestAmnt.String()," Sum: ", items[itVerify].sum)
 
 			if items[itVerify].sum < 0 {
 				outcome = false
@@ -255,7 +223,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 }
 
 
-func (v *Verifier) handlePriorityQueue(pq PriorityQueue, methods map[int]*Method, items map[int]*Item) bool {
+func (v *Verifier) handlePriorityQueue(methods map[int]*Method, items map[int]*Item) bool {
 	result := true
 	for it := 0; it < len(items); it++ {
 		// Do what if method is a consumer
