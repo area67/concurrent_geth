@@ -608,6 +608,7 @@ func (self *StateDB) CopySharedTrie() *StateDB {
 
 // Snapshot returns an identifier for the current revision of the state.
 func (self *StateDB) Snapshot() int {
+
 	id := self.nextRevisionId
 	self.nextRevisionId++
 	self.validRevisions = append(self.validRevisions, revision{id, self.journal.length()})

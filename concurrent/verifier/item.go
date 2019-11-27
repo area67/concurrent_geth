@@ -8,7 +8,6 @@ import (
 
 type Item struct {
 	key           int // Account Hash ???
-	value         int // Account Balance ???
 	sum           float64
 	numerator     int64
 	denominator   int64
@@ -34,7 +33,6 @@ type Item struct {
 func NewItem(key int) *Item {
 	return &Item{
 		key: key,
-		value: math.MinInt32,
 		sum: 0,
 		numerator: 0,
 		denominator: 1,
@@ -54,7 +52,6 @@ func NewItem(key int) *Item {
 
 func (i *Item) SetItemKV(key int, value int) {
 	i.key = key
-	i.value = value
 	i.sum = 0
 	i.numerator = 0
 	i.denominator = 1

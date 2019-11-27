@@ -740,12 +740,10 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	tool := correctness_tool.NewVerifier()
+	tool.ConcurrentVerify()
+	defer tool.WaitVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
-	fmt.Println("Beginning Transaction Processing")
-	fmt.Println("From\t\t\t\t\t\t\t\t\t\t To")
-	defer fmt.Println("Transactions Completed")
-	defer tool.Shutdown()
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -762,21 +760,19 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	// 0 = OK, 1 = Break, 2 = Return
 	var loopStatus = OK
 	var returnValue bool
-	var threadID int32 = 0
+	var threadID int = 0
 
 	// thread pool
 	var workerGroup sync.WaitGroup
 	// start txnWorkers
-	for i := 1; i < concurrent.NumThreads; i++{
+	for threadID = 1; threadID < concurrent.NumThreads; threadID++{
 		workerGroup.Add(1)
 		go txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,threadID,&counter, tool)
 		//fmt.Printf("Started thread %d\n",threadID)
-		threadID++
 	}
 	workerGroup.Add(1)
 	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter, tool)
 	workerGroup.Wait()
-	tool.Verify()
 
 	switch loopStatus{
 		case RETURN:
@@ -808,8 +804,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	return false
 }
 
-func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int32, counter *int64, tool *correctness_tool.Verifier){
+func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.TransactionsByPriceAndNonce, coinbase common.Address,coalescedLogs *[]*types.Log, loopStatus *int32,returnValue *bool, threadID int, counter *int64, tool *correctness_tool.Verifier){
 	defer func() {wg.Done()}()
+	defer tool.ThreadFinished(threadID)
+
 	// each thread needs their own state to modify
 	threadState := w.current.state.CopySharedTrie()
 	for ;*loopStatus == OK; {
@@ -863,7 +861,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		//
 		// We use the eip155 signer regardless of the current hf.
 		from, _ := types.Sender(w.current.signer, tx)
-		fmt.Println("Started ", from.String(), " " ,tx.To().String())
 		log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
 
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
@@ -904,11 +901,10 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			w.workerLogsLock.Lock()
 			*coalescedLogs = append(*coalescedLogs, logs...)
 			w.workerLogsLock.Unlock()
-			fmt.Println("Finished ", from.String(), " " ,tx.To().String())
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
-			tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
+			//tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
@@ -1082,7 +1078,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
-	//fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
 	if update {
 		w.updateSnapshot()
 	}

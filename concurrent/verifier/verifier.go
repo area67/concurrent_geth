@@ -1,21 +1,14 @@
 package correctness_tool
 
 import (
-	"C"
 	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
-	"go.uber.org/atomic"
 	"math"
 	"math/big"
 	"sync"
-	Atomic "sync/atomic"
+	"sync/atomic"
 )
-
-
-type Status int
-type Semantics int
-type Types int
 
 type Method struct {
 	id          int       // atomic var
@@ -25,7 +18,6 @@ type Method struct {
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
 	requestAmnt *big.Int
-	// txnCtr      int32
 }
 
 type TransactionData struct {
@@ -38,17 +30,15 @@ type TransactionData struct {
 }
 
 type Verifier struct {
-	allSenders      sync.Map // have we seen this address before //map[string]int
-	txnCtr          int64				// counts up
-	methodCount     int32
-	finalOutcome    bool
-	done            []atomic.Bool
-	threadLists     []*list.List
-	numTxns         int32				// what are you?
-	isShuttingDown  bool
-	isRunning       bool
-	txnLock         sync.Mutex
-	GlobalCount     int32
+	methodCount		int32
+	finalOutcome	bool
+	threadLists		[]*list.List
+	numTxnsAdded	int32
+	isRunning		bool
+	txnLock			sync.Mutex
+	GlobalCount		int32
+	threadsDone 	[]int32
+	done 			sync.WaitGroup
 }
 
 // method constructor
@@ -83,49 +73,46 @@ func NewVerifier() *Verifier {
 	for i := 0 ; i < concurrent.NumThreads; i++ {
 		lists[i] = list.New()
 	}
+	threadGroup := make([]int32, concurrent.NumThreads)
+
+	verifierDone := sync.WaitGroup{}
+	verifierDone.Add(1)
 	return  &Verifier{
-		allSenders:      sync.Map{},//make(map[string]int),
-		txnCtr:          0,
-		methodCount:     0,
-		finalOutcome:    true,
-		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
-		threadLists:     lists,
-		numTxns:         0,
-		isRunning:       true,
-		isShuttingDown:  false,
-		GlobalCount:     0,
+		methodCount:    0,
+		finalOutcome:   true,
+		threadLists:    lists,
+		numTxnsAdded:   0,
+		isRunning:      true,
+		GlobalCount:    0,
+		threadsDone:    threadGroup,
+		done: 			verifierDone,
 	}
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
-	// ordering of when transactions come in. used for ordering?
-	index := Atomic.AddInt32(&v.numTxns, 1) - 1
 	// could we get what we are looking for
 	var res bool
-
 	res = true
-	method1 := NewMethod(int(index), txData.addrSender, txData.addrReceiver, FIFO, PRODUCER, res, txData.amount)
+	method1 := NewMethod(-1, txData.addrSender, txData.addrReceiver, FIFO, PRODUCER, res, txData.amount)
 
-	v.threadLists[txData.tId].PushBack(*method1)
+	v.threadLists[txData.tId].PushBack(method1)
+	index := int(atomic.AddInt32(&v.numTxnsAdded, 1) - 1)
+	v.threadLists[txData.tId].Back().Value.(*Method).id = index
 }
 
 func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
-
-		// TODO: Ask Christina, if handle failed consumer uses the same set of if statements from verifyCheckpoint
-		/*
 		if methods[it0].itemAddrS == methods[it].itemAddrS {
-			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
+					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-
-			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
 			}
 		}
 
-		*/
-		//451
 		if  v.correctnessCondition(it0,it,methods){
 			itemItr0 := items[it0].key
 
@@ -138,10 +125,6 @@ func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*
 			}
 		}
 	}
-}
-
-func (v *Verifier) Shutdown() {
-	v.isShuttingDown = true
 }
 
 func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
@@ -175,7 +158,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 			resetItStart = false
 			*countIterated++
 
-			// itItems := it
 			// TODO: I'm a little confused by this block, it maps to line 557 in Christina's code
 			// do what if method is a producer?
 			if methods[it].types == PRODUCER {
@@ -203,13 +185,11 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 							if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it0].promoteItems.Push(items[it].key)
 								items[it].demote()
-								println("at demotion 1")
 								items[it].demoteMethods.PushBack(methods[it0])
 
 							} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 								items[it].promoteItems.Push(items[it0].key)
 								items[it0].demote()
-								println("at demotion 2")
 								items[it0].demoteMethods.PushBack(methods[it])
 							}
 						}
@@ -320,9 +300,9 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 }
 
 func (v *Verifier) verify() {
+	defer v.done.Done()
 
 	var countIterated uint64 = 0
-	Atomic.StoreInt64(&v.txnCtr, int64(Atomic.LoadInt32(&v.numTxns)))
 	//methods := make([]Method, 0)
 	methods := make(map[int]*Method)
 	//items := make([]Item, 0, v.txnCtr * 2)
@@ -331,47 +311,41 @@ func (v *Verifier) verify() {
 	var itStart int
 
 	stop := false
-	var countOverall uint32 = 0
-
 	//var oldMin int64
-	itCount := make([]int32, concurrent.NumThreads)
-
 	for !stop{
 		stop = true
 
 		// for each thread
 		for tId := 0; tId < concurrent.NumThreads; tId++ {
 
+			if atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
+				stop = false
+			}
+
 			// TODO: This is where Christina has her thread.done() checking
 			// can maybe use the shutdown function here, this object may need a wait group to signal when verify has finished
 
 			// iterate thorough each thread's methods
 			//for itCount[i] < v.threadListsSize[i].Load() {
+			maxTxs := int(atomic.LoadInt32(&v.numTxnsAdded))
 			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
 				// TODO: For concurrent execution can potentially store the list, atomic swap in a new list then evaluate.
 				var m Method
 				// line 1259
-				m = e.Value.(Method)
+				m = *e.Value.(*Method)
 
-
-				// Add the method and items to the map, both use m.id as the key
-
-				methods[m.id] = &m
-				itCount[tId]++
-				countOverall++
-
-				itItemIndex :=  m.id
-
-
-				itemsEndIndex := len(items)
-
-				// line 1277
-				// do something if current item is last item
-				if itItemIndex == itemsEndIndex {
-					item := NewItem(m.id)
-					item.producer = m.id
-					items[item.key] = item
+				// checks if item is logically in the list
+				if m.id == -1 && m.id < maxTxs {
+					continue
 				}
+
+				// TODO: I think this can be cleaned up some. ill look at it later
+				// Add the method and items to the map, both use m.id as the key
+				methods[m.id] = &m
+
+				item := NewItem(m.id)
+				item.producer = m.id
+				items[item.key] = item
 			}
 		}
 		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
@@ -386,6 +360,15 @@ func (v *Verifier) Verify() bool{
 
 func (v *Verifier) ConcurrentVerify() {
 	go v.verify()
+}
+
+func (v *Verifier) ThreadFinished(tid int) {
+	v.threadsDone[tid] = DONE
+}
+
+func (v *Verifier) WaitVerifier() bool {
+	v.done.Wait()
+	return v.finalOutcome
 }
 
 // transfer ampount < balance

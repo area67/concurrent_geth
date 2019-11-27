@@ -61,9 +61,6 @@ func TestSimpleVerifierFunction(t *testing.T){
 		t.Errorf("Single transaction on sigle thread failed verifier")
 	}
 
-
-
-
 }
 
 func TestBadHistory(t *testing.T) {
