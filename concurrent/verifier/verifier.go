@@ -5,66 +5,19 @@ import (
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
 	"math"
-	"math/big"
 	"sync"
 	"sync/atomic"
 )
-
-type Method struct {
-	id          int       // atomic var
-	itemAddrS    string       // sender account address
-	itemAddrR    string   // receiver account address
-	semantics   Semantics // hardcode as FIFO per last email
-	types       Types     // producing/consuming  adding/subtracting
-	status      bool
-	requestAmnt *big.Int
-}
-
-type TransactionData struct {
-	addrSender   string
-	addrReceiver string
-	balanceSender int
-	balanceReceiver int
-	amount       *big.Int
-	tId          int32
-}
 
 type Verifier struct {
 	methodCount		int32
 	finalOutcome	bool
 	threadLists		[]*list.List
 	numTxnsAdded	int32
-	isRunning		bool
-	txnLock			sync.Mutex
 	GlobalCount		int32
 	threadsDone 	[]int32
 	done 			sync.WaitGroup
 }
-
-// method constructor
-func  NewMethod(id int, itemAddrS string, itemAddrR string, semantics Semantics, types Types, status bool, requestAmnt *big.Int) *Method {
-	return &Method{
-		id: id,
-		itemAddrS: itemAddrS,
-		itemAddrR: itemAddrR,
-		semantics: semantics,
-		types: types,
-		status: status,
-		requestAmnt: requestAmnt,
-	}
-}
-
-
-// constructor
-func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *TransactionData {
-	return  &TransactionData{
-		addrSender:   sender,
-		addrReceiver: receiver,
-		amount:       new(big.Int).Set(amount),
-		tId:          threadID,
-	}
-}
-
 
 // constructor
 func NewVerifier() *Verifier {
@@ -82,11 +35,14 @@ func NewVerifier() *Verifier {
 		finalOutcome:   true,
 		threadLists:    lists,
 		numTxnsAdded:   0,
-		isRunning:      true,
 		GlobalCount:    0,
 		threadsDone:    threadGroup,
 		done: 			verifierDone,
 	}
+}
+
+func (v *Verifier) ConcurrentVerify() {
+	go v.verify()
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
@@ -100,31 +56,75 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	v.threadLists[txData.tId].Back().Value.(*Method).id = index
 }
 
-func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
-	for it0 := 0; it0 != it; it0++ {
-		// serializability
-		if methods[it0].itemAddrS == methods[it].itemAddrS {
-			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
-					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
-					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+func (v *Verifier) ThreadFinished(tid int) {
+	v.threadsDone[tid] = DONE
+}
 
+func (v *Verifier) Verify() bool{
+	v.verify()
+	return v.finalOutcome
+}
+
+func (v *Verifier) WaitVerifier() bool {
+	v.done.Wait()
+	return v.finalOutcome
+}
+
+
+
+func (v *Verifier) verify() {
+	defer v.done.Done()
+
+	var countIterated uint64 = 0
+	//methods := make([]Method, 0)
+	methods := make(map[int]*Method)
+	//items := make([]Item, 0, v.txnCtr * 2)
+	items := make(map[int]*Item)
+	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
+	var itStart int
+
+	stop := false
+	//var oldMin int64
+	for !stop{
+		stop = true
+
+		// for each thread
+		for tId := 0; tId < concurrent.NumThreads; tId++ {
+
+			if atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
+				stop = false
+			}
+
+			// TODO: This is where Christina has her thread.done() checking
+			// can maybe use the shutdown function here, this object may need a wait group to signal when verify has finished
+
+			// iterate thorough each thread's methods
+			//for itCount[i] < v.threadListsSize[i].Load() {
+			maxTxs := int(atomic.LoadInt32(&v.numTxnsAdded))
+			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
+				// TODO: For concurrent execution can potentially store the list, atomic swap in a new list then evaluate.
+				var m Method
+				// line 1259
+				m = *e.Value.(*Method)
+
+				// checks if item is logically in the list
+				if m.id == -1 && m.id < maxTxs {
+					continue
+				}
+
+				// TODO: I think this can be cleaned up some. ill look at it later
+				// Add the method and items to the map, both use m.id as the key
+				methods[m.id] = &m
+
+				item := NewItem(m.id)
+				item.producer = m.id
+				items[item.key] = item
 			}
 		}
-
-		if  v.correctnessCondition(it0,it,methods){
-			itemItr0 := items[it0].key
-
-			//if methods[it0].types == PRODUCER &&
-			if methods[it0].types == CONSUMER &&
-				items[it].status == PRESENT &&
-				methods[it0].semantics == FIFO ||
-				methods[it].itemAddrS == methods[it0].itemAddrS {
-				stackFailed.Push(itemItr0)
-			}
-		}
+		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
+	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 }
 
 func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item, itStart *int, countIterated *uint64, resetItStart bool) {
@@ -249,11 +249,11 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 
 			itTop := stackFailed.Peek().(int)
 
-				//if items.items[itTop].(*Item).status == PRESENT {
-				if items[itTop].status == PRESENT {
-					items[itTop].demoteFailed()
-				}
-				stackFailed.Pop()
+			//if items.items[itTop].(*Item).status == PRESENT {
+			if items[itTop].status == PRESENT {
+				items[itTop].demoteFailed()
+			}
+			stackFailed.Pop()
 
 		}
 
@@ -294,79 +294,29 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 	}
 }
 
-func (v *Verifier) verify() {
-	defer v.done.Done()
+func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
+	for it0 := 0; it0 != it; it0++ {
+		// serializability
+		if methods[it0].itemAddrS == methods[it].itemAddrS {
+			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
+				items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-	var countIterated uint64 = 0
-	//methods := make([]Method, 0)
-	methods := make(map[int]*Method)
-	//items := make([]Item, 0, v.txnCtr * 2)
-	items := make(map[int]*Item)
-	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
-	var itStart int
+			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+				items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-	stop := false
-	//var oldMin int64
-	for !stop{
-		stop = true
-
-		// for each thread
-		for tId := 0; tId < concurrent.NumThreads; tId++ {
-
-			if atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
-				stop = false
-			}
-
-			// TODO: This is where Christina has her thread.done() checking
-			// can maybe use the shutdown function here, this object may need a wait group to signal when verify has finished
-
-			// iterate thorough each thread's methods
-			//for itCount[i] < v.threadListsSize[i].Load() {
-			maxTxs := int(atomic.LoadInt32(&v.numTxnsAdded))
-			for e := v.threadLists[tId].Front(); e != nil; e = e.Next() {
-				// TODO: For concurrent execution can potentially store the list, atomic swap in a new list then evaluate.
-				var m Method
-				// line 1259
-				m = *e.Value.(*Method)
-
-				// checks if item is logically in the list
-				if m.id == -1 && m.id < maxTxs {
-					continue
-				}
-
-				// TODO: I think this can be cleaned up some. ill look at it later
-				// Add the method and items to the map, both use m.id as the key
-				methods[m.id] = &m
-
-				item := NewItem(m.id)
-				item.producer = m.id
-				items[item.key] = item
 			}
 		}
-		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
+
+		if methods[it].itemAddrS == methods[it0].itemAddrS {
+			itemItr0 := items[it0].key
+
+			//if methods[it0].types == PRODUCER &&
+			if methods[it0].types == CONSUMER &&
+				items[it].status == PRESENT &&
+				methods[it0].semantics == FIFO ||
+				methods[it].itemAddrS == methods[it0].itemAddrS {
+				stackFailed.Push(itemItr0)
+			}
+		}
 	}
-	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
-}
-
-func (v *Verifier) Verify() bool{
-	v.verify()
-	return v.finalOutcome
-}
-
-func (v *Verifier) ConcurrentVerify() {
-	go v.verify()
-}
-
-func (v *Verifier) ThreadFinished(tid int) {
-	v.threadsDone[tid] = DONE
-}
-
-func (v *Verifier) WaitVerifier() bool {
-	v.done.Wait()
-	return v.finalOutcome
-}
-
-// transfer ampount < balance
-func (v *Verifier) correctnessCondition(index0, index1 int, methods map[int]*Method) bool {
-	return methods[index0].itemAddrS == methods[index1].itemAddrS
 }
