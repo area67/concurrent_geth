@@ -27,11 +27,15 @@ func WriteToFile(filename string, data string) error {
 	return  err
 }
 
-func ProcessTimer(start time.Time, filename string, txCount *int64) {
+func ProcessThroughputWriter(start time.Time, filename string, txCount *int64) {
 	nanoseconds := time.Since(start).Nanoseconds()
 	seconds := float64(nanoseconds) / 1e9
 	throughput := float64(*txCount) / seconds
 
 	s := fmt.Sprintf("%d\t%f\n", NumThreads, throughput)
 	_ = WriteToFile(filename, s)
+}
+
+func ProcessTimer(start time.Time) time.Duration {
+	return time.Since(start)
 }
