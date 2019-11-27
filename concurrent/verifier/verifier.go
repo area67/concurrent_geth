@@ -5,7 +5,6 @@ import (
 	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
-	"go.uber.org/atomic"
 	"math"
 	"math/big"
 	"sync"
@@ -25,7 +24,6 @@ type Method struct {
 	types       Types     // producing/consuming  adding/subtracting
 	status      bool
 	requestAmnt *big.Int
-	// txnCtr      int32
 }
 
 type TransactionData struct {
@@ -38,17 +36,14 @@ type TransactionData struct {
 }
 
 type Verifier struct {
-	allSenders      sync.Map // have we seen this address before //map[string]int
-	txnCtr          int64				// counts up
-	methodCount     int32
-	finalOutcome    bool
-	done            []atomic.Bool
-	threadLists     []*list.List
-	numTxns         int32				// what are you?
-	isShuttingDown  bool
-	isRunning       bool
-	txnLock         sync.Mutex
-	GlobalCount     int32
+	methodCount    int32
+	finalOutcome   bool
+	threadLists    []*list.List
+	numTxnsAdded   int32
+	isShuttingDown bool
+	isRunning      bool
+	txnLock        sync.Mutex
+	GlobalCount    int32
 }
 
 // method constructor
@@ -84,22 +79,19 @@ func NewVerifier() *Verifier {
 		lists[i] = list.New()
 	}
 	return  &Verifier{
-		allSenders:      sync.Map{},//make(map[string]int),
-		txnCtr:          0,
-		methodCount:     0,
-		finalOutcome:    true,
-		done:            make([]atomic.Bool, concurrent.NumThreads, concurrent.NumThreads),
-		threadLists:     lists,
-		numTxns:         0,
-		isRunning:       true,
-		isShuttingDown:  false,
-		GlobalCount:     0,
+		methodCount:    0,
+		finalOutcome:   true,
+		threadLists:    lists,
+		numTxnsAdded:   0,
+		isRunning:      true,
+		isShuttingDown: false,
+		GlobalCount:    0,
 	}
 }
 
 func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 	// ordering of when transactions come in. used for ordering?
-	index := Atomic.AddInt32(&v.numTxns, 1) - 1
+	index := Atomic.AddInt32(&v.numTxnsAdded, 1) - 1
 	// could we get what we are looking for
 	var res bool
 
@@ -317,7 +309,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 func (v *Verifier) verify() {
 
 	var countIterated uint64 = 0
-	Atomic.StoreInt64(&v.txnCtr, int64(Atomic.LoadInt32(&v.numTxns)))
 	//methods := make([]Method, 0)
 	methods := make(map[int]*Method)
 	//items := make([]Item, 0, v.txnCtr * 2)
