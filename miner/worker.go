@@ -742,9 +742,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	tool := correctness_tool.NewVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
-	fmt.Println("Beginning Transaction Processing")
-	fmt.Println("From\t\t\t\t\t\t\t\t\t\t To")
-	defer fmt.Println("Transactions Completed")
 	defer tool.Shutdown()
 	// Short circuit if current is nil
 	if w.current == nil {
@@ -776,7 +773,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	workerGroup.Add(1)
 	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter, tool)
 	workerGroup.Wait()
-	tool.Verify()
+	//tool.Verify()
 
 	switch loopStatus{
 		case RETURN:
@@ -863,7 +860,6 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 		//
 		// We use the eip155 signer regardless of the current hf.
 		from, _ := types.Sender(w.current.signer, tx)
-		fmt.Println("Started ", from.String(), " " ,tx.To().String())
 		log.Debug(fmt.Sprintf("Attempting commit of transaction from sender %s in thread %d", from.String(), threadID))
 
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
@@ -904,11 +900,10 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			w.workerLogsLock.Lock()
 			*coalescedLogs = append(*coalescedLogs, logs...)
 			w.workerLogsLock.Unlock()
-			fmt.Println("Finished ", from.String(), " " ,tx.To().String())
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
-			tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
+			//tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
@@ -1082,7 +1077,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
-	//fmt.Println("worker.go 1051 Trying to update snapshot : ", update)
 	if update {
 		w.updateSnapshot()
 	}

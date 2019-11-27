@@ -1,5 +1,10 @@
 package correctness_tool
 
+type Status int
+type Semantics int
+type Types int
+type State int32
+
 const (
 	PRESENT Status = iota
 	ABSENT
@@ -21,6 +26,10 @@ const (
 	CONSUMER
 	READER
 	WRITER
+)
+const (
+	WORKING = iota
+	DONE
 )
 
 const MAXTXNS = 300
