@@ -1,7 +1,6 @@
 package correctness_tool
 
 import (
-	"C"
 	"container/list"
 	"github.com/ethereum/go-ethereum/concurrent"
 	"github.com/golang-collections/collections/stack"
@@ -104,20 +103,16 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 func (v *Verifier) handleFailedConsumer(methods map[int]*Method, items map[int]*Item, it int,  stackFailed *stack.Stack) {
 	for it0 := 0; it0 != it; it0++ {
 		// serializability
-
-		// TODO: Ask Christina, if handle failed consumer uses the same set of if statements from verifyCheckpoint
-		/*
 		if methods[it0].itemAddrS == methods[it].itemAddrS {
-			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+			if methods[it].requestAmnt.Cmp(methods[it0].requestAmnt) == LESS &&
+					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
-
-			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS && items[it0].status == PRESENT && methods[it0].semantics == FIFO {
+			} else if methods[it0].requestAmnt.Cmp(methods[it].requestAmnt) == LESS &&
+					items[it0].status == PRESENT && methods[it0].semantics == FIFO {
 
 			}
 		}
 
-		*/
-		//451
 		if  v.correctnessCondition(it0,it,methods){
 			itemItr0 := items[it0].key
 
@@ -339,9 +334,8 @@ func (v *Verifier) verify() {
 					continue
 				}
 
-
+				// TODO: I think this can be cleaned up some. ill look at it later
 				// Add the method and items to the map, both use m.id as the key
-
 				methods[m.id] = &m
 
 				item := NewItem(m.id)
@@ -363,7 +357,7 @@ func (v *Verifier) ConcurrentVerify() {
 	go v.verify()
 }
 
-func (v *Verifier) ThreadFinished(tid int32) {
+func (v *Verifier) ThreadFinished(tid int) {
 	v.threadsDone[tid] = DONE
 }
 
