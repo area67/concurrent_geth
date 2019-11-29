@@ -15,6 +15,7 @@ type Verifier struct {
 	numTxnsAdded	int32
 	GlobalCount		int32
 	threadsDone 	[]int32
+	isInBackground	bool
 	done 			sync.WaitGroup
 }
 
@@ -27,8 +28,6 @@ func NewVerifier() *Verifier {
 	}
 	threadGroup := make([]int32, concurrent.NumThreads)
 
-	verifierDone := sync.WaitGroup{}
-	verifierDone.Add(1)
 	return  &Verifier{
 		methodCount:    0,
 		finalOutcome:   true,
@@ -36,11 +35,13 @@ func NewVerifier() *Verifier {
 		numTxnsAdded:   0,
 		GlobalCount:    0,
 		threadsDone:    threadGroup,
-		done: 			verifierDone,
+		isInBackground:	false,
+		done: 			sync.WaitGroup{},
 	}
 }
 
 func (v *Verifier) ConcurrentVerify() {
+	v.isInBackground = true
 	go v.verify()
 }
 
@@ -52,7 +53,7 @@ func (v *Verifier) LockFreeAddTxn(txData *TransactionData) {
 
 	v.threadLists[txData.tId].PushBack(method1)
 	index := int(atomic.AddInt32(&v.numTxnsAdded, 1) - 1)
-	v.threadLists[txData.tId].Back().Value.(*Method).id = index
+	method1.id = index
 }
 
 
@@ -71,26 +72,27 @@ func (v *Verifier) WaitVerifier() bool {
 }
 
 func (v *Verifier) verify() {
+	v.done.Add(1)
 	defer v.done.Done()
 
 	var countIterated uint64 = 0
-	//methods := make([]Method, 0)
 	methods := make(map[int]*Method)
-	//items := make([]Item, 0, v.txnCtr * 2)
 	items := make(map[int]*Item)
-	//it := make([]int, concurrent.NumThreads, concurrent.NumThreads)
+
 	var itStart int
 
 	stop := false
 	//var oldMin int64
 	for !stop{
+		methods := make(map[int]*Method)
+		items := make(map[int]*Item)
 		stop = true
 
 		// for each thread
 		for tId := 0; tId < concurrent.NumThreads; tId++ {
 
-			if atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
-				//stop = false
+			if v.isInBackground && atomic.LoadInt32(&v.threadsDone[tId]) == WORKING {
+				stop = false
 			}
 
 			// TODO: This is where Christina has her thread.done() checking
@@ -115,7 +117,7 @@ func (v *Verifier) verify() {
 				items[item.key] = item
 			}
 		}
-		//v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
+		v.verifyCheckpoint(methods, items, &itStart, &countIterated, true)
 	}
 	v.verifyCheckpoint(methods, items, &itStart, &countIterated, false)
 }
@@ -157,7 +159,6 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 					// reset item parameters
 					items[it].status = PRESENT
 					// clear item's demote methods
-					items[it].demoteMethods.Init()
 				}
 
 				items[it].addInt(1)
@@ -193,7 +194,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 		}
 
 		// verify sums
-		outcome := v.handlePriorityQueue(methods, items)
+		outcome := v.handleNonceOrder(methods, items)
 		for itVerify := 0; itVerify < len(items); itVerify++ {
 
 			if items[itVerify].sum < 0 {
@@ -223,7 +224,7 @@ func (v *Verifier) verifyCheckpoint(methods map[int]*Method, items map[int]*Item
 }
 
 
-func (v *Verifier) handlePriorityQueue(methods map[int]*Method, items map[int]*Item) bool {
+func (v *Verifier) handleNonceOrder(methods map[int]*Method, items map[int]*Item) bool {
 	result := true
 	for it := 0; it < len(items); it++ {
 		// Do what if method is a consumer
@@ -232,11 +233,10 @@ func (v *Verifier) handlePriorityQueue(methods map[int]*Method, items map[int]*I
 			if items[it].sum > 0 {
 				items[it].sumR = 0
 			}
-			//println("251")
-			// line 637
-			// sub on consumer?
+
 			items[it].subInt(1)
 			if items[it].sum < 0 {
+				// nonce ordering failed
 				result = false
 				v.finalOutcome = false
 			}
