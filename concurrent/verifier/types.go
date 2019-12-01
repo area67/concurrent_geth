@@ -64,12 +64,12 @@ type TransactionData struct {
 	balanceSender int
 	balanceReceiver int
 	amount       *big.Int
-	tId          int32
+	tId          int
 }
 
 
 // constructor
-func NewTxData(sender, receiver string, amount *big.Int, threadID int32) *TransactionData {
+func NewTxData(sender, receiver string, amount *big.Int, threadID int) *TransactionData {
 	return  &TransactionData{
 		addrSender:   sender,
 		addrReceiver: receiver,

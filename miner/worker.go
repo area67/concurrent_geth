@@ -740,7 +740,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	tool := correctness_tool.NewVerifier()
-	tool.ConcurrentVerify()
+	//tool.ConcurrentVerify()
 	defer tool.WaitVerifier()
 	var counter int64 = 0
 	defer concurrent.ProcessThroughputWriter(time.Now(), concurrent.OutputFile, &counter)
@@ -774,6 +774,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	txnWorker(w,&workerGroup,interrupt,txs,coinbase,&coalescedLogs,&loopStatus,&returnValue,0,&counter, tool)
 	workerGroup.Wait()
 
+	tool.Verify()
 	switch loopStatus{
 		case RETURN:
 			return returnValue
@@ -904,7 +905,7 @@ func txnWorker(w *worker,wg *sync.WaitGroup,interrupt *int32, txs *types.Transac
 			atomic.AddInt32(&w.current.tcount, 1)
 			txs.Shift(from)
 			atomic.AddInt64(counter, 1)
-			//tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
+			tool.LockFreeAddTxn(correctness_tool.NewTxData(from.String(), tx.To().String(), tx.Value(), threadID))
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
