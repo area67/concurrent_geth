@@ -56,7 +56,7 @@ func TestSimpleVerifierFunction(t *testing.T){
 	txnDatum.receiver =  transactionReceivers[0].String()
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 	result = v.Verify()
 	// expect true
@@ -76,7 +76,7 @@ func TestBadHistory(t *testing.T) {
 	txnDatum.receiver = "lily"
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	txnDatum.sender = "alice"
@@ -84,7 +84,7 @@ func TestBadHistory(t *testing.T) {
 	txnDatum.tId = 0
 	txnDatum.amount = 55
 	// larger transaction comes after smaller on. should fail verifier
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	result = v.Verify()
@@ -108,7 +108,7 @@ func TestValidHistory(t *testing.T) {
 	txnDatum.receiver =  transactionReceivers[0].String()
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	txnDatum.sender = transactionSenders[0].String()
@@ -116,7 +116,7 @@ func TestValidHistory(t *testing.T) {
 	txnDatum.tId = 0
 	txnDatum.amount = 45
 	// larger transaction comes after smaller on. should fail verifier
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	result = v.Verify()
@@ -144,7 +144,7 @@ func TestBackgroundSimpleVerifierFunction(t *testing.T){
 	txnDatum.receiver = "lily"
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 	for i := 0; i < concurrent.NumThreads; i++ {
 		v.ThreadFinished(i)
 	}
@@ -170,7 +170,7 @@ func TestBackgroundBadHistory(t *testing.T) {
 	txnDatum.receiver = "lily"
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	txnDatum.sender = "alice"
@@ -178,7 +178,7 @@ func TestBackgroundBadHistory(t *testing.T) {
 	txnDatum.tId = 0
 	txnDatum.amount = 55
 	// larger transaction comes after smaller on. should fail verifier
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 	for i := 0; i < concurrent.NumThreads; i++ {
 		v.ThreadFinished(i)
 	}
@@ -205,15 +205,15 @@ func TestBackgroundValidHistory(t *testing.T) {
 	txnDatum.receiver = "lily"
 	txnDatum.tId = 0
 	txnDatum.amount = 50
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 
 
 	txnDatum.sender = transactionSenders[0].String()
 	txnDatum.receiver =  transactionReceivers[1].String()
 	txnDatum.tId = 0
 	txnDatum.amount = 45
-	// larger transaction comes after smaller on. should fail verifier
-	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),int32(txnDatum.tId)))
+	// larger transaction comes before smaller on. should pass verifier
+	v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
 	for i := 0; i < concurrent.NumThreads; i++ {
 		v.ThreadFinished(i)
 	}
@@ -224,5 +224,135 @@ func TestBackgroundValidHistory(t *testing.T) {
 	// expect to pass verifier
 	if !result{
 		t.Errorf("Good history fails verifier")
+	}
+}
+
+/*
+simulates 2 threads working on transactions
+*/
+func TestTwoThreadHistory(t *testing.T){
+	numTxns := 10
+	var txnDatum TxnTestData
+	//var numTestThreads = 2
+	var result bool
+	v := NewVerifier()
+
+	//for i := 0; i < numTxns; i++{
+		txnDatum.sender = "alice"
+		txnDatum.receiver = "lily"
+		txnDatum.tId = 0
+		txnDatum.amount = 50
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+
+
+		txnDatum.sender = "alice"
+		txnDatum.receiver =  "lily"
+		txnDatum.tId = 1
+		txnDatum.amount = 45
+		// larger transaction comes first smaller on. should pass verifier
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+	//}
+
+	result = v.Verify()
+
+	if !result{
+		t.Errorf("Good simple multi thread history fails verifier")
+	}
+
+	v = NewVerifier()
+	// process unrelated transactions in separate threads
+	for i := 0; i < numTxns; i++{
+		txnDatum.sender = "alice"
+		txnDatum.receiver = "lily"
+		txnDatum.tId = 0
+		txnDatum.amount = 50-i
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+
+
+		txnDatum.sender = "bob"
+		txnDatum.receiver =  "ross"
+		txnDatum.tId = 1
+		txnDatum.amount = 45-i
+		// larger transaction comes first smaller on. should pass verifier
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+	}
+
+	result = v.Verify()
+
+	if !result{
+		t.Errorf("Good seperate multi thread history fails verifier")
+	}
+
+	v = NewVerifier()
+	// process unrelated transactions in separate threads
+	for i := 0; i < numTxns; i++{
+		txnDatum.sender = "alice"
+		txnDatum.receiver = "lily"
+		txnDatum.tId = 0
+		txnDatum.amount = 50+i
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+
+
+		txnDatum.sender = "bob"
+		txnDatum.receiver =  "ross"
+		txnDatum.tId = 1
+		txnDatum.amount = 45+i
+
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+	}
+
+	result = v.Verify()
+
+	if result{
+		t.Errorf("Bad seperate multi thread history passes verifier")
+	}
+
+	// interleaved history
+	v = NewVerifier()
+	// process unrelated transactions in alternating threads
+	for i := 0; i < numTxns; i++{
+		txnDatum.sender = "alice"
+		txnDatum.receiver = "lily"
+		txnDatum.tId = i%2
+		txnDatum.amount = 50-i
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+
+		txnDatum.sender = "bob"
+		txnDatum.receiver =  "ross"
+		txnDatum.tId = (i+1)%2
+		txnDatum.amount = 45-i
+
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+	}
+
+	// expect to pass verifier. txnx added in descending order
+	result = v.Verify()
+
+	if !result{
+		t.Errorf("Good interleved multi thread history fails verifier")
+	}
+
+	v = NewVerifier()
+	// process unrelated transactions in alternating threads
+	for i := 0; i < numTxns; i++{
+		txnDatum.sender = "alice"
+		txnDatum.receiver = "lily"
+		txnDatum.tId = i%2
+		txnDatum.amount = 50+i
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+
+		txnDatum.sender = "bob"
+		txnDatum.receiver =  "ross"
+		txnDatum.tId = (i+1)%2
+		txnDatum.amount = 45+i
+
+		v.LockFreeAddTxn(NewTxData(txnDatum.sender,txnDatum.receiver,big.NewInt(int64(txnDatum.amount)),txnDatum.tId))
+	}
+
+	// expect to fail verifier. txnx added in acceding order
+	result = v.Verify()
+
+	if result{
+		t.Errorf("Bad interleved multi thread history passes verifier")
 	}
 }
